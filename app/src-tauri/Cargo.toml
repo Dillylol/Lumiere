@@ -1,6 +1,6 @@
 [package]
 name = "studio"
-version = "0.1.1"
+version = "0.1.2"
 description = "Offline-first FTC programming studio"
 authors = ["The Lumière Contributors"]
 license = "BSD-3-Clause"
