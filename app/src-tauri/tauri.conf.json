@@ -37,8 +37,16 @@
       "wix": {
         "upgradeCode": "39271679-5d14-5c39-83e3-893b500592b2"
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Dillylol/Lumiere/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzM0IwNjdFMTI5QTlEMzkKUldRNW5ab1NmZ1k3RTdyVWdqLzRlQndSa0pRSkxLTkNSK1VqUk5Kc3N2UEFwN1FNWHlIMGdaVFkK"
     }
   },
-  "plugins": {},
   "mainBinaryName": "lumiere"
 }

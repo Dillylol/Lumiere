@@ -224,6 +224,10 @@ test("settings, help, and import keep the home screen usable", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Help and shortcuts" })).toBeVisible();
   expect(await seriousViolations(page)).toEqual([]);
   await page.getByRole("button", { name: "Back to projects" }).click();
+  await page.setViewportSize({ width: 2560, height: 1400 });
+  const home = await page.locator(".studio-home-main").boundingBox();
+  expect(home?.width).toBeGreaterThan(2200);
+  await expectNoHorizontalScroll(page);
 
   const project = {
     format: "ftc-robot-project",

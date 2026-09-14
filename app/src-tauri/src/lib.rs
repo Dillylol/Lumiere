@@ -31,6 +31,8 @@ fn commands<R: Runtime>(builder: Builder<R>) -> Builder<R> {
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         // Remembers project folders the user opened; must come after the fs plugin.
         .plugin(tauri_plugin_persisted_scope::init())

@@ -1,10 +1,11 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Plus, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { BRAND } from "../brand";
 import { createAutonomous, createLine, createProject, createTeleOp, duplicateProject, newId, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
 import { Modal } from "../components/ui/Modal";
 import { deleteProject, exportProject, listProjects, parseImport, PROJECT_FILE_TYPES, recovery, saveProject, stage } from "./store";
+import { useUpdater } from "./useUpdater";
 import "./studio.css";
 
 const Workbench = lazy(() => import("./Workbench"));
@@ -36,6 +37,7 @@ function Studio() {
   const [remove,setRemove] = useState<Project>();
   const [saved,setSaved] = useState("Saved");
   const [theme,setTheme] = useState(() => localStorage.getItem("lumiere-theme") ?? "dark");
+  const updater = useUpdater();
   const pending = useRef(new Map<string,Project>());
   const queue = useRef(Promise.resolve());
   const input = useRef<HTMLInputElement>(null);
@@ -61,9 +63,10 @@ function Studio() {
   return <div className="studio-home">
     <aside className="studio-sidebar"><Brand/><nav aria-label="Main navigation"><button className={!route||route==="/"?"active":""} onClick={()=>go("/")}><Folder/>Projects</button></nav><div className="sidebar-bottom"><button onClick={()=>go("/help")}><BookOpen/>Help</button><button onClick={()=>go("/settings")}><Settings/>Settings</button><small><i className="status-dot"/>Local workspace</small></div></aside>
     <main className="studio-home-main">
-      {route==="/settings"?<><button onClick={()=>go("/")}><ArrowLeft/>Back to projects</button><h1>Settings</h1><p>Make the workspace comfortable on this computer.</p><h2>Appearance</h2><div className="inline-actions">{["dark","light","contrast"].map(t=><button key={t} aria-pressed={theme===t} className={theme===t?"active":""} onClick={()=>setTheme(t)}>{t=== "dark"?"Graphite":t==="light"?"Light":"High contrast"}</button>)}</div></>:
+      {route==="/settings"?<><button onClick={()=>go("/")}><ArrowLeft/>Back to projects</button><h1>Settings</h1><p>Make the workspace comfortable on this computer.</p><h2>Appearance</h2><div className="inline-actions">{["dark","light","contrast"].map(t=><button key={t} aria-pressed={theme===t} className={theme===t?"active":""} onClick={()=>setTheme(t)}>{t=== "dark"?"Graphite":t==="light"?"Light":"High contrast"}</button>)}</div><section className="update-settings"><h2>Updates</h2>{updater.state.phase==="unavailable"?<p>Updates are included in the desktop app.</p>:updater.state.phase==="checking"?<p role="status">Checking for updates…</p>:updater.state.phase==="current"?<p role="status">Lumière is up to date.</p>:updater.state.phase==="available"?<><p>Version {updater.state.version} is ready to install.</p>{updater.state.notes&&<p className="update-notes">{updater.state.notes}</p>}</>:updater.state.phase==="downloading"?<p role="status">Downloading version {updater.state.version}{updater.state.progress===undefined?"…":` · ${updater.state.progress}%`}</p>:updater.state.phase==="restarting"?<p role="status">Update installed. Restarting Lumière…</p>:<p role="alert">Could not check for updates. {updater.state.message}</p>}{updater.state.phase!=="unavailable"&&<div className="inline-actions">{updater.state.phase==="available"&&<button className="primary" onClick={()=>void updater.install()}><Download/>Install and restart</button>}<button disabled={updater.state.phase==="checking"||updater.state.phase==="downloading"||updater.state.phase==="restarting"} onClick={()=>void updater.checkNow()}><RefreshCw/>Check again</button></div>}</section></>:
       route==="/help"?<><button onClick={()=>go("/")}><ArrowLeft/>Back to projects</button><h1>Help and shortcuts</h1><Learn/><p><kbd>Ctrl/⌘ S</kbd> Save · <kbd>Ctrl/⌘ Z</kbd> Undo · <kbd>Ctrl/⌘ K</kbd> Commands</p></>:
       <><header className="studio-home-heading"><div><h1>Your projects</h1><p>{BRAND.tagline}</p></div><div className="inline-actions"><button className="primary" onClick={()=>{setTemplate("starter");setDialog(true);}}><Plus/>New project</button><button onClick={()=>input.current?.click()}><Download/>Import project</button></div></header>
+      {updater.state.phase==="available"&&<div role="status" className="studio-notice update-notice"><span>Version {updater.state.version} is ready.</span><button onClick={()=>go("/settings")}>View update</button></div>}
       {notice&&<div role="alert" className="studio-notice">{notice}<button aria-label="Dismiss message" onClick={()=>setNotice("")}>Dismiss</button></div>}
       <section><div className="section-title"><h2>Recent projects</h2><small>{isDesktop()?"Saved on this computer.":"Saved in this browser."}</small></div>
       {!ready?<p role="status">Loading projects…</p>:!projects.length?<div className="studio-empty"><FolderOpen/><h2>Make your first move.</h2><p>Create a project or start with a template below.</p><button className="text-button" onClick={()=>setDialog(true)}>Create a project<ArrowRight/></button></div>:<div className="project-rows">{projects.map(p=><article key={p.id}><button className="project-open" onClick={()=>go(`/project/${p.id}`)}><Folder/><span><strong>{p.name}</strong><small>{p.programs.length} {p.programs.length===1?"program":"programs"} · {new Date(p.updatedAt).toLocaleDateString()}</small></span><ArrowRight/></button><button aria-label={`Duplicate ${p.name}`} onClick={()=>void add(duplicateProject(p))}><Copy/></button><button aria-label={`Export ${p.name}`} onClick={()=>exportProject(p)}><Download/></button><button aria-label={`Delete ${p.name}`} onClick={()=>setRemove(p)}><Trash2/></button></article>)}</div>}</section>

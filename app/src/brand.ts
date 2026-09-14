@@ -13,6 +13,7 @@ export const BRAND = {
     "owner": "Dillylol",
     "name": "Lumiere"
   },
+  "updaterPublicKey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzM0IwNjdFMTI5QTlEMzkKUldRNW5ab1NmZ1k3RTdyVWdqLzRlQndSa0pRSkxLTkNSK1VqUk5Kc3N2UEFwN1FNWHlIMGdaVFkK",
   "java": {
     "package": "dev.lumiere.ftc",
     "simPackage": "dev.lumiere.sim",

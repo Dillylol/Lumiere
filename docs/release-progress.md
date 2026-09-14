@@ -14,7 +14,7 @@ continuous integration, or release decisions. Version 0.1.1 is released at githu
 | P4 Code generation and quickstart | Done | Golden Java compiles against the real libraries and runs in simulation. Quickstart = official SDK download + overlay. |
 | P5 App experience | Workspace built and validated | `app/src/studio`: projects, visual routines, TeleOp bindings, mechanisms, path editor, generated Java, preview and desktop simulator, robot tools. |
 | P6 Desktop | Backend and editor done | Toolchain detection and install, project creation, Gradle/adb runner, build-output problems, simulator launcher. Editor logic in `src/core`: OpMode discovery, AutoTune paste, and Java completions. |
-| P7 Release | 0.1.1 released | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Auto-update and code signing are not set up yet. |
+| P7 Release | 0.1.1 released; 0.1.2 ready locally | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
 
 ## Verification record
 
@@ -39,7 +39,9 @@ Local checks on Windows 11:
 | Script tests | 5 Node tests pass (brand sync, rename, accented names, Java package moves, and injection) |
 | Browser workflows | Playwright at 1366×768 and 820×600: create from templates, edit routines (add, reorder, undo), drag and nudge waypoints, edit path headings and curves, generated Java, preview play and reset, command palette, export, reload persistence, TeleOp bindings with mechanisms, program delete and undo, settings, help, and import. No serious axe findings, no console errors, no sideways scrolling, and the whole field stays visible. |
 | Visual identity | The graphite, warm-light, and high-contrast themes use the Lumière flame mark. The generated Windows, macOS, and Linux application icons remain legible at 32 px and are included in desktop packaging. |
+| Wide-screen layout | The home screen uses the full content area at 2560×1400 (2360 px after the sidebar), with no horizontal overflow or console errors. The minimum 820×600 layout still passes the complete browser workflow. |
 | Windows installers | The current 0.1.2 source produces `Lumière_0.1.2_x64_en-US.msi` and `Lumière_0.1.2_x64-setup.exe` (unsigned) around `lumiere.exe`. The MSI's product name keeps its accent, and so does the release app's window title. |
+| Auto-update | A rotated updater key is trusted by the app, its private key and password are stored in GitHub Actions secrets, and the desktop UI checks, downloads, verifies, installs, and restarts. A local signed NSIS build produced its `.sig` artifact. Version 0.1.1 still requires one manual download because updater support cannot be added retroactively; 0.1.2 and later can update in-app. |
 | GitHub CI | App, desktop (Windows, macOS, Linux), robot library, and quickstart workflows pass on `9f07db9`. |
 | Release 0.1.1 | The tag workflow built all seven installers. JitPack built `ftc-lib` and `sim`, and a release-mode project using them from JitPack builds its APK and passes its simulation test. The Windows installer downloads without signing in. |
 | Desktop release app | Driven over WebView2's DevTools protocol: loads, detects tools, saves projects to app data, renders Monaco under the production CSP, runs a Gradle check through the backend, and starts the simulator. The webview connects and Example Auto parks at (35.99, 23.98). No console errors. |
@@ -61,7 +63,7 @@ Not yet verified:
 
 ## Before the next release
 
-- **Auto-update:** the app has no updater yet, so 0.1.1 users update by downloading again. Adding it means registering the updater plugin, an update check in the app, and a new signing key in the repository's secrets. The previously exposed key is retired: its CI secrets were deleted from the old repository and no Lumière build trusts it.
+- **Auto-update:** 0.1.2 is the first updater-enabled build. Users on 0.1.1 must download 0.1.2 once; future signed releases can then be installed from Lumière's Settings screen. Keep the updater private key backup and its password: losing either would break updates for installed copies.
 - **Robot library:** release builds create projects that use `com.github.Dillylol.Lumiere:ftc-lib:v<version>` from JitPack, where `<version>` is the app version, so every release needs its matching tag. Development builds keep using the local `robot/` folder.
 - **Stable identifiers:** the app identifier is `dev.lumiere.desktop`, and the MSI upgrade code is pinned in `tauri.conf.json`. Neither may change after the first public release: installed copies would lose their app data, and Windows would install a second copy instead of upgrading. `rename.mjs` leaves both alone, along with the `studio` storage namespace and the `.lum` project file extension.
 - **Signing:** decide on code-signing certificates for Windows and macOS.

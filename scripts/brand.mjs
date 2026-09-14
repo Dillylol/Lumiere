@@ -30,12 +30,14 @@ export function brandChanges(directory = root, brand = readBrand(directory)) {
     config.app.windows[0].title = title;
     // A previously exposed signing key must not remain trusted by the app.
     delete config.plugins?.updater;
+    delete config.bundle.createUpdaterArtifacts;
     if (brand.repository && brand.updaterPublicKey) {
       config.plugins ??= {};
       config.plugins.updater = {
         endpoints: [`https://github.com/${brand.repository.owner}/${brand.repository.name}/releases/latest/download/latest.json`],
         pubkey: brand.updaterPublicKey,
       };
+      config.bundle.createUpdaterArtifacts = true;
     }
     return json(config);
   });
