@@ -1,0 +1,151 @@
+/**
+ * Plans how a project's generated Java lands in a linked FTC SDK project: which files to create or
+ * update, which outdated generated files to remove, and what needs the team's attention. Nothing is
+ * written here; the desktop app applies the plan.
+ */
+import { DEFAULT_CONSTANTS_CLASS, defaultJavaPackage, generateJava, javaPackageDirectory, TEAMCODE_JAVA_ROOT, type JavaTarget } from "../codegen/java/generate";
+import { ownershipOf, planWrites, type WritePlanEntry } from "../codegen/java/ownership";
+import type { Diagnostic } from "../ir/validate";
+import type { Project } from "../ir/types";
+import type { FtcProjectInspection } from "./ftcProject";
+
+export interface DeploySettings {
+  javaPackage: string;
+  constantsClass: string;
+  /** Programs to deploy, by id. Null deploys every program. */
+  programIds: string[] | null;
+  /** Remove generated files the project no longer produces, as long as nobody edited them. */
+  removeOutdated: boolean;
+}
+
+export function defaultDeploySettings(project: Project, inspection?: FtcProjectInspection): DeploySettings {
+  const constants = inspection?.constantsClasses;
+  const constantsClass = constants?.some((item) => item.qualifiedName === DEFAULT_CONSTANTS_CLASS) || !constants?.length
+    ? DEFAULT_CONSTANTS_CLASS
+    : constants[0].qualifiedName;
+  return { javaPackage: defaultJavaPackage(project), constantsClass, programIds: null, removeOutdated: true };
+}
+
+export interface DeployRemoval {
+  path: string;
+  reason: string;
+}
+
+export interface DeployPlan {
+  ok: true;
+  /** Folder of the generated package, relative to the robot project. */
+  directory: string;
+  writes: WritePlanEntry[];
+  removals: DeployRemoval[];
+  /** Outdated files that were left in place, with the reason. */
+  kept: DeployRemoval[];
+  warnings: string[];
+  /** Paths the project generates now; store them for the next deploy. */
+  generatedPaths: string[];
+}
+
+export type DeployPlanResult = DeployPlan | { ok: false; diagnostics: Diagnostic[] };
+
+const isDeployablePath = (path: string) =>
+  path.startsWith(`${TEAMCODE_JAVA_ROOT}/`) && path.endsWith(".java") && !path.split("/").some((part) => part === ".." || part === "." || part === "");
+
+/** The project with only the chosen programs, so the others are neither generated nor kept. */
+export function selectPrograms(project: Project, programIds: string[] | null): Project {
+  if (!programIds) return project;
+  const chosen = new Set(programIds);
+  return { ...project, programs: project.programs.filter((program) => chosen.has(program.id)) };
+}
+
+/**
+ * Plans a deploy.
+ *
+ * @param existing contents of the files already in the robot project: at least every `.java` file in
+ *   the generated package folder and every path in `previousPaths`.
+ * @param previousPaths paths written by the last deploy, so a renamed program or a changed package is
+ *   cleaned up.
+ * @param overwrite conflicting paths the team chose to overwrite.
+ */
+export function planDeploy(
+  project: Project,
+  settings: DeploySettings,
+  existing: Map<string, string>,
+  previousPaths: string[] = [],
+  overwrite: string[] = [],
+  inspection?: FtcProjectInspection,
+): DeployPlanResult {
+  const target: JavaTarget = { javaPackage: settings.javaPackage, constantsClass: settings.constantsClass };
+  const deployed = selectPrograms(project, settings.programIds);
+  const generation = generateJava(deployed, target);
+  if (!generation.ok) return generation;
+
+  const directory = javaPackageDirectory(generation.packageName);
+  const generatedPaths = generation.files.map((file) => file.path);
+  const generatedSet = new Set(generatedPaths);
+  const overwriteSet = new Set(overwrite);
+  const writes = planWrites(generation.files, existing).map((entry): WritePlanEntry =>
+    entry.action === "conflict" && overwriteSet.has(entry.path) ? { ...entry, action: "update", reason: "Overwritten at the team's request." } : entry,
+  );
+
+  const removals: DeployRemoval[] = [];
+  const kept: DeployRemoval[] = [];
+  const previous = new Set(previousPaths.filter(isDeployablePath));
+  const candidates = new Set<string>(previous);
+  for (const path of existing.keys()) {
+    const inDirectory = path.startsWith(`${directory}/`) && !path.slice(directory.length + 1).includes("/");
+    if (inDirectory && isDeployablePath(path)) candidates.add(path);
+  }
+  for (const path of [...candidates].sort()) {
+    if (generatedSet.has(path)) continue;
+    const content = existing.get(path);
+    if (content === undefined) continue;
+    const ownership = ownershipOf(content);
+    if (ownership === "team") {
+      if (previous.has(path)) kept.push({ path, reason: "The team took this file over, so it stays." });
+      continue;
+    }
+    if (ownership === "modified") {
+      kept.push({ path, reason: "No longer generated, but it was edited by hand, so it stays. Delete it yourself if it is not needed." });
+    } else if (settings.removeOutdated) {
+      removals.push({ path, reason: "No longer generated by this project." });
+    } else {
+      kept.push({ path, reason: "No longer generated. Outdated files are kept by your settings." });
+    }
+  }
+
+  const warnings: string[] = [];
+  const conflicts = writes.filter((entry) => entry.action === "conflict");
+  if (conflicts.length) warnings.push(`${conflicts.length === 1 ? "1 generated file was" : `${conflicts.length} generated files were`} edited by hand and ${conflicts.length === 1 ? "was" : "were"} not updated. Choose whether to overwrite ${conflicts.length === 1 ? "it" : "them"}.`);
+  for (const entry of writes.filter((item) => item.action === "skip")) {
+    warnings.push(`${entry.path} already exists and is not generated, so the generated class was not written. Rename the program or mechanism, or choose another package.`);
+  }
+  if (inspection) {
+    for (const problem of inspection.incompatible) warnings.push(problem);
+    const missing = inspection.libraries.filter((library) => !library.ok).map((library) => library.name);
+    if (missing.length) warnings.push(`The robot project is missing ${missing.join(", ")}. Add the libraries before building.`);
+    if (!inspection.constantsClasses.some((item) => item.qualifiedName === settings.constantsClass)) {
+      warnings.push(`No class ${settings.constantsClass} with static Follower create(HardwareMap) was found in TeamCode.`);
+    }
+    const replaced = new Set([...generatedPaths, ...removals.map((removal) => removal.path)]);
+    const generatedNames = new Set(deployed.programs.map((program) => program.name.trim().toLowerCase()));
+    for (const opMode of inspection.opModes) {
+      if (replaced.has(opMode.path) || opMode.disabled || !generatedNames.has(opMode.name.trim().toLowerCase())) continue;
+      warnings.push(`TeamCode already has an OpMode named "${opMode.name}" (${opMode.path}). The Driver Station would list two with the same name.`);
+    }
+  }
+
+  return { ok: true, directory, writes, removals, kept, warnings, generatedPaths };
+}
+
+/** A short, human-readable summary of what a deploy changed. */
+export function describeDeploy(plan: DeployPlan): string {
+  const count = (action: WritePlanEntry["action"]) => plan.writes.filter((entry) => entry.action === action).length;
+  const parts = [
+    [count("create"), "created"],
+    [count("update"), "updated"],
+    [plan.removals.length, "removed"],
+    [count("unchanged"), "unchanged"],
+    [count("conflict"), "waiting for your choice"],
+  ] as const;
+  const described = parts.filter(([value]) => value > 0).map(([value, label]) => `${value} ${label}`);
+  return described.length ? described.join(", ") : "Nothing to deploy";
+}

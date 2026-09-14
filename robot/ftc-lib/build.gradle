@@ -1,0 +1,72 @@
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
+
+android {
+    namespace 'dev.lumiere.ftc'
+    compileSdk 30
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        minSdk 24
+        buildConfigField "String", "LIBRARY_VERSION", "\"${project.version}\""
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+        // The API level and dependency versions deliberately match the FTC SDK.
+        disable 'GradleDependency', 'OldTargetApi', 'Aligned16KB'
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+        }
+    }
+}
+
+dependencies {
+    // Provided by the robot project at runtime.
+    compileOnly "org.firstinspires.ftc:RobotCore:${pinned.FTC_SDK_VERSION}"
+    compileOnly "org.firstinspires.ftc:Hardware:${pinned.FTC_SDK_VERSION}"
+    compileOnly "org.firstinspires.ftc:FtcCommon:${pinned.FTC_SDK_VERSION}"
+    compileOnly "com.pedropathing:core:${pinned.PEDRO_VERSION}"
+
+    // NanoHTTPD itself ships inside RobotCore; only the WebSocket extension is added.
+    // It is an api dependency because StreamServer is public and extends NanoWSD.
+    api('org.nanohttpd:nanohttpd-websocket:2.3.1') {
+        exclude group: 'org.nanohttpd', module: 'nanohttpd'
+    }
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation "org.firstinspires.ftc:RobotCore:${pinned.FTC_SDK_VERSION}"
+    testImplementation "org.firstinspires.ftc:Hardware:${pinned.FTC_SDK_VERSION}"
+    testImplementation "com.pedropathing:core:${pinned.PEDRO_VERSION}"
+    testImplementation "com.squareup.okhttp3:okhttp:4.12.0"
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                artifactId = 'ftc-lib'
+            }
+        }
+    }
+}

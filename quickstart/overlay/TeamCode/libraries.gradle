@@ -1,0 +1,52 @@
+// Libraries used by this robot project, kept separate from the FTC SDK's build.dependencies.gradle
+// so SDK updates can replace that file without losing anything below.
+
+repositories {
+    mavenCentral()
+    google()
+    maven { url = 'https://repo.dairy.foundation/releases/' } // Pedro Pathing AutoTune dependencies
+    maven { url = 'https://mymaven.bylazar.com/releases' }     // Panels dashboard
+    maven { url = 'https://jitpack.io' }                       // Robot library
+}
+
+android {
+    // Panels depends on Material Components, which must be compiled against Android 14 (API 34).
+    // This only changes the compile-time API level; minSdk and targetSdk stay as the FTC SDK sets them.
+    compileSdkVersion 34
+
+    testOptions {
+        // Unit tests and the desktop simulator run FTC SDK classes on this computer.
+        unitTests.returnDefaultValues = true
+        unitTests.all {
+            // Simulator settings passed by {{APP_NAME}}. The token is passed in the SIM_TOKEN environment variable.
+            ['sim.port', 'sim.config'].each { key ->
+                if (project.hasProperty(key)) systemProperty key, project.property(key)
+            }
+            if (project.hasProperty('sim.port')) {
+                outputs.upToDateWhen { false }
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    // Pedro Pathing path following, AutoTune, and the Ivy command library
+    implementation 'com.pedropathing:revhub:{{PEDRO_VERSION}}'
+    implementation 'com.pedropathing:tuning:{{PEDRO_TUNING_VERSION}}'
+    implementation 'com.pedropathing.ivy:core:{{IVY_VERSION}}'
+    implementation 'com.pedropathing.ivy:pedro:{{IVY_VERSION}}'
+
+    // Panels dashboard (http://192.168.43.1:8001 on robot Wi-Fi)
+    implementation 'com.bylazar:fullpanels:{{PANELS_VERSION}}'
+
+    // Keeps Kotlin standard library versions aligned across the libraries above
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:{{KOTLIN_BOM_VERSION}}')
+
+    // {{APP_NAME}} robot library (live data in the app) and desktop simulator (tests only, never installed on the robot)
+    implementation '{{ROBOT_LIBRARY_COORDINATES}}:ftc-lib:{{ROBOT_LIBRARY_VERSION}}'
+    testImplementation '{{ROBOT_LIBRARY_COORDINATES}}:sim:{{ROBOT_LIBRARY_VERSION}}'
+    testImplementation 'junit:junit:4.13.2'
+}

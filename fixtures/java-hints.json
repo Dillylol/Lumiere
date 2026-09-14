@@ -1,0 +1,1143 @@
+{
+  "hints": [
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "hardwareMap",
+      "kind": "field",
+      "params": [],
+      "returns": "HardwareMap"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "telemetry",
+      "kind": "field",
+      "params": [],
+      "returns": "Telemetry"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "gamepad1",
+      "kind": "field",
+      "params": [],
+      "returns": "Gamepad"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "gamepad2",
+      "kind": "field",
+      "params": [],
+      "returns": "Gamepad"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "init",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "init_loop",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "start",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "loop",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "stop",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "getRuntime",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "resetRuntime",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.OpMode",
+      "name": "requestOpModeStop",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "runOpMode",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "waitForStart",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "opModeIsActive",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "opModeInInit",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "isStopRequested",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "sleep",
+      "kind": "method",
+      "params": [
+        "long"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.eventloop.opmode.LinearOpMode",
+      "name": "idle",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.HardwareMap",
+      "name": "get",
+      "kind": "method",
+      "params": [
+        "Class<T>",
+        "String"
+      ],
+      "returns": "T"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.HardwareMap",
+      "name": "tryGet",
+      "kind": "method",
+      "params": [
+        "Class<T>",
+        "String"
+      ],
+      "returns": "T"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorSimple",
+      "name": "setPower",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorSimple",
+      "name": "getPower",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorSimple",
+      "name": "setDirection",
+      "kind": "method",
+      "params": [
+        "DcMotorSimple.Direction"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotor",
+      "name": "setMode",
+      "kind": "method",
+      "params": [
+        "DcMotor.RunMode"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotor",
+      "name": "setTargetPosition",
+      "kind": "method",
+      "params": [
+        "int"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotor",
+      "name": "getCurrentPosition",
+      "kind": "method",
+      "params": [],
+      "returns": "int"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotor",
+      "name": "isBusy",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotor",
+      "name": "setZeroPowerBehavior",
+      "kind": "method",
+      "params": [
+        "DcMotor.ZeroPowerBehavior"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorEx",
+      "name": "setVelocity",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorEx",
+      "name": "getVelocity",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DcMotorEx",
+      "name": "getCurrent",
+      "kind": "method",
+      "params": [
+        "CurrentUnit"
+      ],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Servo",
+      "name": "setPosition",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Servo",
+      "name": "getPosition",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Servo",
+      "name": "setDirection",
+      "kind": "method",
+      "params": [
+        "Servo.Direction"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Servo",
+      "name": "scaleRange",
+      "kind": "method",
+      "params": [
+        "double",
+        "double"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.CRServo",
+      "name": "setPower",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.IMU",
+      "name": "initialize",
+      "kind": "method",
+      "params": [
+        "IMU.Parameters"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.IMU",
+      "name": "resetYaw",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.IMU",
+      "name": "getRobotYawPitchRollAngles",
+      "kind": "method",
+      "params": [],
+      "returns": "YawPitchRollAngles"
+    },
+    {
+      "owner": "org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles",
+      "name": "getYaw",
+      "kind": "method",
+      "params": [
+        "AngleUnit"
+      ],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.VoltageSensor",
+      "name": "getVoltage",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.TouchSensor",
+      "name": "isPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.DistanceSensor",
+      "name": "getDistance",
+      "kind": "method",
+      "params": [
+        "DistanceUnit"
+      ],
+      "returns": "double"
+    },
+    {
+      "owner": "org.firstinspires.ftc.robotcore.external.Telemetry",
+      "name": "addData",
+      "kind": "method",
+      "params": [
+        "String",
+        "Object"
+      ],
+      "returns": "Telemetry.Item"
+    },
+    {
+      "owner": "org.firstinspires.ftc.robotcore.external.Telemetry",
+      "name": "addLine",
+      "kind": "method",
+      "params": [
+        "String"
+      ],
+      "returns": "Telemetry.Line"
+    },
+    {
+      "owner": "org.firstinspires.ftc.robotcore.external.Telemetry",
+      "name": "update",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "org.firstinspires.ftc.robotcore.external.Telemetry",
+      "name": "clear",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "left_stick_x",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "left_stick_y",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "right_stick_x",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "right_stick_y",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "left_trigger",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "right_trigger",
+      "kind": "field",
+      "params": [],
+      "returns": "float"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "a",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "b",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "x",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "y",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "left_bumper",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "right_bumper",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpad_up",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpad_down",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpad_left",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpad_right",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "back",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "start",
+      "kind": "field",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "aWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "bWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "xWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "yWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "leftBumperWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "rightBumperWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpadUpWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpadDownWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpadLeftWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "dpadRightWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "backWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "startWasPressed",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.hardware.Gamepad",
+      "name": "rumble",
+      "kind": "method",
+      "params": [
+        "int"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.util.ElapsedTime",
+      "name": "reset",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.util.ElapsedTime",
+      "name": "seconds",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.qualcomm.robotcore.util.ElapsedTime",
+      "name": "milliseconds",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "update",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "follow",
+      "kind": "method",
+      "params": [
+        "Path"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "hold",
+      "kind": "method",
+      "params": [
+        "Pose"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "manual",
+      "kind": "method",
+      "params": [
+        "DrivePowers"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "setPose",
+      "kind": "method",
+      "params": [
+        "Pose"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "pose",
+      "kind": "method",
+      "params": [],
+      "returns": "Pose"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "isBusy",
+      "kind": "method",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "owner": "com.pedropathing.follower.Follower",
+      "name": "mode",
+      "kind": "method",
+      "params": [],
+      "returns": "Follower.Mode"
+    },
+    {
+      "owner": "com.pedropathing.follower.ManualDrive",
+      "name": "fieldCentric",
+      "kind": "staticMethod",
+      "params": [
+        "DrivePowers",
+        "double",
+        "double"
+      ],
+      "returns": "DrivePowers"
+    },
+    {
+      "owner": "com.pedropathing.drivetrain.DrivePowers",
+      "name": "forward",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.drivetrain.DrivePowers",
+      "name": "strafe",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.drivetrain.DrivePowers",
+      "name": "turn",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.api.Paths",
+      "name": "line",
+      "kind": "staticMethod",
+      "params": [
+        "Pose",
+        "Pose"
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.api.Paths",
+      "name": "curve",
+      "kind": "staticMethod",
+      "params": [
+        "Pose..."
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.api.Paths",
+      "name": "path",
+      "kind": "staticMethod",
+      "params": [
+        "Path..."
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "linear",
+      "kind": "method",
+      "params": [
+        "Pose",
+        "Pose"
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "constant",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "tangent",
+      "kind": "method",
+      "params": [],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "reverseTangent",
+      "kind": "method",
+      "params": [],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "facingPoint",
+      "kind": "method",
+      "params": [
+        "Pose"
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "heading",
+      "kind": "method",
+      "params": [
+        "Interpolator"
+      ],
+      "returns": "Path"
+    },
+    {
+      "owner": "com.pedropathing.paths.Path",
+      "name": "endPose",
+      "kind": "method",
+      "params": [],
+      "returns": "Pose"
+    },
+    {
+      "owner": "com.pedropathing.math.Pose",
+      "name": "x",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.math.Pose",
+      "name": "y",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.math.Pose",
+      "name": "heading",
+      "kind": "method",
+      "params": [],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.math.Pose",
+      "name": "distance",
+      "kind": "method",
+      "params": [
+        "Pose"
+      ],
+      "returns": "double"
+    },
+    {
+      "owner": "com.pedropathing.math.Pose",
+      "name": "withHeading",
+      "kind": "method",
+      "params": [
+        "double"
+      ],
+      "returns": "Pose"
+    },
+    {
+      "owner": "com.pedropathing.api.PoseFactory",
+      "name": "degrees",
+      "kind": "staticMethod",
+      "params": [],
+      "returns": "PoseFactory"
+    },
+    {
+      "owner": "com.pedropathing.api.PoseFactory",
+      "name": "radians",
+      "kind": "staticMethod",
+      "params": [],
+      "returns": "PoseFactory"
+    },
+    {
+      "owner": "com.pedropathing.api.PoseFactory",
+      "name": "of",
+      "kind": "method",
+      "params": [
+        "double",
+        "double",
+        "double"
+      ],
+      "returns": "Pose"
+    },
+    {
+      "owner": "com.pedropathing.ivy.groups.Groups",
+      "name": "sequential",
+      "kind": "staticMethod",
+      "params": [
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.groups.Groups",
+      "name": "parallel",
+      "kind": "staticMethod",
+      "params": [
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.groups.Groups",
+      "name": "race",
+      "kind": "staticMethod",
+      "params": [
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.groups.Groups",
+      "name": "deadline",
+      "kind": "staticMethod",
+      "params": [
+        "Command",
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.commands.Commands",
+      "name": "waitMs",
+      "kind": "staticMethod",
+      "params": [
+        "double"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.commands.Commands",
+      "name": "waitUntil",
+      "kind": "staticMethod",
+      "params": [
+        "BooleanSupplier"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.commands.Commands",
+      "name": "instant",
+      "kind": "staticMethod",
+      "params": [
+        "Runnable"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.commands.Commands",
+      "name": "conditional",
+      "kind": "staticMethod",
+      "params": [
+        "BooleanSupplier",
+        "Command",
+        "Command"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Scheduler",
+      "name": "schedule",
+      "kind": "staticMethod",
+      "params": [
+        "Command"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Scheduler",
+      "name": "execute",
+      "kind": "staticMethod",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Scheduler",
+      "name": "reset",
+      "kind": "staticMethod",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Scheduler",
+      "name": "cancel",
+      "kind": "staticMethod",
+      "params": [
+        "Command"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.pedropathing.ivy.pedro.PedroCommands",
+      "name": "follow",
+      "kind": "staticMethod",
+      "params": [
+        "Follower",
+        "Path"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.pedro.PedroCommands",
+      "name": "hold",
+      "kind": "staticMethod",
+      "params": [
+        "Follower",
+        "Pose"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Command",
+      "name": "then",
+      "kind": "method",
+      "params": [
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Command",
+      "name": "with",
+      "kind": "method",
+      "params": [
+        "Command..."
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.pedropathing.ivy.Command",
+      "name": "until",
+      "kind": "method",
+      "params": [
+        "BooleanSupplier"
+      ],
+      "returns": "CommandBuilder"
+    },
+    {
+      "owner": "com.bylazar.telemetry.PanelsTelemetry",
+      "name": "INSTANCE",
+      "kind": "staticField",
+      "params": [],
+      "returns": "PanelsTelemetry"
+    },
+    {
+      "owner": "com.bylazar.telemetry.PanelsTelemetry",
+      "name": "getTelemetry",
+      "kind": "method",
+      "params": [],
+      "returns": "TelemetryManager"
+    },
+    {
+      "owner": "com.bylazar.telemetry.TelemetryManager",
+      "name": "addData",
+      "kind": "method",
+      "params": [
+        "String",
+        "Object"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.bylazar.telemetry.TelemetryManager",
+      "name": "addLine",
+      "kind": "method",
+      "params": [
+        "String"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.bylazar.telemetry.TelemetryManager",
+      "name": "update",
+      "kind": "method",
+      "params": [
+        "Telemetry"
+      ],
+      "returns": "void"
+    },
+    {
+      "owner": "com.bylazar.field.PanelsField",
+      "name": "INSTANCE",
+      "kind": "staticField",
+      "params": [],
+      "returns": "PanelsField"
+    },
+    {
+      "owner": "com.bylazar.field.PanelsField",
+      "name": "getField",
+      "kind": "method",
+      "params": [],
+      "returns": "FieldManager"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Session",
+      "name": "attach",
+      "kind": "staticMethod",
+      "params": [
+        "OpMode"
+      ],
+      "returns": "Session"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Session",
+      "name": "follower",
+      "kind": "method",
+      "params": [
+        "Follower"
+      ],
+      "returns": "Session"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Session",
+      "name": "data",
+      "kind": "method",
+      "params": [
+        "String",
+        "Object"
+      ],
+      "returns": "Session"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Session",
+      "name": "update",
+      "kind": "method",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Headings",
+      "name": "linear",
+      "kind": "staticMethod",
+      "params": [
+        "Pose",
+        "Pose"
+      ],
+      "returns": "Interpolator"
+    },
+    {
+      "owner": "dev.lumiere.ftc.Headings",
+      "name": "linearUntil",
+      "kind": "staticMethod",
+      "params": [
+        "Pose",
+        "Pose",
+        "double"
+      ],
+      "returns": "Interpolator"
+    },
+    {
+      "owner": "org.firstinspires.ftc.teamcode.pedro.Constants",
+      "name": "create",
+      "kind": "staticMethod",
+      "params": [
+        "HardwareMap"
+      ],
+      "returns": "Follower"
+    }
+  ]
+}

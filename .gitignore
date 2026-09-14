@@ -1,0 +1,46 @@
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs and reports
+*.log
+logs/
+coverage/
+playwright-report/
+test-results/
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Rust / Tauri
+target/
+app/src-tauri/gen/schemas/
+
+# Gradle / Android
+.gradle/
+**/build/
+local.properties
+*.iml
+.kotlin/
+captures/
+
+# Secrets and signing material
+*.key
+*.keystore
+*.jks
+.env
+.env.*
+
+# Local reference material that must never be committed
+PedropathingStuff/
+
+# Leftover build output from removed legacy projects
+JULES4FTC/
+client/
+TestArticle/

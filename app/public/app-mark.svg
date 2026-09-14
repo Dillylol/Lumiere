@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="App mark">
+  <rect width="128" height="128" rx="30" fill="#ABDBFF"/>
+  <path d="M34 42h60v44a18 18 0 0 1-18 18H52a18 18 0 0 1-18-18V42Z" fill="#0B2C43"/>
+  <path d="M49 31v13M79 31v13" stroke="#0B2C43" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="52" cy="66" r="7" fill="#ABDBFF"/>
+  <circle cx="76" cy="66" r="7" fill="#ABDBFF"/>
+  <path d="M49 84c7 6 23 6 30 0" stroke="#ABDBFF" stroke-width="6" stroke-linecap="round" fill="none"/>
+</svg>

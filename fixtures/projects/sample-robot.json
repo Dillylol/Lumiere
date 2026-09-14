@@ -1,0 +1,149 @@
+{
+  "format": "ftc-robot-project",
+  "version": 2,
+  "id": "project_sample",
+  "name": "Sample Robot",
+  "createdAt": "2026-09-13T00:00:00.000Z",
+  "updatedAt": "2026-09-13T00:00:00.000Z",
+  "robot": { "widthInches": 18, "lengthInches": 18, "maxVelocity": 50, "maxAcceleration": 60 },
+  "subsystems": [
+    {
+      "id": "mech_claw",
+      "name": "Claw",
+      "devices": [{ "id": "device_claw", "name": "claw", "kind": "servo", "reversed": false }],
+      "states": [
+        { "id": "state_claw_open", "name": "Open", "outputs": { "device_claw": { "kind": "position", "value": 0.8 } } },
+        { "id": "state_claw_closed", "name": "Closed", "outputs": { "device_claw": { "kind": "position", "value": 0.25 } } }
+      ],
+      "initialStateId": "state_claw_closed"
+    },
+    {
+      "id": "mech_lift",
+      "name": "Lift",
+      "devices": [{ "id": "device_lift", "name": "lift_motor", "kind": "motor", "reversed": true }],
+      "states": [
+        { "id": "state_lift_down", "name": "Down", "outputs": { "device_lift": { "kind": "target", "ticks": 0, "power": 0.8 } } },
+        { "id": "state_lift_high", "name": "High Basket", "outputs": { "device_lift": { "kind": "target", "ticks": 1800, "power": 1 } } },
+        { "id": "state_lift_hold", "name": "Hold", "outputs": { "device_lift": { "kind": "power", "value": 0.1 } } }
+      ],
+      "initialStateId": null
+    },
+    {
+      "id": "mech_intake",
+      "name": "Intake",
+      "devices": [
+        { "id": "device_intake_left", "name": "intake_left", "kind": "crservo", "reversed": false },
+        { "id": "device_intake_right", "name": "intake_right", "kind": "crservo", "reversed": true }
+      ],
+      "states": [
+        { "id": "state_intake_in", "name": "In", "outputs": { "device_intake_left": { "kind": "power", "value": 1 }, "device_intake_right": { "kind": "power", "value": 1 } } },
+        { "id": "state_intake_out", "name": "Out", "outputs": { "device_intake_left": { "kind": "power", "value": -0.6 }, "device_intake_right": { "kind": "power", "value": -0.6 } } },
+        { "id": "state_intake_stop", "name": "Stop", "outputs": { "device_intake_left": { "kind": "power", "value": 0 }, "device_intake_right": { "kind": "power", "value": 0 } } }
+      ],
+      "initialStateId": "state_intake_stop"
+    }
+  ],
+  "programs": [
+    {
+      "id": "auto_blue",
+      "kind": "autonomous",
+      "name": "Blue Basket",
+      "group": "Match",
+      "preselectTeleOp": "Driver Control",
+      "start": { "x": 9, "y": 111, "headingDeg": 270 },
+      "paths": [
+        {
+          "id": "path_score",
+          "name": "To basket",
+          "color": "#2f80ed",
+          "kind": "atomic",
+          "end": { "x": 18, "y": 126 },
+          "controlPoints": [],
+          "heading": { "type": "linear", "startDeg": 270, "endDeg": 315 }
+        },
+        {
+          "id": "path_pickup",
+          "name": "To first sample",
+          "color": "#27ae60",
+          "kind": "atomic",
+          "end": { "x": 30, "y": 120 },
+          "controlPoints": [{ "x": 26, "y": 110 }],
+          "heading": { "type": "tangential", "reverse": false }
+        },
+        {
+          "id": "path_return",
+          "name": "Back to basket",
+          "color": "#eb5757",
+          "kind": "compound",
+          "heading": { "type": "linear", "startDeg": 0, "endDeg": 315 },
+          "segments": [
+            { "id": "segment_return_a", "name": "", "color": "#eb5757", "kind": "atomic", "end": { "x": 24, "y": 116 }, "controlPoints": [], "heading": { "type": "tangential", "reverse": false } },
+            { "id": "segment_return_b", "name": "", "color": "#eb5757", "kind": "atomic", "end": { "x": 18, "y": 126 }, "controlPoints": [{ "x": 16, "y": 118 }], "heading": { "type": "tangential", "reverse": false } }
+          ]
+        },
+        {
+          "id": "path_park",
+          "name": "Park",
+          "color": "#9b51e0",
+          "kind": "atomic",
+          "end": { "x": 60, "y": 96 },
+          "controlPoints": [{ "x": 60, "y": 126 }],
+          "heading": {
+            "type": "piecewise",
+            "segments": [
+              { "startProgress": 0, "endProgress": 0.5, "type": "constant", "degrees": 315 },
+              { "startProgress": 0.5, "endProgress": 1, "type": "facingPoint", "point": { "x": 72, "y": 72 } }
+            ]
+          }
+        }
+      ],
+      "routine": [
+        {
+          "id": "step_1",
+          "kind": "together",
+          "steps": [
+            { "id": "step_1a", "kind": "path", "pathId": "path_score" },
+            { "id": "step_1b", "kind": "state", "subsystemId": "mech_lift", "stateId": "state_lift_high" }
+          ]
+        },
+        { "id": "step_2", "kind": "state", "subsystemId": "mech_claw", "stateId": "state_claw_open" },
+        { "id": "step_3", "kind": "wait", "ms": 300 },
+        { "id": "step_4", "kind": "state", "subsystemId": "mech_lift", "stateId": "state_lift_down" },
+        {
+          "id": "step_5",
+          "kind": "together",
+          "steps": [
+            { "id": "step_5a", "kind": "path", "pathId": "path_pickup" },
+            { "id": "step_5b", "kind": "state", "subsystemId": "mech_intake", "stateId": "state_intake_in" }
+          ]
+        },
+        {
+          "id": "step_6",
+          "kind": "race",
+          "steps": [
+            { "id": "step_6a", "kind": "wait", "ms": 800 },
+            { "id": "step_6b", "kind": "state", "subsystemId": "mech_claw", "stateId": "state_claw_closed" }
+          ]
+        },
+        { "id": "step_7", "kind": "path", "pathId": "path_return" },
+        { "id": "step_8", "kind": "state", "subsystemId": "mech_intake", "stateId": "state_intake_stop" },
+        { "id": "step_9", "kind": "path", "pathId": "path_park" }
+      ]
+    },
+    {
+      "id": "teleop_main",
+      "kind": "teleop",
+      "name": "Driver Control",
+      "group": "Match",
+      "drive": { "fieldCentric": true, "slowModeButton": "right_bumper", "slowModeScale": 0.4, "resetHeadingButton": "back" },
+      "start": { "x": 72, "y": 72, "headingDeg": 90 },
+      "bindings": [
+        { "id": "binding_claw", "gamepad": 2, "button": "a", "action": { "kind": "toggle", "subsystemId": "mech_claw", "firstStateId": "state_claw_open", "secondStateId": "state_claw_closed" } },
+        { "id": "binding_intake", "gamepad": 2, "button": "right_bumper", "action": { "kind": "hold", "subsystemId": "mech_intake", "heldStateId": "state_intake_in", "releasedStateId": "state_intake_stop" } },
+        { "id": "binding_outtake", "gamepad": 2, "button": "left_bumper", "action": { "kind": "hold", "subsystemId": "mech_intake", "heldStateId": "state_intake_out", "releasedStateId": "state_intake_stop" } },
+        { "id": "binding_lift_up", "gamepad": 2, "button": "dpad_up", "action": { "kind": "state", "subsystemId": "mech_lift", "stateId": "state_lift_high" } },
+        { "id": "binding_lift_down", "gamepad": 2, "button": "dpad_down", "action": { "kind": "state", "subsystemId": "mech_lift", "stateId": "state_lift_down" } }
+      ]
+    }
+  ]
+}

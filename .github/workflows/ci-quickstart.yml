@@ -1,0 +1,40 @@
+name: Quickstart checks
+on:
+  push:
+    paths: ["robot/**", "quickstart/**", "fixtures/**", "app/src/core/**", "scripts/quickstart.mjs", "scripts/sim-smoke.mjs", ".github/workflows/ci-quickstart.yml"]
+  pull_request:
+    paths: ["robot/**", "quickstart/**", "fixtures/**", "app/src/core/**", "scripts/quickstart.mjs", "scripts/sim-smoke.mjs", ".github/workflows/ci-quickstart.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  quickstart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate a project from the official FTC SDK and the overlay
+        run: node scripts/quickstart.mjs --out "$RUNNER_TEMP/robot-project" --robot-library local
+      - name: Add generated golden code, its simulation test, and the editor's Java hints check
+        run: |
+          for project in fixtures/golden/*/; do cp -r "$project/TeamCode" "$RUNNER_TEMP/robot-project/"; done
+          cp fixtures/golden-tests/*.java "$RUNNER_TEMP/robot-project/TeamCode/src/test/java/org/firstinspires/ftc/teamcode/simulation/"
+          mkdir -p "$RUNNER_TEMP/robot-project/TeamCode/src/test/resources"
+          cp fixtures/java-hints.json "$RUNNER_TEMP/robot-project/TeamCode/src/test/resources/"
+      - name: Build the Robot Controller app
+        working-directory: ${{ runner.temp }}/robot-project
+        run: ./gradlew :TeamCode:assembleDebug --no-daemon
+      - name: Unit tests, including headless simulations of Example Auto and the generated golden code
+        working-directory: ${{ runner.temp }}/robot-project
+        run: ./gradlew :TeamCode:testDebugUnitTest --no-daemon
+      - name: Interactive simulator end to end
+        run: node scripts/sim-smoke.mjs --project "$RUNNER_TEMP/robot-project" --seconds 12

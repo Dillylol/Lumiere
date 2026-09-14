@@ -1,0 +1,11 @@
+// Robot library and desktop simulator. Library versions are shared with the quickstart generator.
+plugins {
+    id 'com.android.library' version '8.13.2' apply false
+}
+
+ext.pinned = new groovy.json.JsonSlurper().parse(file('../quickstart/sources.json')).versions
+
+subprojects {
+    group = rootProject.group
+    version = rootProject.version
+}

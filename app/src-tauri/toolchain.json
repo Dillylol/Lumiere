@@ -1,0 +1,62 @@
+{
+  "$comment": "Build tools the desktop app can install into its own data folder. Downloads come from the official servers and are verified by SHA-256. Java SHA-256 values are from the Adoptium API and release checksums; Android command-line tools SHA-1 values match Google's repository2-3.xml. Command-line tools 19.0 is pinned because 22.0 deprecates sdkmanager and 23.0 routes it through the Android CLI, which downloads further unpinned binaries, collects usage metrics by default, and ignored --sdk_root in testing. Update versions and hashes together.",
+  "java": {
+    "name": "Eclipse Temurin JDK",
+    "version": "21.0.12.1+1",
+    "supportedMajorVersions": [
+      17,
+      21
+    ],
+    "downloads": {
+      "windows-x86_64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12.1_1.zip",
+        "sha256": "f9d6e191ab098c0d416e7d588a24420a8621cd2f4720dab2459b8b7b2d2d8b4e"
+      },
+      "windows-aarch64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_windows_hotspot_21.0.12.1_1.zip",
+        "sha256": "ccf2e51f527d542a70ba5794a600d3aac04b4e967950e227834c7566cb1bec7b"
+      },
+      "macos-x86_64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_mac_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "44db0f08196daf19a47f90d13388b0c943b67663cb537f998fe29e836fa842ce"
+      },
+      "macos-aarch64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_mac_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "3623232f33a9c3baadf304480b2535f9a3cba8a58d42ecbb438ba267315d9998"
+      },
+      "linux-x86_64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "ce79869e1307ed8ee1e2baa86a412b1eb5b75d10a01006d788a6f968bcfaee94"
+      },
+      "linux-aarch64": {
+        "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+        "sha256": "23e37e026f12f3e706f18938ff611db3032d075b09d0879a25d06718c773e223"
+      }
+    }
+  },
+  "androidCommandLineTools": {
+    "name": "Android SDK Command-line Tools",
+    "version": "19.0",
+    "licenseUrl": "https://developer.android.com/studio/terms",
+    "downloads": {
+      "windows": {
+        "url": "https://dl.google.com/android/repository/commandlinetools-win-13114758_latest.zip",
+        "sha256": "98b565cb657b012dae6794cefc0f66ae1efb4690c699b78a614b4a6a3505b003"
+      },
+      "macos": {
+        "url": "https://dl.google.com/android/repository/commandlinetools-mac-13114758_latest.zip",
+        "sha256": "5673201e6f3869f418eeed3b5cb6c4be7401502bd0aae1b12a29d164d647a54e"
+      },
+      "linux": {
+        "url": "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip",
+        "sha256": "7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee"
+      }
+    }
+  },
+  "androidPackages": [
+    "platform-tools",
+    "platforms;android-30",
+    "platforms;android-34",
+    "build-tools;35.0.0"
+  ]
+}

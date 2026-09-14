@@ -1,0 +1,7 @@
+# Builds the robot library (robot/ftc-lib) and simulator (robot/sim) when a release is requested from
+# JitPack. Coordinates: com.github.<owner>.<repo>:ftc-lib:<tag> and :sim:<tag>, which is what release-mode
+# quickstart projects use. Not verified until the first public tag; see docs/release-progress.md.
+jdk:
+  - openjdk17
+install:
+  - cd robot && ./gradlew publishToMavenLocal -Pgroup="$GROUP.$ARTIFACT" -Pversion="$VERSION" --no-daemon

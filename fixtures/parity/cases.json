@@ -1,0 +1,71 @@
+{
+  "$comment": "Path cases in project format. robot/ftc-lib HeadingsParityTest builds them with Pedro Pathing and writes expected.json; the app's geometry tests must reproduce it.",
+  "cases": [
+    {
+      "name": "line with linear heading",
+      "start": { "x": 0, "y": 0 },
+      "path": { "kind": "atomic", "end": { "x": 48, "y": 24 }, "controlPoints": [], "heading": { "type": "linear", "startDeg": 0, "endDeg": 90 } }
+    },
+    {
+      "name": "line with constant heading",
+      "start": { "x": 100, "y": 100 },
+      "path": { "kind": "atomic", "end": { "x": 60, "y": 130 }, "controlPoints": [], "heading": { "type": "constant", "degrees": 45 } }
+    },
+    {
+      "name": "quadratic curve, tangential",
+      "start": { "x": 10, "y": 10 },
+      "path": { "kind": "atomic", "end": { "x": 100, "y": 20 }, "controlPoints": [{ "x": 40, "y": 80 }], "heading": { "type": "tangential", "reverse": false } }
+    },
+    {
+      "name": "cubic curve, reverse tangential",
+      "start": { "x": 20, "y": 20 },
+      "path": { "kind": "atomic", "end": { "x": 120, "y": 20 }, "controlPoints": [{ "x": 20, "y": 100 }, { "x": 120, "y": 100 }], "heading": { "type": "tangential", "reverse": true } }
+    },
+    {
+      "name": "curve with linear heading across zero",
+      "start": { "x": 30, "y": 40 },
+      "path": { "kind": "atomic", "end": { "x": 110, "y": 60 }, "controlPoints": [{ "x": 70, "y": 10 }], "heading": { "type": "linear", "startDeg": 350, "endDeg": 30 } }
+    },
+    {
+      "name": "curve with piecewise heading",
+      "start": { "x": 12, "y": 72 },
+      "path": {
+        "kind": "atomic",
+        "end": { "x": 120, "y": 90 },
+        "controlPoints": [{ "x": 60, "y": 130 }, { "x": 90, "y": 30 }],
+        "heading": {
+          "type": "piecewise",
+          "segments": [
+            { "startProgress": 0, "endProgress": 0.4, "type": "tangential", "reverse": false },
+            { "startProgress": 0.4, "endProgress": 0.8, "type": "linear", "startDeg": 90, "endDeg": 0 },
+            { "startProgress": 0.8, "endProgress": 1, "type": "facingPoint", "point": { "x": 72, "y": 72 } }
+          ]
+        }
+      }
+    },
+    {
+      "name": "compound path with a shared linear heading",
+      "start": { "x": 10, "y": 120 },
+      "path": {
+        "kind": "compound",
+        "heading": { "type": "linear", "startDeg": 180, "endDeg": 270 },
+        "segments": [
+          { "kind": "atomic", "end": { "x": 60, "y": 120 }, "controlPoints": [], "heading": { "type": "tangential", "reverse": false } },
+          { "kind": "atomic", "end": { "x": 90, "y": 90 }, "controlPoints": [{ "x": 90, "y": 120 }], "heading": { "type": "tangential", "reverse": false } }
+        ]
+      }
+    },
+    {
+      "name": "compound path with segment headings",
+      "start": { "x": 72, "y": 20 },
+      "path": {
+        "kind": "compound",
+        "heading": null,
+        "segments": [
+          { "kind": "atomic", "end": { "x": 72, "y": 60 }, "controlPoints": [], "heading": { "type": "constant", "degrees": 90 } },
+          { "kind": "atomic", "end": { "x": 110, "y": 100 }, "controlPoints": [{ "x": 72, "y": 100 }], "heading": { "type": "tangential", "reverse": false } }
+        ]
+      }
+    }
+  ]
+}

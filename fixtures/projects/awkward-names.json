@@ -1,0 +1,73 @@
+{
+  "format": "ftc-robot-project",
+  "version": 2,
+  "id": "project_awkward",
+  "name": "2025 Robot!",
+  "createdAt": "2026-09-13T00:00:00.000Z",
+  "updatedAt": "2026-09-13T00:00:00.000Z",
+  "robot": { "widthInches": 16, "lengthInches": 17, "maxVelocity": 40, "maxAcceleration": 50 },
+  "subsystems": [
+    {
+      "id": "mech_class",
+      "name": "class",
+      "devices": [
+        { "id": "device_a", "name": "state", "kind": "servo", "reversed": true },
+        { "id": "device_b", "name": "State", "kind": "motor", "reversed": false }
+      ],
+      "states": [
+        { "id": "state_a", "name": "1st position", "outputs": { "device_a": { "kind": "position", "value": 0.1 }, "device_b": { "kind": "power", "value": 0 } } },
+        { "id": "state_b", "name": "1st_position", "outputs": { "device_a": { "kind": "position", "value": 0.9 } } },
+        { "id": "state_c", "name": "élevé \"quoted\" */", "outputs": { "device_b": { "kind": "power", "value": -0.333333333 } } }
+      ],
+      "initialStateId": "state_a"
+    },
+    {
+      "id": "mech_empty",
+      "name": "Follower",
+      "devices": [],
+      "states": [],
+      "initialStateId": null
+    }
+  ],
+  "programs": [
+    {
+      "id": "auto_digits",
+      "kind": "autonomous",
+      "name": "2 Specimen \"Fast\"",
+      "group": "",
+      "preselectTeleOp": null,
+      "start": { "x": 72, "y": 9, "headingDeg": 90 },
+      "paths": [
+        { "id": "p1", "name": "init", "color": "#000000", "kind": "atomic", "end": { "x": 72, "y": 40 }, "controlPoints": [], "heading": { "type": "constant", "degrees": 90 } },
+        { "id": "p2", "name": "", "color": "#000000", "kind": "atomic", "end": { "x": 40, "y": 40 }, "controlPoints": [], "heading": { "type": "tangential", "reverse": true } }
+      ],
+      "routine": [
+        { "id": "s1", "kind": "path", "pathId": "p1" },
+        { "id": "s2", "kind": "together", "steps": [] },
+        { "id": "s3", "kind": "state", "subsystemId": "mech_class", "stateId": "state_c" },
+        { "id": "s4", "kind": "path", "pathId": "p2" }
+      ]
+    },
+    {
+      "id": "auto_empty",
+      "kind": "autonomous",
+      "name": "Do Nothing",
+      "group": "Tests",
+      "preselectTeleOp": null,
+      "start": { "x": 9, "y": 9, "headingDeg": 0 },
+      "paths": [],
+      "routine": []
+    },
+    {
+      "id": "teleop_plain",
+      "kind": "teleop",
+      "name": "RobotPose",
+      "group": "",
+      "drive": { "fieldCentric": false, "slowModeButton": null, "slowModeScale": 1, "resetHeadingButton": null },
+      "start": { "x": 72, "y": 72, "headingDeg": 0 },
+      "bindings": [
+        { "id": "b1", "gamepad": 1, "button": "y", "action": { "kind": "state", "subsystemId": "mech_class", "stateId": "state_b" } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "lumiere",
+  "private": true,
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run brand:check && tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "brand": "node ../scripts/brand.mjs",
+    "brand:check": "node ../scripts/brand.mjs --check",
+    "test:scripts": "node --test ../scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.5.2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-updater": "^2.10.0",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.563.0",
+    "monaco-editor": "^0.56.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.56.1",
+    "@tauri-apps/cli": "^2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "jsdom": "^27.0.1",
+    "typescript": "~5.8.3",
+    "vite": "^7.3.6",
+    "vite-plugin-pwa": "^1.1.0",
+    "vitest": "^4.0.6"
+  },
+  "overrides": {
+    "dompurify": "3.4.15"
+  }
+}
