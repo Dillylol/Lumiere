@@ -67,7 +67,15 @@ mod ipc {
                 cmd: cmd.into(),
                 callback: tauri::ipc::CallbackFn(0),
                 error: tauri::ipc::CallbackFn(1),
-                url: "http://tauri.localhost".parse().unwrap(),
+                // The app's own origin, the only one allowed to call commands. Tauri serves it as
+                // http://tauri.localhost on Windows and tauri://localhost on macOS and Linux.
+                url: if cfg!(windows) {
+                    "http://tauri.localhost"
+                } else {
+                    "tauri://localhost"
+                }
+                .parse()
+                .unwrap(),
                 body: tauri::ipc::InvokeBody::Json(body),
                 headers: Default::default(),
                 invoke_key: INVOKE_KEY.to_string(),
