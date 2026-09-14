@@ -1,8 +1,8 @@
 /** Single source of product naming. Keep this object JSON-compatible for scripts/brand.mjs. */
 export const BRAND = {
   "name": "Lumière",
-  "tagline": "FTC programming studio",
-  "description": "An offline-first studio for building, simulating, and deploying FTC robot programs.",
+  "tagline": "Light the spark. Streamline the build.",
+  "description": "From first idea to field-ready robot, Lumière streamlines FTC programming, simulation, and deployment in one focused offline workspace.",
   "slug": "lumiere",
   "identifier": "dev.lumiere.desktop",
   "themeColor": "#17191b",

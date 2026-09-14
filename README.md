@@ -1,6 +1,6 @@
 # Lumière
 
-An offline-first studio for building, simulating, and deploying FTC robot programs.
+From first idea to field-ready robot, Lumière streamlines FTC programming, simulation, and deployment in one focused offline workspace.
 Product naming lives in [`app/src/brand.ts`](app/src/brand.ts), while stable install and project identifiers remain unchanged across future display-name updates.
 
 Version 0.1.1 is released. The workspace, robot library, desktop simulator, quickstart generator, Java generation, and desktop backend are implemented and verified without hardware. See [release progress](docs/release-progress.md) and the [hardware checklist](docs/hardware-checklist.md).
