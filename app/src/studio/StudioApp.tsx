@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Folder, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Plus, Settings, Trash2 } from "lucide-react";
 import { BRAND } from "../brand";
 import { createAutonomous, createLine, createProject, createTeleOp, duplicateProject, newId, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
@@ -8,7 +8,7 @@ import { deleteProject, exportProject, listProjects, parseImport, PROJECT_FILE_T
 import "./studio.css";
 
 const Workbench = lazy(() => import("./Workbench"));
-export function Brand() { return <span className="studio-brand"><b>{BRAND.name[0]}</b><strong>{BRAND.name}</strong></span>; }
+export function Brand() { return <span className="studio-brand"><b aria-hidden="true"><Flame fill="currentColor"/></b><strong>{BRAND.name}</strong></span>; }
 export function errorText(error: unknown) { return error instanceof Error ? error.message : String(error); }
 export function starter(name: string, template: string): Project {
   const project = createProject(name);
@@ -35,13 +35,13 @@ function Studio() {
   const [template,setTemplate] = useState("starter");
   const [remove,setRemove] = useState<Project>();
   const [saved,setSaved] = useState("Saved");
-  const [theme,setTheme] = useState(() => localStorage.getItem("studio-theme") ?? "dark");
+  const [theme,setTheme] = useState(() => localStorage.getItem("lumiere-theme") ?? "dark");
   const pending = useRef(new Map<string,Project>());
   const queue = useRef(Promise.resolve());
   const input = useRef<HTMLInputElement>(null);
   const go = (value: string) => { location.hash = value; setRoute(value); };
   useEffect(() => { const fn=()=>setRoute(location.hash.slice(1)); window.addEventListener("hashchange",fn); return ()=>window.removeEventListener("hashchange",fn); },[]);
-  useEffect(() => { document.documentElement.dataset.theme=theme; document.documentElement.style.colorScheme=theme === "light" ? "light" : "dark"; localStorage.setItem("studio-theme",theme); },[theme]);
+  useEffect(() => { document.documentElement.dataset.theme=theme; document.documentElement.style.colorScheme=theme === "light" ? "light" : "dark"; localStorage.setItem("lumiere-theme",theme); },[theme]);
   useEffect(() => { let live=true; void listProjects().then(result=>{if(live){setProjects(result.projects);setNotice(result.warnings.join("\n"));setReady(true); for(const draft of Object.values(recovery())) pending.current.set(draft.id,draft);}}).catch(e=>{if(live){setNotice(errorText(e));setReady(true);}}); return ()=>{live=false;}; },[]);
   const flush = () => {
     const drafts=[...pending.current.values()]; pending.current.clear();

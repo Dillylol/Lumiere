@@ -50,3 +50,8 @@ input[type=radio]{width:16px;height:16px;padding:0;accent-color:var(--accent)}
 .sdk-settings .check{margin-bottom:0;color:var(--text)}
 .sdk-settings input[type=checkbox],.sdk-settings input[type=radio]{padding:0;flex-shrink:0}
 .sdk-checks .check{margin-bottom:0}
+
+/* Lumière identity: warm paper in light mode and one shared flame mark. */
+[data-theme=light]{--background:#f7f6f2;--surface:#fff;--surface-raised:#eeece6;--border:#cbc8bf;--text:#242522;--muted:#5d605b;--accent:#915b10;--mint:#22704f;--field:#efeee9;--danger:#ac332b}
+.studio-brand b{font-size:0;font-weight:400}
+.studio-brand b svg{width:22px;height:22px;stroke-width:2.1}

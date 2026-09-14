@@ -21,6 +21,10 @@ dist-ssr/
 # Rust / Tauri
 target/
 app/src-tauri/gen/schemas/
+app/src-tauri/icons/64x64.png
+app/src-tauri/icons/android/
+app/src-tauri/icons/ios/
+app/src-tauri/icons/flame-source.png
 
 # Gradle / Android
 .gradle/

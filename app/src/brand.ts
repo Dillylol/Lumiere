@@ -5,8 +5,8 @@ export const BRAND = {
   "description": "An offline-first studio for building, simulating, and deploying FTC robot programs.",
   "slug": "lumiere",
   "identifier": "dev.lumiere.desktop",
-  "themeColor": "#38a1f2",
-  "backgroundColor": "#0c141b",
+  "themeColor": "#17191b",
+  "backgroundColor": "#17191b",
   "projectExtension": "lum",
   "storageNamespace": "studio",
   "repository": {

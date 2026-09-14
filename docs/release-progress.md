@@ -23,9 +23,8 @@ Local checks on Windows 11:
 | Check | Result |
 | --- | --- |
 | Robot library and simulator (`robot/`) | 43 JUnit tests pass (25 `ftc-lib`, 18 `sim`), plus lint |
-| Core TypeScript (`app/src/core`) | 68 Vitest tests pass, including Pedro parity within 1e-6 and golden Java output |
-| Desktop bridge (`app/src/desktop`) | 6 Vitest tests pass against Tauri's IPC mock |
-| Rust backend | 28 tests pass; `cargo fmt --check` and `clippy -D warnings` are clean |
+| App, core, and desktop bridge | 105 Vitest tests pass across 16 files, including Pedro parity within 1e-6, golden Java output, IPC settlement, simulator cancellation, SDK connection planning, project templates, and the flame identity |
+| Rust backend | 32 regular tests and all 4 ignored network/integration tests pass; `cargo fmt --check` and `clippy -D warnings` are clean |
 | Rust IPC tests | The registered commands accept the frontend's camelCase arguments |
 | Project creation parity | Rust `quickstart_create` and `scripts/quickstart.mjs` produce the same 130 files byte for byte |
 | Real tool install | From an empty folder: Temurin 21, command-line tools 19.0, and the four SDK packages. Checksums verified; a path containing spaces works. |
@@ -37,8 +36,9 @@ Local checks on Windows 11:
 | Java completions | All hints match the real FTC SDK 12.0, Pedro Pathing, Ivy, Panels, and robot-library classes by reflection (`JavaHintsTest`). Deliberately wrong entries fail the test. All documentation links return HTTP 200. |
 | JitPack coordinates | `publishToMavenLocal -Pgroup=com.github.<owner>.<repo> -Pversion=<tag>` produces `ftc-lib` and `sim` POMs with matching coordinates |
 | Connecting an FTC SDK project | 13 core tests (inspection, and deploy planning with renames, package changes, hand edits, team files, and duplicate OpModes) and 3 Rust tests for adding libraries. The desktop app was driven over WebView2's DevTools protocol against a plain official FTC SDK 12.0: it detected the missing libraries and paused automatic deploys, added the libraries, and deployed automatically. It then handled a rename, kept a hand edit until Overwrite, deployed in manual mode, and moved the package, and the SDK project built with `assembleDebug`. No serious axe findings in the panel. |
-| Script tests | 4 Node tests pass (brand sync, rename, accented names, and injection) |
+| Script tests | 5 Node tests pass (brand sync, rename, accented names, Java package moves, and injection) |
 | Browser workflows | Playwright at 1366×768 and 820×600: create from templates, edit routines (add, reorder, undo), drag and nudge waypoints, edit path headings and curves, generated Java, preview play and reset, command palette, export, reload persistence, TeleOp bindings with mechanisms, program delete and undo, settings, help, and import. No serious axe findings, no console errors, no sideways scrolling, and the whole field stays visible. |
+| Visual identity | The graphite, warm-light, and high-contrast themes use the Lumière flame mark. The generated Windows, macOS, and Linux application icons remain legible at 32 px and are included in desktop packaging. |
 | Windows installers | `npm run tauri build` produces `Lumière_0.1.1_x64_en-US.msi` and `Lumière_0.1.1_x64-setup.exe` (unsigned) around `lumiere.exe`. The MSI's product name keeps its accent, and so does the release app's window title. |
 | GitHub CI | App, desktop (Windows, macOS, Linux), robot library, and quickstart workflows pass on `9f07db9`. |
 | Release 0.1.1 | The tag workflow built all seven installers. JitPack built `ftc-lib` and `sim`, and a release-mode project using them from JitPack builds its APK and passes its simulation test. The Windows installer downloads without signing in. |
@@ -48,7 +48,6 @@ Not yet verified:
 - **Other platforms:** CI builds and tests pass on macOS and Linux, but nobody has installed and used the app there yet.
 - **Hardware:** see the [hardware checklist](hardware-checklist.md).
 - **Native dialogs:** folder and save pickers need a person; the desktop smoke test covers everything around them.
-- **Unused code:** the previous UI (`App.tsx` and `components/`) is no longer rendered and can be removed once the new workspace settles.
 
 ## Decisions made during implementation
 
