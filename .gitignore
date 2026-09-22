@@ -41,6 +41,9 @@ captures/
 .env
 .env.*
 
+# Local dev-launch config
+.claude/launch.json
+
 # Local reference material that must never be committed
 PedropathingStuff/
 
