@@ -30,7 +30,7 @@ export function Brand({ onBack }: { onBack?: () => void }) {
         ? <button type="button" className="brand-link" aria-label="Back to projects" onClick={onBack}>{BRAND.name}</button>
         : <strong>{BRAND.name}</strong>}
     </span>
-    <Modal open={sparkOpen} title="Where the Spark Began" onClose={closeSpark}
+    <Modal open={sparkOpen} title="What Sparked This?" onClose={closeSpark}
       footer={<button type="button" className="primary" onClick={closeSpark}>Keep building</button>}>
       <div className="spark-reveal">
         <div className="spark-dedication">

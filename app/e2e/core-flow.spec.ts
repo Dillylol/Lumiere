@@ -52,7 +52,7 @@ test.beforeEach(async ({ page }) => {
 test("reveals the flame easter egg from projects and the workbench", async ({ page }, testInfo) => {
   const errors = watchErrors(page);
   const flame = page.getByRole("button", { name: `${BRAND.name} flame` });
-  const spark = page.getByRole("dialog", { name: "Where the Spark Began" });
+  const spark = page.getByRole("dialog", { name: "What Sparked This?" });
 
   await flame.click();
   await expect(spark).toBeVisible();
