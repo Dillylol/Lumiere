@@ -1,7 +1,49 @@
 # Release progress
 
-Updated 2026-09-14. This record separates what has been verified locally from what still waits on hardware,
-continuous integration, or release decisions. Version 0.1.1 is released at github.com/Dillylol/Lumiere, with the robot library on JitPack.
+Updated 2026-11-07. This record separates what has been verified locally from what still waits on hardware,
+continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.2.0 is tagged from this record.
+
+## Version 0.2.0
+
+- **Pedro Pathing Visualizer, embedded:** the [Pedro Pathing Visualizer](pedro-visualizer.md) is
+  in Paths → Visualizer, themed for Lumière, with its Apache-2.0 license and NOTICE. Drafts apply to
+  the selected autonomous program and open Simulate.
+- **Dependencies:** Pedro Pathing 3.0.2, AutoTune 1.0.3 (procedures from Pedro Quickstart
+  `4f33ef5b`), and Panels 1.0.20. Generated reverse-tangent headings use `Headings`, because
+  Pedro 3.0.2's own `reverseTangent()` is wrong on curves. See [compatibility](compatibility.md).
+- **Robot library:**
+  - Idle clients are dropped after the documented 10 s, instead of 5.
+  - The manifest is refreshed once the Robot Controller finishes starting.
+  - `Headings` is correct on Pedro 3.0.0 through 3.0.2.
+  - The JSON writer handles every array type, and maps with non-string keys no longer disable
+    `Session`.
+- **Robot view:**
+  - One connection per view, even across robot drops.
+  - A running timer.
+  - `Session.data` values, loop time, and follower mode.
+  - The streamed path and target drawn on the field.
+  - The active OpMode shown read-only.
+- **Generated autonomous programs** report their routine time and revision through `Session`. The
+  Run comparison panel compares simulator and robot runs.
+- **The desktop simulator** starts at the program's start pose with the project's robot footprint,
+  or with a simulator JSON chosen under Robot model.
+- **`.pp` import and export:** format 2.0.0 is read and written. Paths drawn through points become
+  the same Bezier curve, and the file's robot settings are reported instead of ignored.
+- **Virtual hardware test bench** (development only, under `dev/`): it runs the unmodified robot
+  library on the simulator as a virtual Control Hub. It has contract checks, a shakedown, a heading
+  probe, and a Visualizer compatibility check; see `dev/virtual-hardware/README.md`.
+
+0.2.0 verification on Windows 11:
+
+| Check | Result |
+| --- | --- |
+| Robot library and simulator | 48 JUnit tests and lint pass, compiled against Pedro Pathing 3.0.2 |
+| App, core, and desktop bridge | 116 Vitest tests in 18 files; production build |
+| Browser workflows | 14 Playwright tests, including the Visualizer, the Robot view, and Run comparison |
+| Rust backend | 32 tests (4 ignored network tests), `cargo fmt --check`, `clippy -D warnings` |
+| Quickstart with the new pins | Official SDK + overlay: `assembleDebug` (dex), unit tests including golden simulations and the Java hints check, and the interactive simulator smoke test (Example Auto parks at 35.98, 23.96) |
+| Virtual hub on Pedro 3.0.2 | `--check` 18/18, `--shakedown` 11/11; the real Robot view keeps one connection across a robot restart |
+| Visualizer compatibility | Upstream fixtures at `97104e0`: no differences beyond warnings |
 
 ## Status by phase
 
@@ -14,7 +56,7 @@ continuous integration, or release decisions. Version 0.1.1 is released at githu
 | P4 Code generation and quickstart | Done | Golden Java compiles against the real libraries and runs in simulation. Quickstart = official SDK download + overlay. |
 | P5 App experience | Workspace built and validated | `app/src/studio`: projects, visual routines, TeleOp bindings, mechanisms, path editor, generated Java, preview and desktop simulator, robot tools. |
 | P6 Desktop | Backend and editor done | Toolchain detection and install, project creation, Gradle/adb runner, build-output problems, simulator launcher. Editor logic in `src/core`: OpMode discovery, AutoTune paste, and Java completions. |
-| P7 Release | 0.1.1 released; 0.1.2 ready locally | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
+| P7 Release | 0.1.1 and 0.1.2 released; 0.2.0 tagged | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
 
 ## Verification record
 
