@@ -8,7 +8,8 @@ The production release plan supersedes the earlier prototype roadmap. The curren
 - A real Java editor, ordinary FTC SDK 12.0 / Pedro 3 / Ivy / Panels source, and a small robot library.
 - Real Java simulation on the desktop JVM; a clearly labeled TypeScript kinematic preview on the web.
 - A read-only robot WebSocket stream with stop as its only accepted control. Real OpModes start from the Driver Station.
-- No Python relay, AI integration, account requirement, analytics, vendored third-party code, or season-specific content.
+- No Python relay, AI integration, account requirement, or analytics.
+- The [bundled Pedro Pathing Visualizer](docs/pedro-visualizer.md) is an explicit vendoring exception. Its name, upstream notices, and field choices are preserved.
 - One product-name source, stable project identifiers, and the .lum project file extension. Legacy .jules import remains supported.
 
 ## Ordered release phases
@@ -24,7 +25,7 @@ The production release plan supersedes the earlier prototype roadmap. The curren
 | P6 | Java editor, tool installer, build/deploy and JVM runner | Build errors become editor markers; desktop quickstart smoke test | Done |
 | P7 | Cross-platform installers, update signing, docs and release workflows | All release checks pass and publication gates are satisfied | 0.1.1 released; updater signing remains optional follow-up work |
 
-The legacy text DSL is retired: `migrateVersion1` converts saved version 1 projects into project v2. The previous proposal to vendor a visualizer or build a Rust/WASM simulation kernel is retired.
+The legacy text DSL is retired: `migrateVersion1` converts saved version 1 projects into project v2. The desktop Java simulator remains the simulation engine.
 
 ## Publication gates
 

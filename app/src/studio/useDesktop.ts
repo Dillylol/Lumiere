@@ -10,6 +10,7 @@ import {
   type DeployPlan,
   type FtcProjectInspection,
   type JavaTarget,
+  type Program,
   type Project,
 } from "../core";
 import { addSdkLibraries, createRobotProject, installToolchain, isDesktop, toolchainStatus, type RunEvent, type RunningTask, type SdkChange, type ToolchainStatus } from "../desktop/backend";
@@ -347,12 +348,37 @@ export function useDesktop(project: Project, onLog: (line: string) => void) {
       onLog(result.cancelled ? "Build cancelled." : result.code === 0 ? "BUILD SUCCESSFUL" : `BUILD FAILED (exit ${result.code})`);
     });
 
-  const launch = async (): Promise<DesktopSimulator | undefined> =>
+  const launch = async (program: Program, configPath?: string): Promise<DesktopSimulator | undefined> =>
     perform("Starting simulator", async () => {
       abort.current = new AbortController();
       await sync();
       if (cancelled.current) return undefined;
-      return startSimulator(folder, { signal: abort.current.signal, onEvent: report });
+      const options = { signal: abort.current.signal, onEvent: report };
+      if (configPath) return startSimulator(folder, { ...options, configPath });
+
+      const fs = await import("@tauri-apps/plugin-fs");
+      const { appDataDir } = await import("@tauri-apps/api/path");
+      const paths = { baseDir: fs.BaseDirectory.AppData };
+      const relative = "simulator-runs/" + crypto.randomUUID() + ".json";
+      const { widthInches, lengthInches } = latest.current.project.robot;
+      const link = latest.current.sdk;
+      const teamCode = "org.firstinspires.ftc.teamcode";
+      const javaPackage = link?.javaPackage ?? teamCode;
+      const generatedConfig = {
+        package: javaPackage === teamCode || javaPackage.startsWith(teamCode + ".") ? teamCode : javaPackage,
+        constantsClass: link?.constantsClass,
+        start: { x: program.start.x, y: program.start.y, headingDegrees: program.start.headingDeg },
+        robot: { widthInches, lengthInches },
+      };
+      const generatedPath = joinPath(await appDataDir(), relative);
+      if (options.signal.aborted) return undefined;
+      await fs.mkdir("simulator-runs", { ...paths, recursive: true });
+      try {
+        await fs.writeTextFile(relative, JSON.stringify(generatedConfig), paths);
+        return await startSimulator(folder, { ...options, configPath: generatedPath });
+      } finally {
+        await fs.remove(relative, paths).catch(() => {});
+      }
     });
 
   const edit = (path: string, content: string) => setFiles((items) => items.map((file) => (file.path === path ? { ...file, content } : file)));

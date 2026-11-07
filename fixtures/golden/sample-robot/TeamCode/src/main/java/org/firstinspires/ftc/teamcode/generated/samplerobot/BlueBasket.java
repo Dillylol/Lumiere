@@ -1,10 +1,11 @@
 // GENERATED FILE: edit the "Sample Robot" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: 8536357a955ca1f4
+// checksum: ca571eb9b5d76b7d
 package org.firstinspires.ftc.teamcode.generated.samplerobot;
 
 import static com.pedropathing.api.Paths.curve;
 import static com.pedropathing.api.Paths.line;
 import static com.pedropathing.api.Paths.path;
+import static com.pedropathing.ivy.commands.Commands.instant;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.groups.Groups.parallel;
 import static com.pedropathing.ivy.groups.Groups.race;
@@ -28,6 +29,8 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "Blue Basket" autonomous. */
 @Autonomous(name = "Blue Basket", group = "Match", preselectTeleOp = "Driver Control")
 public class BlueBasket extends OpMode {
+    private static final String ROUTINE_REVISION = "26190255e98e91d6";
+
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(9, 111, 270);
     private final Pose toBasketEnd = poses.of(18, 126, 315);
@@ -38,6 +41,7 @@ public class BlueBasket extends OpMode {
 
     private Follower follower;
     private Session session;
+    private long routineStartedNanos;
     private Claw claw;
     private Lift lift;
     private Intake intake;
@@ -84,7 +88,8 @@ public class BlueBasket extends OpMode {
                 ),
                 follow(follower, backToBasket()),
                 intake.command(Intake.State.STOP),
-                follow(follower, park())
+                follow(follower, park()),
+                instant(this::reportRoutineCompletion)
         );
     }
 
@@ -111,6 +116,7 @@ public class BlueBasket extends OpMode {
 
     @Override
     public void start() {
+        routineStartedNanos = System.nanoTime();
         Scheduler.schedule(routine());
     }
 
@@ -128,9 +134,17 @@ public class BlueBasket extends OpMode {
             RobotPose.last = follower.pose();
             follower.stop();
         }
+        if (session != null) session.close();
+    }
+
+    private void reportRoutineCompletion() {
+        double elapsedMs = (System.nanoTime() - routineStartedNanos) / 1_000_000.0;
+        session.data("lumiere.routineElapsedMs", elapsedMs);
+        session.data("lumiere.routineRevision", ROUTINE_REVISION);
     }
 
     private void report() {
+        session.data("lumiere.routineRevision", ROUTINE_REVISION);
         Pose pose = follower.pose();
         telemetry.addData("x (in)", "%.1f", pose.x());
         telemetry.addData("y (in)", "%.1f", pose.y());

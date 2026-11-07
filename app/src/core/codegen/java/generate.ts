@@ -15,7 +15,7 @@ import type {
   Subsystem,
   TeleOpProgram,
 } from "../../ir/types";
-import { withHeader } from "./ownership";
+import { checksum, withHeader } from "./ownership";
 import { camelCase, commentText, constantCase, isQualifiedName, javaNumber, javaString, NameScope, packageSegment, pascalCase } from "./names";
 
 /** Root package for generated code inside a robot project. */
@@ -302,7 +302,9 @@ function headingExpression(heading: Heading): { suffix: string; usesHeadings: bo
     case "constant":
       return { suffix: `.constant(${radians(heading.degrees)})`, usesHeadings: false };
     case "tangential":
-      return { suffix: heading.reverse ? ".reverseTangent()" : ".tangent()", usesHeadings: false };
+      return heading.reverse
+        ? { suffix: ".heading(Headings.piecewise().tangent(0, 1, true).build())", usesHeadings: true }
+        : { suffix: ".tangent()", usesHeadings: false };
     case "piecewise": {
       const rules = heading.segments.map((segment) => {
         const range = `${javaNumber(segment.startProgress)}, ${javaNumber(segment.endProgress)}`;
@@ -332,8 +334,8 @@ function autonomousSource(
   subsystems: Map<string, SubsystemNames>,
   constants: Constants,
 ): string {
-  const members = new NameScope([...OPMODE_MEMBERS, className]);
-  const statics = new Set<string>(["com.pedropathing.ivy.groups.Groups.sequential"]);
+  const members = new NameScope([...OPMODE_MEMBERS, className, "routineStartedNanos", "reportRoutineCompletion", "ROUTINE_REVISION"]);
+  const statics = new Set<string>(["com.pedropathing.ivy.commands.Commands.instant", "com.pedropathing.ivy.groups.Groups.sequential"]);
   const regular = new Set<string>([
     "com.pedropathing.api.PoseFactory",
     "com.pedropathing.follower.Follower",
@@ -445,7 +447,12 @@ function autonomousSource(
       }
     }
   };
-  const routine = joinWithCommas(program.routine.map(stepLines).filter((step): step is string[] => step !== null));
+  const steps = program.routine.map(stepLines).filter((step): step is string[] => step !== null);
+  const routine = joinWithCommas([...steps, ["instant(this::reportRoutineCompletion)"]]);
+  const revision = checksum(JSON.stringify({
+    projectId: project.id, packageName, constants: constants.qualifiedName, program,
+    robot: project.robot, mechanisms: mechanisms.map(({ subsystem }) => subsystem),
+  }));
 
   const w = new Writer();
   w.line(`package ${packageName};`).line();
@@ -456,11 +463,13 @@ function autonomousSource(
   if (program.preselectTeleOp) annotation.push(`preselectTeleOp = ${javaString(program.preselectTeleOp)}`);
   w.line(`@Autonomous(${annotation.join(", ")})`);
   w.block(`public class ${className} extends OpMode`, () => {
+    w.line("private static final String ROUTINE_REVISION = " + javaString(revision) + ";").line();
     w.line("private final PoseFactory poses = PoseFactory.degrees();");
     poseLines.forEach((line) => w.line(line));
     w.line();
     w.line("private Follower follower;");
     w.line("private Session session;");
+    w.line("private long routineStartedNanos;");
     for (const names of mechanisms) w.line(`private ${names.className} ${mechanismFields.get(names.subsystem.id)};`);
     w.line();
 
@@ -471,10 +480,6 @@ function autonomousSource(
     });
 
     w.block("private Command routine()", () => {
-      if (!routine.length) {
-        w.line("return sequential();");
-        return;
-      }
       w.line("return sequential(");
       w.indent(() => w.indent(() => routine.forEach((line) => w.line(line))));
       w.line(");");
@@ -502,7 +507,10 @@ function autonomousSource(
     });
     w.line();
     w.line("@Override");
-    w.block("public void start()", () => w.line("Scheduler.schedule(routine());"));
+    w.block("public void start()", () => {
+      w.line("routineStartedNanos = System.nanoTime();");
+      w.line("Scheduler.schedule(routine());");
+    });
     w.line();
     w.line("@Override");
     w.block("public void loop()", () => {
@@ -518,9 +526,17 @@ function autonomousSource(
         w.line("RobotPose.last = follower.pose();");
         w.line("follower.stop();");
       });
+      w.line("if (session != null) session.close();");
+    });
+    w.line();
+    w.block("private void reportRoutineCompletion()", () => {
+      w.line("double elapsedMs = (System.nanoTime() - routineStartedNanos) / 1_000_000.0;");
+      w.line("session.data(\"lumiere.routineElapsedMs\", elapsedMs);");
+      w.line("session.data(\"lumiere.routineRevision\", ROUTINE_REVISION);");
     });
     w.line();
     w.block("private void report()", () => {
+      w.line("session.data(\"lumiere.routineRevision\", ROUTINE_REVISION);");
       w.line("Pose pose = follower.pose();");
       w.line("telemetry.addData(\"x (in)\", \"%.1f\", pose.x());");
       w.line("telemetry.addData(\"y (in)\", \"%.1f\", pose.y());");

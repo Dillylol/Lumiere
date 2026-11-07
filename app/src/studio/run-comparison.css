@@ -1,0 +1,53 @@
+.run-comparison {
+  margin-bottom: 1rem;
+  padding: .7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.run-comparison h3,
+.run-comparison p {
+  margin: 0;
+}
+
+.run-comparison label {
+  display: grid;
+  gap: .25rem;
+  margin-top: .35rem;
+}
+
+.run-comparison select {
+  min-width: 0;
+  width: 100%;
+}
+
+.run-comparison dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem;
+  margin: .55rem 0;
+}
+
+.run-comparison dd {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-comparison dd small {
+  display: block;
+  font-size: .8rem;
+  font-weight: 400;
+}
+
+.run-comparison dt,
+.run-comparison small,
+.run-comparison .run-comparison-mode,
+.run-comparison .run-comparison-note {
+  color: var(--muted);
+}
+
+.run-comparison .run-comparison-note {
+  margin-top: .35rem;
+}

@@ -52,6 +52,29 @@ describe("Java generation", () => {
     expect(second).toEqual(first);
   });
 
+  it("measures completion after the autonomous steps and fingerprints the generated revision", () => {
+    const project = structuredClone(projects[0][1]);
+    const auto = project.programs.find((program) => program.kind === "autonomous")!;
+    const sourceFor = (project: Project) => {
+      const result = generateJava(project);
+      if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+      return result.files.find((file) => file.content.includes("@Autonomous("))!.content;
+    };
+    const revision = (source: string) => source.match(/ROUTINE_REVISION = "([a-f0-9]{16})";/)?.[1];
+    const before = sourceFor(project);
+    expect(before).toContain("routineStartedNanos = System.nanoTime();\n        Scheduler.schedule(routine());");
+    expect(before).toContain("instant(this::reportRoutineCompletion)\n        );");
+    expect(before).toContain("session.data(\"lumiere.routineElapsedMs\", elapsedMs);");
+    expect(before).toContain("private void report() {\n        session.data(\"lumiere.routineRevision\", ROUTINE_REVISION);");
+    expect(before).not.toContain("requestOpModeStop()");
+    expect(revision(before)).toBeDefined();
+    auto.routine.push({ id: "timing-regression-wait", kind: "wait", ms: 275 });
+    const after = sourceFor(project);
+    expect(after).toContain("waitMs(275),\n                instant(this::reportRoutineCompletion)");
+    expect(revision(after)).toBeDefined();
+    expect(revision(after)).not.toBe(revision(before));
+  });
+
   it("marks every file as generated and unedited", () => {
     const result = generateJava(projects[0][1]);
     if (!result.ok) throw new Error("generation failed");

@@ -59,3 +59,25 @@ input[type=radio]{width:16px;height:16px;padding:0;accent-color:var(--accent)}
 .update-settings .update-notes{white-space:pre-wrap;max-width:65ch}
 .update-notice{margin-bottom:22px;align-items:center}
 .update-notice span{flex:1}
+
+/* Live robot and simulator values: the active OpMode in robot mode, and what a stream reports. */
+.active-opmode{display:flex;flex-direction:column;gap:8px;margin:14px 0 16px;font-size:13px;line-height:1.5}
+.active-opmode strong{color:var(--text);font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.stream-values{display:grid;gap:7px;margin:0 0 18px;font-size:13px}
+.stream-values div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.stream-values dt{color:var(--muted);overflow-wrap:anywhere;min-width:0}
+.stream-values dd{margin:0;color:var(--text);font:12px/1.6 Consolas,monospace;text-align:right;overflow-wrap:anywhere;min-width:0}
+.simulation .properties h3{font-size:14px;margin:22px 0 10px}
+
+.simulator-setup {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.simulator-setup summary {
+  color: var(--text);
+  cursor: pointer;
+}
+.simulator-setup details[open] summary { margin-bottom: 8px; }
+.simulator-setup details p { margin-bottom: 8px; }
+.simulator-setup details .inline-actions { margin-bottom: 8px; }

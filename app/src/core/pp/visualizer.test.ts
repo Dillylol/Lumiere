@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sample from "../../../../fixtures/projects/sample-robot.json";
-import { resolveProgramPaths } from "../geometry/paths";
+import { resolvePath, resolveProgramPaths } from "../geometry/paths";
 import { parseProject } from "../ir/schema";
 import type { AutonomousProgram } from "../ir/types";
 import { exportVisualizer, importVisualizer } from "./visualizer";
@@ -91,7 +91,7 @@ describe("Visualizer .pp files", () => {
 
   it("round-trips the sample autonomous paths", () => {
     const auto = parseProject(structuredClone(sample)).programs[0] as AutonomousProgram;
-    const exported = exportVisualizer(auto, new Date("2026-09-13T00:00:00Z"));
+    const exported = exportVisualizer(auto, { now: new Date("2026-09-13T00:00:00Z") });
     expect(exported.warnings).toHaveLength(2);
     const imported = importVisualizer(exported.text);
     expect(imported.start).toEqual(auto.start);
@@ -103,8 +103,75 @@ describe("Visualizer .pp files", () => {
       .toEqual(["path_score", "path_pickup", "path_return", "path_park"]);
   });
 
+
+  it("imports 2.0.0 through paths as equivalent control points and reports robot settings", () => {
+    const source = JSON.stringify({
+      version: "2.0.0",
+      startPoint: { x: 10, y: 10, headingDeg: 0 },
+      robot: { rLength: 19, rWidth: 16, forwardVelocity: 42 },
+      fieldPoints: [{ x: 40, y: 30 }],
+      lines: [{
+        id: "curve",
+        endPoint: { x: 70, y: 20 },
+        throughPoints: [{ x: 30, y: 30 }, { x: 50, y: 45 }],
+        controlPoints: [{ x: 90, y: 80 }],
+      }],
+    });
+    const robot = { lengthInches: 18, widthInches: 18 };
+    const imported = importVisualizer(source, { robot });
+    const curve = resolvePath(imported.paths[0], imported.start).curve;
+    expect(curve.get(1 / 3).x).toBeCloseTo(30, 8);
+    expect(curve.get(1 / 3).y).toBeCloseTo(30, 8);
+    expect(curve.get(2 / 3).x).toBeCloseTo(50, 8);
+    expect(curve.get(2 / 3).y).toBeCloseTo(45, 8);
+    expect(imported.warnings).toHaveLength(3);
+    expect(imported.warnings.join("\n")).toContain("19 × 16 in");
+    expect(imported.warnings.join("\n")).toContain("18 × 18 in");
+    expect(imported.warnings.join("\n")).toContain("Control points saved alongside");
+    const exported = exportVisualizer(imported, { robot });
+    expect(JSON.parse(exported.text)).toMatchObject({ version: "2.0.0", robot: { rLength: 18, rWidth: 18 } });
+    expect(importVisualizer(exported.text, { robot }).warnings).toEqual([]);
+  });
+
+  it("reads the Visualizer's legacy length and width settings in the right order", () => {
+    const source = JSON.stringify({ ...JSON.parse(legacy), settings: { rWidth: 20, rHeight: 15 } });
+    expect(importVisualizer(source).warnings.join("\n")).toContain("20 × 15 in");
+  });
+
+  it("continues a group heading from its reversed tangent", () => {
+    const source = JSON.parse(current);
+    source.lines[0].heading = {
+      type: "piecewise",
+      piecewiseHeading: { segments: [
+        { startProgress: 0, endProgress: 0.1, interpolationType: "tangential", reversed: true },
+        { startProgress: 0.1, endProgress: 1, interpolationType: "constant", continueFromPrevious: true },
+      ] },
+    };
+    const group = importVisualizer(JSON.stringify(source)).paths[0];
+    expect(group).toMatchObject({
+      kind: "compound",
+      heading: { type: "piecewise", segments: [
+        { type: "tangential", reverse: true },
+        { type: "constant", degrees: 180 },
+      ] },
+    });
+  });
+
+  it("preserves repeated paths and complete compound passes in the sequence", () => {
+    const source = JSON.parse(current);
+    source.sequence = ["g1", "g2", "g1", "g2", "last", "last"].map(lineId => ({ kind: "path", lineId }));
+    expect(importVisualizer(JSON.stringify(source)).routine.map(step => step.kind === "path" && step.pathId))
+      .toEqual(["group", "group", "last", "last"]);
+  });
+
+  it("reports nested groups instead of importing them as an empty segment", () => {
+    const source = JSON.parse(current);
+    source.lines[0].segments = [{ kind: "compound", segments: source.lines[0].segments }];
+    expect(() => importVisualizer(JSON.stringify(source))).toThrow(/Ungroup nested paths/);
+  });
+
   it("warns about newer files", () => {
-    const newer = JSON.stringify({ ...JSON.parse(current), version: "2.0.0" });
+    const newer = JSON.stringify({ ...JSON.parse(current), version: "2.1.0" });
     expect(importVisualizer(newer).warnings[0]).toContain("newer Visualizer");
   });
 });

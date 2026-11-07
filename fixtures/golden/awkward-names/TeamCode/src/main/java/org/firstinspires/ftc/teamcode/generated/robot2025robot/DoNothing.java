@@ -1,7 +1,8 @@
 // GENERATED FILE: edit the "2025 Robot!" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: 32ce588ef5c785ad
+// checksum: 431c4225dc1b4fed
 package org.firstinspires.ftc.teamcode.generated.robot2025robot;
 
+import static com.pedropathing.ivy.commands.Commands.instant;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 
 import com.pedropathing.api.PoseFactory;
@@ -19,15 +20,20 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "Do Nothing" autonomous. */
 @Autonomous(name = "Do Nothing", group = "Tests")
 public class DoNothing extends OpMode {
+    private static final String ROUTINE_REVISION = "a797cc5b89f7a54c";
+
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(9, 9, 0);
 
     private Follower follower;
     private Session session;
+    private long routineStartedNanos;
     private ClassMechanism classMechanism;
 
     private Command routine() {
-        return sequential();
+        return sequential(
+                instant(this::reportRoutineCompletion)
+        );
     }
 
     @Override
@@ -49,6 +55,7 @@ public class DoNothing extends OpMode {
 
     @Override
     public void start() {
+        routineStartedNanos = System.nanoTime();
         Scheduler.schedule(routine());
     }
 
@@ -66,9 +73,17 @@ public class DoNothing extends OpMode {
             RobotPose.last = follower.pose();
             follower.stop();
         }
+        if (session != null) session.close();
+    }
+
+    private void reportRoutineCompletion() {
+        double elapsedMs = (System.nanoTime() - routineStartedNanos) / 1_000_000.0;
+        session.data("lumiere.routineElapsedMs", elapsedMs);
+        session.data("lumiere.routineRevision", ROUTINE_REVISION);
     }
 
     private void report() {
+        session.data("lumiere.routineRevision", ROUTINE_REVISION);
         Pose pose = follower.pose();
         telemetry.addData("x (in)", "%.1f", pose.x());
         telemetry.addData("y (in)", "%.1f", pose.y());

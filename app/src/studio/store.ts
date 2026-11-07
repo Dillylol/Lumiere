@@ -58,9 +58,9 @@ export async function listProjects(): Promise<{ projects: Project[]; warnings: s
 }
 export function parseImport(text: string, filename: string) {
   const value: unknown = JSON.parse(text);
-  if (filename.endsWith(".pp")) {
-    const imported = importVisualizer(text);
-    const project = createProject(filename.replace(/\.pp$/, ""));
+  if (filename.toLowerCase().endsWith(".pp")) {
+    const project = createProject(filename.slice(0, -3));
+    const imported = importVisualizer(text, { robot: project.robot });
     project.programs.push({ ...createAutonomous("Imported Auto"), start: imported.start, paths: imported.paths, routine: imported.routine });
     return { project: parseProject(project), warnings: imported.warnings };
   }

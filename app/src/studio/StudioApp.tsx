@@ -59,7 +59,7 @@ function Studio() {
   };
   const add=async(project:Project)=>{try{await saveProject(project);setProjects(items=>[project,...items]);setDialog(false);go(`/project/${project.id}`);}catch(e){setNotice(errorText(e));}};
   const active=projects.find(p=>route===`/project/${p.id}`);
-  if(active)return <Suspense fallback={<div className="studio-loading">Opening workspace…</div>}><Workbench key={active.id} project={active} onUpdate={update} onBack={()=>{void flush();go("/");}} saved={saved} onNotice={setNotice}/></Suspense>;
+  if(active)return <Suspense fallback={<div className="studio-loading">Opening workspace…</div>}><Workbench key={active.id} project={active} onUpdate={update} onBack={()=>{void flush();go("/");}} saved={saved} notice={notice} onNotice={setNotice}/></Suspense>;
   return <div className="studio-home">
     <aside className="studio-sidebar"><Brand/><nav aria-label="Main navigation"><button className={!route||route==="/"?"active":""} onClick={()=>go("/")}><Folder/>Projects</button></nav><div className="sidebar-bottom"><button onClick={()=>go("/help")}><BookOpen/>Help</button><button onClick={()=>go("/settings")}><Settings/>Settings</button><small><i className="status-dot"/>Local workspace</small></div></aside>
     <main className="studio-home-main">
