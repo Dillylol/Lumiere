@@ -2,10 +2,10 @@
   "$comment": "Pinned upstream sources downloaded when a quickstart is created. Nothing listed here is stored in this repository. Update versions, commits, and hashes together, then run the quickstart CI build.",
   "versions": {
     "FTC_SDK_VERSION": "12.0.0",
-    "PEDRO_VERSION": "3.0.0",
-    "PEDRO_TUNING_VERSION": "1.0.0",
+    "PEDRO_VERSION": "3.0.2",
+    "PEDRO_TUNING_VERSION": "1.0.3",
     "IVY_VERSION": "1.1.1",
-    "PANELS_VERSION": "1.0.12",
+    "PANELS_VERSION": "1.0.20",
     "KOTLIN_BOM_VERSION": "2.4.10"
   },
   "ftcSdk": {
@@ -18,18 +18,18 @@
   "pedroTuningProcedures": {
     "name": "Pedro Pathing Quickstart AutoTune procedures",
     "license": "BSD-3-Clause-Clear",
-    "commit": "b4312385b7d0cc5e8dd263ec3927c9ef0cb48f36",
-    "baseUrl": "https://raw.githubusercontent.com/Pedro-Pathing/Quickstart/b4312385b7d0cc5e8dd263ec3927c9ef0cb48f36/",
+    "commit": "4f33ef5bbbd99ebfe978f0b86046ca43469e2df2",
+    "baseUrl": "https://raw.githubusercontent.com/Pedro-Pathing/Quickstart/4f33ef5bbbd99ebfe978f0b86046ca43469e2df2/",
     "files": [
       { "path": "LICENSE", "target": "licenses/PedroPathing-Quickstart-LICENSE.txt", "sha256": "43fdbddb26a1b89f49c94a52181d7c1f99f5d389cffd00371d5618f8f84cfc6d" },
-      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ForesightTuner.java", "sha256": "fa3a26081409914e5e38be52dc3780fd1061af9960f36fa65a56ec43b20c326d" },
+      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ForesightTuner.java", "sha256": "c939c429294ef9cb0c67c5ffee6d5531aaf145eb1cd8c274088bd071e881c0cf" },
       { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/MecanumTuner.java", "sha256": "69238285d432d544aca838bee30d3211b6e56d194db41090cb5853ba7e5f7bd1" },
       { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/OTOSTuner.java", "sha256": "76c5f6dfaa2757c09b16fa9674b29f4acd228748749b81369e0a35911b0a3dc0" },
       { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/OctoQuadTuner.java", "sha256": "61b0a61170ad4ec972a11b669c8748653fd88e014ea1948b243362b950fdd2e7" },
-      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/PinpointTuner.java", "sha256": "420d9a5b5803297843dc687c01284e20bb8512d5b892de240ba8e6348cb9f941" },
-      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/Tests.java", "sha256": "6b2338b5e347d99aa3f6ce5c19832d81162e60ae48ef5d597ee817bb892e8b00" },
-      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ThreeWheelIMUTuner.java", "sha256": "6489af4194bc0e0a9ff67a9ac967c78399bb1443c85078204246a23e3a36234e" },
-      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ThreeWheelTuner.java", "sha256": "d71d39d02c6bb2f4490b1669acf0565174f9947bbf229fb41891ba0393c79bd1" },
+      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/PinpointTuner.java", "sha256": "2150d108be653c69aa7d42c4f16d719a8b627313128fd46b7ca6f78e00bf35e5" },
+      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/Tests.java", "sha256": "33d52bba5867962abe6b4a110b3a53ed6d05b0a0e1b66c27711bb04660165c8e" },
+      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ThreeWheelIMUTuner.java", "sha256": "5a37f2a86e01498fc7b0e7290aae3cce1d6dd2751bf95f11732a3928cbbdd573" },
+      { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/ThreeWheelTuner.java", "sha256": "88d65c22574ed933addba88a1bc40b443127de65630b06b9ec47860266814075" },
       { "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedro/procedures/TwoWheelTuner.java", "sha256": "2624b3e62456d3b0eeb40dbbc8484269733871faeb96c6ea1f6e7fb0b60178ba" }
     ]
   }
