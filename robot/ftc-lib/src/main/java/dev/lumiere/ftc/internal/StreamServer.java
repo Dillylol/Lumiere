@@ -29,8 +29,15 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
         List<String> messages();
     }
 
-    private static final long CLIENT_TIMEOUT_MS = 10_000;
-    private static final long AUTH_TIMEOUT_MS = 3_000;
+    /** A client that sends nothing (not even a ping) for this long is disconnected. */
+    static final long CLIENT_TIMEOUT_MS = 10_000;
+    static final long AUTH_TIMEOUT_MS = 3_000;
+    /**
+     * Socket read timeout. It must be longer than {@link #CLIENT_TIMEOUT_MS}: a read that times out
+     * closes the WebSocket, so NanoHTTPD's default of 5 seconds would disconnect quiet clients before
+     * the watchdog's documented 10 seconds.
+     */
+    static final int SOCKET_READ_TIMEOUT_MS = (int) CLIENT_TIMEOUT_MS + 5_000;
 
     private final List<Client> clients = new CopyOnWriteArrayList<>();
     private final List<Client> pending = new CopyOnWriteArrayList<>();
@@ -52,7 +59,7 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
 
     /** Starts the server and the idle-client watchdog. */
     public void begin() throws IOException {
-        start(NanoHTTPD.SOCKET_READ_TIMEOUT, true);
+        start(SOCKET_READ_TIMEOUT_MS, true);
         Thread thread = new Thread(this::watch, "stream-watchdog");
         thread.setDaemon(true);
         watchdog = thread;

@@ -124,9 +124,12 @@ public final class RobotHooks {
     private static final class Lifecycle implements OpModeManagerNotifier.Notifications {
         @Override
         public void onOpModePreInit(OpMode opMode) {
-            if (isSystem()) return;
+            // The Robot Controller calls onCreateEventLoop before it registers OpModes and builds the
+            // hardware map, so an app that connects early receives an incomplete manifest. The SDK
+            // initializes its own default OpMode once both are ready, and again after every stop, so
+            // the manifest is refreshed then too, without a lifecycle message.
             Stream.publish("manifest", Manifest.build(opMode.hardwareMap, registeredOpModes()));
-            publish("init");
+            if (!isSystem()) publish("init");
         }
 
         @Override

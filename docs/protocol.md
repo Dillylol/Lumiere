@@ -50,8 +50,13 @@ The simulator also sends:
 
 ### `manifest`
 
-Configured hardware and the OpModes a Driver Station would list. It is sent after `hello`, and again
+Configured hardware and the OpModes a Driver Station would list. It is sent after `hello` and
 whenever an OpMode is initialized on the robot.
+
+The robot also sends it when it finishes starting and after every stop, without a `lifecycle`
+message. At those points the FTC SDK initializes its own default OpMode. The stream starts before the
+Robot Controller has registered OpModes and built the hardware map, so an app that connects during
+startup first receives an incomplete manifest, then the complete one.
 
 ```json
 {

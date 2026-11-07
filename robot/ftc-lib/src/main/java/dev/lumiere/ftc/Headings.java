@@ -20,12 +20,43 @@ import java.util.List;
  * {@code Curve.remainingDistance}, which is correct for every curve type, so they give the intended
  * result now and after an upstream fix.
  *
+ * <p>Pedro Pathing 3.0.2 changed what interpolators receive: paths pass the fraction of distance
+ * travelled instead of the curve parameter, unless the interpolator reports itself as geometric.
+ * These interpolators report geometric, so they keep receiving the curve parameter and measure
+ * distance themselves on every version. Without that, 3.0.2 would convert progress twice, and
+ * headings on curves would lag or aim from the wrong point between the ends.
+ *
  * <pre>{@code
  * Path toScore = line(start, score).heading(Headings.linear(start, score));
  * }</pre>
  */
 public final class Headings {
     private Headings() {
+    }
+
+    /**
+     * An interpolator that receives the curve parameter on every Pedro Pathing version.
+     *
+     * <p>{@code isGeometric()} is declared on {@code Interpolator} only from Pedro Pathing 3.0.2, so it
+     * has no {@code @Override}: on 3.0.0 and 3.0.1 it is an extra method, and from 3.0.2 it overrides
+     * the interface's default. {@code reverse()} is overridden because Pedro's default returns a plain
+     * lambda, which 3.0.2 treats as not geometric.
+     */
+    private abstract static class FromParameter implements Interpolator {
+        public boolean isGeometric() {
+            return true;
+        }
+
+        @Override
+        public Interpolator reverse() {
+            final Interpolator outer = this;
+            return new FromParameter() {
+                @Override
+                public double interpolate(Curve curve, double t) {
+                    return Angle.normalize(outer.interpolate(curve, t) + Math.PI);
+                }
+            };
+        }
     }
 
     /** Turns from the start pose's heading to the end pose's heading along the whole path, the short way. */
@@ -55,7 +86,12 @@ public final class Headings {
         }
         final double start = Angle.normalize(startRadians);
         final double delta = Angle.error(start, Angle.normalize(endRadians));
-        return (curve, t) -> Angle.normalize(start + delta * Math.min(1.0, completion(curve, t) / endCompletion));
+        return new FromParameter() {
+            @Override
+            public double interpolate(Curve curve, double t) {
+                return Angle.normalize(start + delta * Math.min(1.0, completion(curve, t) / endCompletion));
+            }
+        };
     }
 
     /**
@@ -136,18 +172,21 @@ public final class Headings {
             if (segments.isEmpty()) throw new IllegalStateException("Add at least one heading rule.");
             final List<Segment> sorted = new ArrayList<>(segments);
             Collections.sort(sorted, (a, b) -> Double.compare(a.start, b.start));
-            return (curve, t) -> {
-                double progress = completion(curve, t);
-                Segment chosen = sorted.get(sorted.size() - 1);
-                for (Segment segment : sorted) {
-                    if (progress <= segment.end) {
-                        chosen = segment;
-                        break;
+            return new FromParameter() {
+                @Override
+                public double interpolate(Curve curve, double t) {
+                    double progress = completion(curve, t);
+                    Segment chosen = sorted.get(sorted.size() - 1);
+                    for (Segment segment : sorted) {
+                        if (progress <= segment.end) {
+                            chosen = segment;
+                            break;
+                        }
                     }
+                    double width = chosen.end - chosen.start;
+                    double local = width > 0 ? Math.max(0, Math.min(1, (progress - chosen.start) / width)) : 1;
+                    return chosen.rule.heading(curve, t, local);
                 }
-                double width = chosen.end - chosen.start;
-                double local = width > 0 ? Math.max(0, Math.min(1, (progress - chosen.start) / width)) : 1;
-                return chosen.rule.heading(curve, t, local);
             };
         }
     }

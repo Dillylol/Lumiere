@@ -42,10 +42,12 @@ public final class Json {
         } else if (value instanceof Map) {
             out.append('{');
             boolean first = true;
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
+            // Keys of any type are written as strings; a non-string key must not throw, because an
+            // exception here disables the OpMode's Session for the rest of the run.
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 if (!first) out.append(',');
                 first = false;
-                appendString(out, entry.getKey());
+                appendString(out, String.valueOf(entry.getKey()));
                 out.append(':');
                 append(out, entry.getValue());
             }
@@ -59,18 +61,15 @@ public final class Json {
                 append(out, item);
             }
             out.append(']');
-        } else if (value instanceof double[]) {
+        } else if (value.getClass().isArray()) {
+            // Every array type, primitive or not: int[] would otherwise be written as "[I@1b6d3586".
             out.append('[');
-            double[] numbers = (double[]) value;
-            for (int i = 0; i < numbers.length; i++) {
+            int length = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < length; i++) {
                 if (i > 0) out.append(',');
-                append(out, numbers[i]);
+                append(out, java.lang.reflect.Array.get(value, i));
             }
             out.append(']');
-        } else if (value instanceof Object[]) {
-            List<Object> items = new ArrayList<>();
-            for (Object item : (Object[]) value) items.add(item);
-            append(out, items);
         } else {
             appendString(out, value.toString());
         }

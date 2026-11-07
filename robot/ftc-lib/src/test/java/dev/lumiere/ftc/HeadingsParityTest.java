@@ -123,7 +123,7 @@ public class HeadingsParityTest {
             case "constant":
                 return path.constant(radians(heading, "degrees"));
             case "tangential":
-                return Boolean.TRUE.equals(heading.get("reverse")) ? path.reverseTangent() : path.tangent();
+                return Boolean.TRUE.equals(heading.get("reverse")) ? path.heading(Headings.piecewise().tangent(0, 1, true).build()) : path.tangent();
             case "piecewise": {
                 Headings.Piecewise builder = Headings.piecewise();
                 for (Object item : (List<Object>) heading.get("segments")) {

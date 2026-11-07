@@ -131,6 +131,47 @@ public class StreamServerTest {
     }
 
     @Test
+    public void quietClientsLastTenSecondsAndPingingClientsStay() throws Exception {
+        // docs/protocol.md: clients must send something at least every 10 seconds. A socket read
+        // timeout shorter than that used to disconnect them after 5.
+        assertTrue(StreamServer.SOCKET_READ_TIMEOUT_MS > StreamServer.CLIENT_TIMEOUT_MS);
+        Recorder pinging = new Recorder();
+        WebSocket pinger = connect(pinging, null);
+        assertTrue(pinging.opened.await(5, TimeUnit.SECONDS));
+        pinger.send("{\"type\":\"auth\",\"token\":\"secret-token\"}");
+        assertEquals("hello", type(pinging.messages.poll(5, TimeUnit.SECONDS)));
+
+        Recorder silent = new Recorder();
+        WebSocket quiet = connect(silent, null);
+        assertTrue(silent.opened.await(5, TimeUnit.SECONDS));
+        quiet.send("{\"type\":\"auth\",\"token\":\"secret-token\"}");
+        assertEquals("hello", type(silent.messages.poll(5, TimeUnit.SECONDS)));
+        long authorized = System.nanoTime();
+
+        Thread.sleep(6_500);
+        pinger.send("{\"type\":\"ping\",\"t\":1}");
+        assertEquals("a client silent for 6.5 s is still connected", 1, silent.closed.getCount());
+        assertTrue(silent.closed.await(8, TimeUnit.SECONDS));
+        double seconds = (System.nanoTime() - authorized) / 1e9;
+        assertTrue("silent client closed after " + seconds + " s", seconds >= 9.5 && seconds < 12);
+
+        Thread.sleep(Math.max(0, 13_000 - (long) (seconds * 1000)));
+        pinger.send("{\"type\":\"ping\",\"t\":2}");
+        long deadline = System.currentTimeMillis() + 5000;
+        String pong = null;
+        while (System.currentTimeMillis() < deadline) {
+            String message = pinging.messages.poll(1, TimeUnit.SECONDS);
+            if (message != null && message.contains("\"t\":2")) {
+                pong = message;
+                break;
+            }
+        }
+        assertNotNull("a client that pings every 6.5 s is still served after 13 s", pong);
+        assertEquals(1, server.clientCount());
+        pinger.close(1000, "done");
+    }
+
+    @Test
     public void browserPagesFromOtherOriginsAreRefused() throws Exception {
         Recorder recorder = new Recorder();
         connect(recorder, "https://example.com");

@@ -27,6 +27,28 @@ public class JsonTest {
                 Json.write(object));
     }
 
+    /** Found on the virtual hub: Session.data("ticks", new int[]{...}) reached the app as "[I@f9bdaab". */
+    @Test
+    public void writesEveryArrayType() {
+        assertEquals("[1,2,3]", Json.write(new int[]{1, 2, 3}));
+        assertEquals("[9007199254740993]", Json.write(new long[]{9007199254740993L}));
+        assertEquals("[true,false]", Json.write(new boolean[]{true, false}));
+        assertEquals("[0.5,2]", Json.write(new float[]{0.5f, 2f}));
+        assertEquals("[\"a\",\"b\"]", Json.write(new char[]{'a', 'b'}));
+        assertEquals("[\"x\",[1,2],null]", Json.write(new Object[]{"x", new short[]{1, 2}, null}));
+        assertEquals("[[1],[2,3]]", Json.write(new int[][]{{1}, {2, 3}}));
+    }
+
+    /** A non-string map key used to throw, which silently disabled the OpMode's Session for the rest of the run. */
+    @Test
+    public void writesMapsWithNonStringKeys() {
+        Map<Object, Object> map = new java.util.LinkedHashMap<>();
+        map.put(1, "one");
+        map.put(Thread.State.NEW, 2.5);
+        map.put(null, true);
+        assertEquals("{\"1\":\"one\",\"NEW\":2.5,\"null\":true}", Json.write(map));
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     public void parsesWhatItWrites() {
