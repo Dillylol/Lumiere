@@ -37,7 +37,11 @@ export function Brand({ onBack }: { onBack?: () => void }) {
           <Flame fill="currentColor"/>
           <Sparkles/>
         </div>
-        <p>Here’s to the late nights, loose wires, and last-minute fixes that make a robot move.</p>
+        <div className="spark-dedication">
+          <p>I dedicate Lumière to my two mentors, Mr. Cyr and Mr. Botello, who gave me room to explore, try, fail, and build a tool for teams everywhere.</p>
+          <p>To Team 27303, Bots of Steele Team Shield, thank you for giving me the chance to lead, create, and grow alongside all of you.</p>
+          <p>To everyone in the Steele Robotics Club, may you never stop dreaming, creating, and making memories. May the wins be great, and may the memories and experiences be even greater.</p>
+        </div>
       </div>
     </Modal>
   </>;

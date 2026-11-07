@@ -56,6 +56,9 @@ test("reveals the flame easter egg from projects and the workbench", async ({ pa
 
   await flame.click();
   await expect(spark).toBeVisible();
+  await expect(spark.getByText(/Mr\. Cyr and Mr\. Botello/)).toBeVisible();
+  await expect(spark.getByText(/Team 27303, Bots of Steele Team Shield/)).toBeVisible();
+  await expect(spark.getByText(/To everyone in the Steele Robotics Club/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(spark).toHaveCount(0);
   await expect(flame).toBeFocused();

@@ -74,28 +74,28 @@ button.brand-mark:hover:not(:disabled) {
   display: grid;
   justify-items: center;
   gap: 20px;
-  padding: 26px 16px;
+  padding: 22px clamp(16px, 4vw, 26px);
   border: 1px solid var(--border);
   border-radius: 8px;
   background: radial-gradient(ellipse at 50% 15%, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface) 72%);
-  text-align: center;
 }
-.spark-reveal p { max-width: 35ch; margin: 0; }
+.spark-dedication { display: grid; gap: 12px; max-width: 52ch; }
+.spark-dedication p { color: var(--text); margin: 0; }
 .spark-emblem {
   position: relative;
   display: grid;
   place-items: center;
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
-  border-radius: 22px;
+  border-radius: 18px;
   background: var(--surface);
   color: var(--accent);
   box-shadow: 0 8px 28px color-mix(in srgb, var(--accent) 16%, transparent);
   animation: spark-arrive 280ms ease-out both;
 }
-.spark-emblem .lucide-flame { width: 42px; height: 42px; }
-.spark-emblem .lucide-sparkles { position: absolute; top: -9px; right: -12px; width: 26px; height: 26px; }
+.spark-emblem .lucide-flame { width: 34px; height: 34px; }
+.spark-emblem .lucide-sparkles { position: absolute; top: -7px; right: -10px; width: 23px; height: 23px; }
 @keyframes spark-arrive {
   from { opacity: 0; transform: translateY(6px) scale(.9); }
   to { opacity: 1; transform: translateY(0) scale(1); }
