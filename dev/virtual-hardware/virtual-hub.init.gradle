@@ -1,0 +1,51 @@
+// Development only. Used by dev/virtual-hardware/virtual-hub.mjs through --init-script, for one Gradle
+// run: nothing in the robot project, the quickstart overlay, or the robot library is edited.
+//
+// Settings come from environment variables, which avoids quoting paths on the Gradle command line:
+//   VH_HARNESS   harness sources, added to TeamCode's unit tests
+//   VH_DS_PORT   Driver Station port for the virtual hub (0 picks a free port)
+//   VH_CONFIG    simulator configuration JSON (optional)
+//   VH_PROBE     set to run the Pedro heading probe
+//   VH_BOOT_DELAY_MS  delay between the robot stream starting and OpModes being ready (a slow hub)
+//   VH_FAULTS    set to also list the deliberately faulty OpModes (shakedown)
+//   VH_PEDRO     resolve Pedro Pathing core and revhub at this version instead of the project's
+//   VH_TOKEN     Driver Station token (read by the harness, not here)
+
+def env = System.getenv()
+def harness = env['VH_HARNESS']
+def pedro = env['VH_PEDRO']
+
+// Only the robot project itself; an included local robot-library build keeps its own settings, as a
+// published library would.
+if (gradle.parent == null) {
+    allprojects { project ->
+        if (harness) {
+            project.plugins.withId('com.android.application') {
+                if (project.name != 'TeamCode') return
+                project.android.sourceSets.test.java.srcDir(harness)
+                project.tasks.withType(Test).configureEach { Test task ->
+                    [VH_DS_PORT: 'vh.dsPort', VH_CONFIG: 'vh.config', VH_PROBE: 'vh.probe',
+                     VH_BOOT_DELAY_MS: 'vh.bootDelayMs', VH_FAULTS: 'vh.faults'].each { name, property ->
+                        if (env[name]) task.systemProperty(property, env[name])
+                    }
+                    task.outputs.upToDateWhen { false }
+                    task.testLogging {
+                        showStandardStreams = true
+                        events 'failed'
+                        exceptionFormat 'full'
+                    }
+                }
+            }
+        }
+        if (pedro) {
+            project.configurations.configureEach {
+                resolutionStrategy.eachDependency { details ->
+                    if (details.requested.group == 'com.pedropathing' && details.requested.name in ['core', 'revhub']) {
+                        details.useVersion(pedro)
+                        details.because('dev/virtual-hardware compatibility run')
+                    }
+                }
+            }
+        }
+    }
+}

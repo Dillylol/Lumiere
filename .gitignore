@@ -44,6 +44,9 @@ captures/
 # Local dev-launch config
 .claude/launch.json
 
+# Working notes from AI agent runs
+.agents/
+
 # Local reference material that must never be committed
 PedropathingStuff/
 
