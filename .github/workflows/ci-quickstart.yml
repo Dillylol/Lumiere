@@ -21,6 +21,9 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          # The legacy "tools" package (the default) no longer exists for the runner's command-line tools.
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
       - name: Generate a project from the official FTC SDK and the overlay
         run: node scripts/quickstart.mjs --out "$RUNNER_TEMP/robot-project" --robot-library local
