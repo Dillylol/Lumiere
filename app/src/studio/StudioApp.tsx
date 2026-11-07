@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Gamepad2, Plus, RefreshCw, Route, Settings, Sparkles, Square, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Gamepad2, Plus, RefreshCw, Route, Settings, Square, Trash2, Upload } from "lucide-react";
 import { BRAND } from "../brand";
 import { createAutonomous, createLine, createProject, createTeleOp, duplicateProject, newId, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
@@ -30,13 +30,9 @@ export function Brand({ onBack }: { onBack?: () => void }) {
         ? <button type="button" className="brand-link" aria-label="Back to projects" onClick={onBack}>{BRAND.name}</button>
         : <strong>{BRAND.name}</strong>}
     </span>
-    <Modal open={sparkOpen} title="You found the spark!" onClose={closeSpark}
+    <Modal open={sparkOpen} title="Where the Spark Began" onClose={closeSpark}
       footer={<button type="button" className="primary" onClick={closeSpark}>Keep building</button>}>
       <div className="spark-reveal">
-        <div className="spark-emblem" aria-hidden="true">
-          <Flame fill="currentColor"/>
-          <Sparkles/>
-        </div>
         <div className="spark-dedication">
           <p>I dedicate Lumière to my two mentors, Mr. Cyr and Mr. Botello, who gave me room to explore, try, fail, and build a tool for teams everywhere.</p>
           <p>To Team 27303, Bots of Steele Team Shield, thank you for giving me the chance to lead, create, and grow alongside all of you.</p>
