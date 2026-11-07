@@ -49,6 +49,40 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveTitle(`${BRAND.name} · ${BRAND.tagline}`);
 });
 
+test("reveals the flame easter egg from projects and the workbench", async ({ page }, testInfo) => {
+  const errors = watchErrors(page);
+  const flame = page.getByRole("button", { name: `${BRAND.name} flame` });
+  const spark = page.getByRole("dialog", { name: "You found the spark!" });
+
+  await flame.click();
+  await expect(spark).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(spark).toHaveCount(0);
+  await expect(flame).toBeFocused();
+
+  await page.getByRole("button", { name: "New project" }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  await expect(page.getByRole("heading", { name: "Program flow" })).toBeVisible();
+  const projectUrl = page.url();
+
+  await flame.focus();
+  await page.keyboard.press("Enter");
+  await expect(spark).toBeVisible();
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  expect(await seriousViolations(page)).toEqual([]);
+  await expectNoHorizontalScroll(page);
+  await page.screenshot({ path: testInfo.outputPath("flame-easter-egg.png"), animations: "disabled" });
+  await spark.getByRole("button", { name: "Keep building" }).click();
+  await expect(spark).toHaveCount(0);
+  await expect(flame).toBeFocused();
+  await expect(page).toHaveURL(projectUrl);
+  await page.getByRole("button", { name: "Back to projects" }).click();
+  await expect(page.getByRole("heading", { name: "Your projects" })).toBeVisible();
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("creates, edits, previews, and reopens an autonomous project", async ({ page }, testInfo) => {
   const errors = watchErrors(page);
   await expect(page.getByRole("heading", { name: "Your projects" })).toBeVisible();

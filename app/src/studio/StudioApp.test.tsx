@@ -7,7 +7,9 @@ describe("StudioApp identity and templates", () => {
     const { container } = render(<Brand />);
     expect(screen.getByText("Lumière")).toBeInTheDocument();
     expect(container.querySelector(".lucide-flame")).toBeInTheDocument();
-    expect(container.querySelector(".studio-brand b")).toHaveAttribute("aria-hidden", "true");
+    const mark = screen.getByRole("button", { name: "Lumière flame" });
+    expect(mark).toHaveAttribute("aria-haspopup", "dialog");
+    expect(mark.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("creates a square autonomous with four paths and a closing wait", () => {

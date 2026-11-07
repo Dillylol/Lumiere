@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Gamepad2, Plus, RefreshCw, Route, Settings, Square, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Gamepad2, Plus, RefreshCw, Route, Settings, Sparkles, Square, Trash2, Upload } from "lucide-react";
 import { BRAND } from "../brand";
 import { createAutonomous, createLine, createProject, createTeleOp, duplicateProject, newId, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
@@ -17,7 +17,31 @@ const TEMPLATES = [
   { id: "blank", title: "Blank project", detail: "Start with an autonomous program and add your own paths and actions.", kind: "Autonomous", Icon: Folder },
 ] as const;
 type Template = typeof TEMPLATES[number]["id"];
-export function Brand() { return <span className="studio-brand"><b aria-hidden="true"><Flame fill="currentColor"/></b><strong>{BRAND.name}</strong></span>; }
+export function Brand({ onBack }: { onBack?: () => void }) {
+  const [sparkOpen, setSparkOpen] = useState(false);
+  const closeSpark = () => setSparkOpen(false);
+
+  return <>
+    <span className="studio-brand">
+      <button type="button" className="brand-mark" aria-label={`${BRAND.name} flame`} aria-haspopup="dialog" onClick={() => setSparkOpen(true)}>
+        <Flame aria-hidden="true" fill="currentColor"/>
+      </button>
+      {onBack
+        ? <button type="button" className="brand-link" aria-label="Back to projects" onClick={onBack}>{BRAND.name}</button>
+        : <strong>{BRAND.name}</strong>}
+    </span>
+    <Modal open={sparkOpen} title="You found the spark!" onClose={closeSpark}
+      footer={<button type="button" className="primary" onClick={closeSpark}>Keep building</button>}>
+      <div className="spark-reveal">
+        <div className="spark-emblem" aria-hidden="true">
+          <Flame fill="currentColor"/>
+          <Sparkles/>
+        </div>
+        <p>Here’s to the late nights, loose wires, and last-minute fixes that make a robot move.</p>
+      </div>
+    </Modal>
+  </>;
+}
 export function errorText(error: unknown) { return error instanceof Error ? error.message : String(error); }
 export function starter(name: string, template: string): Project {
   const project = createProject(name);
