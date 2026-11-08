@@ -1,5 +1,5 @@
 // GENERATED FILE: edit the "2025 Robot!" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: 56e48e96b2635e9e
+// checksum: 9cf845bc7de67c65
 package org.firstinspires.ftc.teamcode.generated.robot2025robot;
 
 import static com.pedropathing.api.Paths.line;
@@ -24,7 +24,7 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "2 Specimen "Fast"" autonomous. */
 @Autonomous(name = "2 Specimen \"Fast\"")
 public class Auto2SpecimenFast extends OpMode {
-    private static final String ROUTINE_REVISION = "a7a2a61ee4c517ba";
+    private static final String ROUTINE_REVISION = "43c059c32e4e16bd";
 
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(72, 9, 90);

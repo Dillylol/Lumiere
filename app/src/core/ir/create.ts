@@ -27,11 +27,20 @@ export function pathColor(index: number): string {
   return PATH_COLORS[index % PATH_COLORS.length];
 }
 
+/**
+ * A new project's robot. Velocities and decelerations match the quickstart's untuned Pedro
+ * `ForesightConfig`; the acceleration and turn rate match how the desktop simulator's 312 RPM
+ * mecanum drivetrain speeds up. Linking an FTC SDK project replaces the Pedro values with the team's.
+ */
 export const DEFAULT_ROBOT = {
   widthInches: 18,
   lengthInches: 18,
-  maxVelocity: 50,
-  maxAcceleration: 60,
+  maxForwardVelocity: 60,
+  maxStrafeVelocity: 50,
+  forwardDeceleration: 40,
+  strafeDeceleration: 50,
+  acceleration: 150,
+  turnRateDeg: 180,
 } as const;
 
 export function createProject(name: string, now = new Date()): Project {

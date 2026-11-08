@@ -18,7 +18,8 @@ export {
   pathColor,
 } from "./ir/create";
 export { validateProject, hasErrors, buttonLabel, AUTONOMOUS_PERIOD_MS, type Diagnostic, type DiagnosticLocation, type Severity } from "./ir/validate";
-export { isVersion1Project, migrateVersion1, type Migration } from "./ir/migrate";
+export { isVersion1Project, migrateVersion1, migrateVersion2, type Migration } from "./ir/migrate";
+export { physicalRobot, type PhysicalRobot } from "./ir/robot";
 
 export {
   angleError,
@@ -95,3 +96,5 @@ export {
   type DeployRemoval,
   type DeploySettings,
 } from "./sdk/deploy";
+export { readPedroConstants, syncRobotProfile, type PedroConstants } from "./sdk/pedroConstants";
+export { SIZING_CUBE_INCHES } from "./ir/validate";

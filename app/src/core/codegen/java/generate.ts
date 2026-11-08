@@ -2,6 +2,7 @@ import { BRAND } from "../../../brand";
 import { resolvePath } from "../../geometry/paths";
 import { toDegrees } from "../../geometry/curves";
 import { hasErrors, validateProject, type Diagnostic } from "../../ir/validate";
+import { physicalRobot } from "../../ir/robot";
 import type {
   AtomicPath,
   AutonomousProgram,
@@ -451,7 +452,8 @@ function autonomousSource(
   const routine = joinWithCommas([...steps, ["instant(this::reportRoutineCompletion)"]]);
   const revision = checksum(JSON.stringify({
     projectId: project.id, packageName, constants: constants.qualifiedName, program,
-    robot: project.robot, mechanisms: mechanisms.map(({ subsystem }) => subsystem),
+    // Only how the robot drives: syncing constants or scanning the robot must not change the revision.
+    robot: physicalRobot(project.robot), mechanisms: mechanisms.map(({ subsystem }) => subsystem),
   }));
 
   const w = new Writer();

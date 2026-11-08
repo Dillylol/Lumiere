@@ -9,14 +9,14 @@ describe("recovery drafts", () => {
 
   it("keeps every readable draft when another one no longer parses", () => {
     const good = createProject("Good");
-    const broken = { ...createProject("Broken"), robot: { widthInches: 2, lengthInches: 18, maxVelocity: 50, maxAcceleration: 60 } };
+    const broken = { ...createProject("Broken"), robot: { ...createProject("x").robot, widthInches: 2 } };
     localStorage.setItem(RECOVERY_KEY, JSON.stringify({ [good.id]: good, [broken.id]: broken }));
 
     expect(Object.keys(recovery())).toEqual([good.id]);
   });
 
   it("leaves an unreadable draft in storage when another project is staged", () => {
-    const broken = { ...createProject("Broken"), robot: { widthInches: 2, lengthInches: 18, maxVelocity: 50, maxAcceleration: 60 } };
+    const broken = { ...createProject("Broken"), robot: { ...createProject("x").robot, widthInches: 2 } };
     localStorage.setItem(RECOVERY_KEY, JSON.stringify({ [broken.id]: broken }));
     const next = createProject("Next");
 

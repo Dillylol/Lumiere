@@ -1,5 +1,5 @@
 // GENERATED FILE: edit the "2025 Robot!" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: 431c4225dc1b4fed
+// checksum: be637f044615559a
 package org.firstinspires.ftc.teamcode.generated.robot2025robot;
 
 import static com.pedropathing.ivy.commands.Commands.instant;
@@ -20,7 +20,7 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "Do Nothing" autonomous. */
 @Autonomous(name = "Do Nothing", group = "Tests")
 public class DoNothing extends OpMode {
-    private static final String ROUTINE_REVISION = "a797cc5b89f7a54c";
+    private static final String ROUTINE_REVISION = "2655cac08874daa3";
 
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(9, 9, 0);

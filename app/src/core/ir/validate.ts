@@ -1,5 +1,6 @@
 import { resolvePath } from "../geometry/paths";
 import {
+  DRIVE_MOTOR_POSITIONS,
   FIELD_INCHES,
   type AutonomousProgram,
   type Binding,
@@ -22,6 +23,8 @@ export interface DiagnosticLocation {
   stateId?: string;
   deviceId?: string;
   bindingId?: string;
+  /** The robot profile on the Robot page. */
+  robot?: true;
 }
 
 export interface Diagnostic {
@@ -67,6 +70,7 @@ export function validateProject(project: Project): Diagnostic[] {
   }
 
   validateSubsystems(project.subsystems, add);
+  validateRobot(project, add);
 
   for (const program of project.programs) {
     if (program.kind === "autonomous") validateAutonomous(program, project, add);
@@ -76,6 +80,62 @@ export function validateProject(project: Project): Diagnostic[] {
 }
 
 type Add = (severity: Severity, code: string, message: string, location?: DiagnosticLocation) => void;
+
+/** The largest robot that fits FTC's starting sizing cube, in inches. */
+export const SIZING_CUBE_INCHES = 18;
+
+const DRIVE_LABELS = { frontLeft: "front-left", frontRight: "front-right", backLeft: "back-left", backRight: "back-right" } as const;
+
+/**
+ * Checks the robot profile against the rules and against the hardware the robot last reported.
+ * Hardware checks only run once the robot has been scanned; they compare names exactly, as the
+ * FTC SDK's hardware map does.
+ */
+function validateRobot(project: Project, add: Add) {
+  const robot = project.robot;
+  const at = { robot: true } as const;
+  if (robot.widthInches > SIZING_CUBE_INCHES || robot.lengthInches > SIZING_CUBE_INCHES) {
+    add("warning", "robot.size.cube", `The robot is ${robot.lengthInches} × ${robot.widthInches} in. FTC robots must fit an ${SIZING_CUBE_INCHES}-inch sizing cube at the start of a match.`, at);
+  }
+  if (robot.constants?.tuned === false) {
+    add("info", "robot.constants.untuned", "The Pedro constants are not tuned yet (TUNED is false), so speeds and decelerations are estimates. Run the AutoTune tuners and paste the results into Constants.java.", at);
+  }
+  if (robot.constants?.unreadable.length) {
+    add("info", "robot.constants.unreadable", `Lumière could not read ${robot.constants.unreadable.join(", ")} in Constants.java, so the profile keeps its own value.`, at);
+  }
+
+  const driveNames = new Set(robot.drivetrain ? DRIVE_MOTOR_POSITIONS.map((position) => robot.drivetrain![position].name) : []);
+  for (const subsystem of project.subsystems) {
+    for (const device of subsystem.devices) {
+      if (driveNames.has(device.name)) {
+        add("warning", "robot.device.drive", `"${device.name}" in ${subsystem.name || "a mechanism"} is also a drive motor. One device can't be driven by both.`, { subsystemId: subsystem.id, deviceId: device.id });
+      }
+    }
+  }
+
+  if (!robot.scan) return;
+  const configured = new Map(robot.scan.devices.map((device) => [device.name, device.type]));
+  if (robot.drivetrain) {
+    for (const position of DRIVE_MOTOR_POSITIONS) {
+      const motor = robot.drivetrain[position];
+      const type = configured.get(motor.name);
+      if (type === undefined) add("warning", "robot.drive.missing", `The ${DRIVE_LABELS[position]} drive motor "${motor.name}" is not in the robot's configuration.`, at);
+      else if (type !== "motor") add("warning", "robot.drive.type", `"${motor.name}" is configured as ${type}, not a motor.`, at);
+    }
+  }
+  const localizer = robot.localizer;
+  if (localizer?.name !== undefined && !configured.has(localizer.name)) {
+    add("warning", "robot.localizer.missing", `The ${localizer.kind} localizer "${localizer.name}" is not in the robot's configuration.`, at);
+  }
+  for (const subsystem of project.subsystems) {
+    for (const device of subsystem.devices) {
+      const type = configured.get(device.name);
+      const where = { subsystemId: subsystem.id, deviceId: device.id };
+      if (type === undefined) add("warning", "robot.device.missing", `"${device.name}" in ${subsystem.name || "a mechanism"} is not in the robot's configuration.`, where);
+      else if (type !== device.kind) add("warning", "robot.device.type", `"${device.name}" is configured as ${type}, but ${subsystem.name || "its mechanism"} uses it as ${device.kind === "crservo" ? "a continuous servo" : `a ${device.kind}`}.`, where);
+    }
+  }
+}
 
 function validateSubsystems(subsystems: Subsystem[], add: Add) {
   const subsystemNames = new Set<string>();

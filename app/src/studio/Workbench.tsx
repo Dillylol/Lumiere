@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, Check, ChevronDown, Code2, Command, Copy, Download, FolderOpen, GitBranch, Play, Plus, Redo2, Route, Trash2, Undo2, Wrench } from "lucide-react";
-import { applyTunerOutput, createAutonomous, createTeleOp, findOpModes, generateJava, importVisualizer, newId, ownershipOf, parseBuildOutput, updateTuningLocalizer, validateProject, type AutonomousProgram, type Project, type Program } from "../core";
+import { applyTunerOutput, createAutonomous, createTeleOp, findOpModes, generateJava, importVisualizer, newId, ownershipOf, parseBuildOutput, readPedroConstants, syncRobotProfile, updateTuningLocalizer, validateProject, type AutonomousProgram, type Project, type Program, type ScannedDevice } from "../core";
 import { isDesktop } from "../desktop/backend";
 import { Modal } from "../components/ui/Modal";
 import { Brand, Learn } from "./StudioApp";
@@ -11,6 +11,7 @@ import { Simulation } from "./Simulation";
 import { PedroVisualizer } from "./PedroVisualizer";
 import { SimulatorSetup } from "./SimulatorSetup";
 import { RobotBreakdown } from "./RobotBreakdown";
+import { RobotProfilePanel } from "./RobotProfile";
 import { useDesktop } from "./useDesktop";
 import { DeployStatus, SdkConnection } from "./SdkConnection";
 import { confirmAction, download, exportProject, robotHost, saveRobotHost } from "./store";
@@ -23,6 +24,26 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  const log=useCallback((s:string)=>setOutput(lines=>[...lines.slice(-999),s]),[]);
  const desktop=useDesktop(project,log);
  const program=project.programs.find(p=>p.id===programId)??project.programs[0];
+ // While an FTC SDK project is linked, the robot profile follows its Pedro constants class as saved on disk.
+ // Syncing is not an edit, so it skips undo history; after an undo it applies again.
+ const constantsFile = useMemo(() => {
+   const path = desktop.inspection?.constantsClasses.find(item => item.qualifiedName === desktop.sdk?.constantsClass)?.path;
+   return path ? desktop.files.find(file => file.path === path) : undefined;
+ }, [desktop.inspection, desktop.sdk?.constantsClass, desktop.files]);
+ useEffect(() => {
+   if (!constantsFile) return;
+   const robot = syncRobotProfile(project.robot, readPedroConstants(constantsFile.disk), constantsFile.path);
+   if (robot) onUpdate({ ...project, robot });
+ }, [constantsFile?.path, constantsFile?.disk, project.robot]);
+ // The robot's manifest arrives on a stream callback, so it reads the newest project here.
+ const latestProject = useRef(project);
+ latestProject.current = project;
+ const recordScan = useCallback((devices: ScannedDevice[]) => {
+   const current = latestProject.current;
+   const known = current.robot.scan?.devices ?? [];
+   if (known.length === devices.length && known.every((device, i) => device.name === devices[i].name && device.type === devices[i].type)) return;
+   onUpdate({ ...current, robot: { ...current.robot, scan: { devices, scannedAt: new Date().toISOString() } } });
+ }, [onUpdate]);
  const [simulatorConfig, setSimulatorConfig] = useState<string>();
  /** Whether Simulate runs the program in the simulator (or the web preview) or watches the robot. */
  const [simSource, setSimSource] = useState<"sim" | "robot">("sim");
@@ -106,7 +127,7 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  {notice&&<div className="studio-notice" role="alert">{notice}<button onClick={()=>setNotice("")}>Dismiss</button></div>}
  {tab==="code"&&isDesktop()&&<div className="desktop-bar">{desktop.folder?<><span title={desktop.folder}>{desktop.folder}</span><button disabled={!!desktop.busy} onClick={()=>{setBottom("output");void desktop.deploy();}}>Deploy code</button><button onClick={()=>setTab("robot")}>Deploy settings</button></>:<><button disabled={!!desktop.busy} onClick={()=>{setBottom("output");void desktop.connect();}}><FolderOpen/>Connect FTC SDK project</button><button disabled={!!desktop.busy} onClick={()=>{setBottom("output");void desktop.create();}}><Plus/>Create FTC project</button><span>No FTC SDK project connected</span></>}</div>}
  {tab==="code"&&isDesktop()&&!desktop.status?.ready&&<div className="toolchain-bar"><strong>Build tools</strong><span>{desktop.status?.missing.join(", ")||"Checking Java and Android SDK…"}</span>{desktop.status&&<><label className="check"><input type="checkbox" checked={license} onChange={e=>setLicense(e.target.checked)}/>I accept the <a href={desktop.status.install.licenseUrl} target="_blank" rel="noreferrer">Android SDK license</a></label><button disabled={!!desktop.busy||(!license&&desktop.status.missing.some(m=>m!=="java"))} onClick={()=>{setBottom("output");void desktop.install(license);}}>Install tools</button></>}</div>}
- <div className="workbench-surface">{tab==="visualizer"?null:tab==="build"?(program?(visualCode?codePane:<ProgramEditor project={project} program={program} onChange={updateProgram}/>):<div className="studio-empty"><h2>Your next program starts here.</h2><button onClick={()=>setAddProgram(true)}><Plus/>Add program</button></div>):tab==="paths"?(program?.kind==="autonomous"?<FieldEditor program={program} robot={project.robot} onChange={updateProgram} onNotice={setNotice}/>:<div className="studio-empty"><Route/><h2>Paths belong to autonomous programs</h2><p>Select or create an autonomous program to start drawing.</p></div>):tab==="code"?codePane:tab==="simulate"?(program?(simSource==="robot"?<Simulation key={`robot-${program.id}`} robot host={host} onHost={setHost} robotSetup={hostField} project={project} program={program} launch={()=>desktop.launch(program)} busy={desktop.busy} cancel={desktop.cancel} onLog={log}/>:<Simulation key={program.id} project={project} program={program} launch={()=>desktop.launch(program,simulatorConfig)} busy={desktop.busy} cancel={desktop.cancel} onLog={log} simulatorSetup={simulatorSetup} canLaunch={!!desktop.folder&&!omittedFromSdk}/>):<p>Add a program first.</p>):tab==="robot"?<div className="editor-scroll"><SdkConnection desktop={desktop} project={project}/><h2>Robot connection</h2><div className="inline-actions">{hostField}<a href={`http://${host}:8001`} target="_blank" rel="noreferrer">Open Panels</a><a href={`http://${host}:10158`} target="_blank" rel="noreferrer">Open AutoTune</a>{isDesktop()&&<button className="primary" disabled={!!desktop.busy||!desktop.folder||!/^[\w.-]+$/.test(host)} onClick={()=>{setBottom("output");void desktop.run("deploy",host);}}>Deploy APK</button>}</div><p className="live-view-link">Watch the robot drive and compare its runs in Simulate.{program&&<button className="text-button" onClick={()=>{setSimSource("robot");setTab("simulate");}}>Open the live view</button>}</p><RobotBreakdown project={project}/><Mechanisms project={project} onChange={update}/></div>:<div className="editor-scroll"><Learn/></div>}{visualizerOpened&&<PedroVisualizer program={program?.kind==="autonomous"?program:undefined} robot={project.robot} hidden={tab!=="visualizer"} onApplyDraft={applyVisualizerDraft}/>}</div>
+ <div className="workbench-surface">{tab==="visualizer"?null:tab==="build"?(program?(visualCode?codePane:<ProgramEditor project={project} program={program} onChange={updateProgram}/>):<div className="studio-empty"><h2>Your next program starts here.</h2><button onClick={()=>setAddProgram(true)}><Plus/>Add program</button></div>):tab==="paths"?(program?.kind==="autonomous"?<FieldEditor program={program} robot={project.robot} onChange={updateProgram} onNotice={setNotice}/>:<div className="studio-empty"><Route/><h2>Paths belong to autonomous programs</h2><p>Select or create an autonomous program to start drawing.</p></div>):tab==="code"?codePane:tab==="simulate"?(program?(simSource==="robot"?<Simulation key={`robot-${program.id}`} robot host={host} onHost={setHost} onScan={recordScan} robotSetup={hostField} project={project} program={program} launch={()=>desktop.launch(program)} busy={desktop.busy} cancel={desktop.cancel} onLog={log}/>:<Simulation key={program.id} project={project} program={program} launch={()=>desktop.launch(program,simulatorConfig)} busy={desktop.busy} cancel={desktop.cancel} onLog={log} simulatorSetup={simulatorSetup} canLaunch={!!desktop.folder&&!omittedFromSdk}/>):<p>Add a program first.</p>):tab==="robot"?<div className="editor-scroll"><SdkConnection desktop={desktop} project={project}/><h2>Robot connection</h2><div className="inline-actions">{hostField}<a href={`http://${host}:8001`} target="_blank" rel="noreferrer">Open Panels</a><a href={`http://${host}:10158`} target="_blank" rel="noreferrer">Open AutoTune</a>{isDesktop()&&<button className="primary" disabled={!!desktop.busy||!desktop.folder||!/^[\w.-]+$/.test(host)} onClick={()=>{setBottom("output");void desktop.run("deploy",host);}}>Deploy APK</button>}</div><p className="live-view-link">Watch the robot drive and compare its runs in Simulate.{program&&<button className="text-button" onClick={()=>{setSimSource("robot");setTab("simulate");}}>Open the live view</button>}</p><RobotProfilePanel project={project} onChange={update} linked={!!desktop.sdk}/><Mechanisms project={project} onChange={update}/><RobotBreakdown project={project}/></div>:<div className="editor-scroll"><Learn/></div>}{visualizerOpened&&<PedroVisualizer program={program?.kind==="autonomous"?program:undefined} robot={project.robot} hidden={tab!=="visualizer"} onApplyDraft={applyVisualizerDraft}/>}</div>
  {tab!=="visualizer"&&<section className="workbench-output" aria-label="Diagnostics">
    <div className="output-tabs">
      <button className={openPanel==="problems"?"active":""} aria-expanded={openPanel==="problems"} aria-controls="workbench-diagnostics" onClick={()=>togglePanel("problems")}>
@@ -125,7 +146,7 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
          {problems.map((problem, i) => (
            <button className={["problem", problem.severity].join(" ")} key={i} onClick={() => {
              if (problem.location.programId) setProgramId(problem.location.programId);
-             setTab(problem.location.pathId ? "paths" : "build");
+             setTab(problem.location.pathId ? "paths" : problem.location.robot || problem.location.subsystemId ? "robot" : "build");
              setVisualCode(false);
            }}>{problem.severity}: {problem.message}</button>
          ))}

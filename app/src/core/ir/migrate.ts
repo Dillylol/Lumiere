@@ -1,5 +1,32 @@
-import { createAutonomous, createDevice, createProject, createState, createSubsystem, createTeleOp, newId, pathColor } from "./create";
+import { createAutonomous, createDevice, createProject, createState, createSubsystem, createTeleOp, DEFAULT_ROBOT, newId, pathColor } from "./create";
 import type { AtomicPath, AutonomousProgram, Project, Subsystem } from "./types";
+
+/**
+ * Upgrades a stored version 2 project to version 3, and returns anything else unchanged.
+ *
+ * Version 2 kept one preview speed and acceleration. They become the forward and strafe velocity,
+ * the acceleration, and both decelerations, so an upgraded project's preview timing does not
+ * change. Everything else carries over as it is.
+ */
+export function migrateVersion2(value: unknown): unknown {
+  if (!isObject(value) || value.version !== 2) return value;
+  const { maxVelocity, maxAcceleration, ...robot } = isObject(value.robot) ? value.robot : {};
+  const speed = typeof maxVelocity === "number" ? maxVelocity : DEFAULT_ROBOT.maxForwardVelocity;
+  const acceleration = typeof maxAcceleration === "number" ? maxAcceleration : DEFAULT_ROBOT.acceleration;
+  return {
+    ...value,
+    version: 3,
+    robot: {
+      ...robot,
+      maxForwardVelocity: speed,
+      maxStrafeVelocity: speed,
+      forwardDeceleration: acceleration,
+      strafeDeceleration: acceleration,
+      acceleration,
+      turnRateDeg: DEFAULT_ROBOT.turnRateDeg,
+    },
+  };
+}
 
 /**
  * Converts a version 1 project (the earlier text-command format) into version 2.

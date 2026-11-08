@@ -54,7 +54,7 @@ test("compares reported routine time with the latest matching simulator result",
 
   // Robot setup lists the same runs side by side.
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
-  const breakdown = page.getByRole("region", { name: "Robot breakdown" });
+  const breakdown = page.getByRole("region", { name: "Simulated and real runs" });
   await expect(breakdown.getByRole("row", { name: "Main Auto 2.4 s 3.0 s +0.6 s" })).toBeVisible();
   await expect(page.locator(".editor-scroll .studio-field")).toHaveCount(0);
 });

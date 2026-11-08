@@ -199,15 +199,15 @@ button.brand-mark:hover:not(:disabled) {
   color: var(--accent);
 }
 
-/* Robot breakdown: the parts the project lists, and how simulated and real runs compare. */
-.robot-breakdown { margin: 6px 0 34px; }
-.robot-breakdown h3 { font-size: 14px; margin: 20px 0 8px; }
-.breakdown-columns { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr); gap: 28px; }
-@media (max-width: 1050px) { .breakdown-columns { grid-template-columns: 1fr; gap: 0; } }
-.robot-breakdown table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.robot-breakdown th, .robot-breakdown td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
-.robot-breakdown th { color: var(--muted); font-size: 12px; font-weight: 500; }
-.robot-breakdown td { color: var(--text); font-variant-numeric: tabular-nums; }
-.robot-breakdown .stream-values { margin-bottom: 8px; }
-.breakdown-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+/* Robot profile and run table on the Robot page. */
+.robot-breakdown, .robot-profile { margin: 6px 0 34px; }
+.robot-profile h3 { font-size: 14px; margin: 22px 0 8px; }
+.robot-profile .section-title { align-items: flex-start; }
+.robot-breakdown table, .robot-profile table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.robot-breakdown th, .robot-breakdown td, .robot-profile th, .robot-profile td { text-align: left; padding: 7px 12px 7px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.robot-breakdown th, .robot-profile th { color: var(--muted); font-size: 12px; font-weight: 500; }
+.robot-breakdown td, .robot-profile td { color: var(--text); font-variant-numeric: tabular-nums; }
+.profile-values { max-width: 520px; margin-bottom: 6px; }
+.profile-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.chip-muted { color: var(--muted); }
 .live-view-link { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 4px 0 26px; font-size: 13px; }

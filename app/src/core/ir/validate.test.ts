@@ -102,3 +102,53 @@ describe("validateProject", () => {
     expect(found[1].message).toContain("slow mode");
   });
 });
+
+describe("robot profile checks", () => {
+  const scanned = (project: Project) => validateProject(project).filter((item) => item.code.startsWith("robot."));
+  const drivetrain = {
+    frontLeft: { name: "left_front_drive", reversed: true },
+    frontRight: { name: "right_front_drive", reversed: false },
+    backLeft: { name: "left_back_drive", reversed: true },
+    backRight: { name: "right_back_drive", reversed: false },
+  };
+
+  it("warns when the robot is larger than the starting sizing cube", () => {
+    const project = createProject("Big");
+    project.robot.widthInches = 19;
+    expect(scanned(project).map((item) => [item.code, item.location])).toEqual([["robot.size.cube", { robot: true }]]);
+  });
+
+  it("notes untuned and unreadable Pedro constants", () => {
+    const project = createProject("Untuned");
+    project.robot.constants = { file: "TeamCode/x/pedro/Constants.java", readAt: "2026-11-07T10:00:00Z", tuned: false, unreadable: ["ForesightConfig.naturalForwardDeceleration"] };
+    const codes = scanned(project).map((item) => `${item.severity}:${item.code}`);
+    expect(codes).toEqual(["info:robot.constants.untuned", "info:robot.constants.unreadable"]);
+  });
+
+  it("checks drive motors, the localizer and mechanism devices against the robot's configuration", () => {
+    const project = createProject("Scanned");
+    project.robot.drivetrain = drivetrain;
+    project.robot.localizer = { kind: "pinpoint", name: "pinpoint" };
+    const claw = { id: "claw", name: "Claw", devices: [
+      { id: "servo", name: "claw", kind: "servo" as const, reversed: false },
+      { id: "lift", name: "lift", kind: "motor" as const, reversed: false },
+    ], states: [], initialStateId: null };
+    project.subsystems.push(claw);
+    project.robot.scan = { scannedAt: "2026-11-07T10:00:00Z", devices: [
+      { name: "left_front_drive", type: "motor" }, { name: "right_front_drive", type: "motor" },
+      { name: "left_back_drive", type: "motor" }, { name: "right_back_drive", type: "servo" },
+      { name: "claw", type: "motor" },
+    ] };
+    expect(scanned(project).map((item) => item.code)).toEqual([
+      "robot.drive.type", "robot.localizer.missing", "robot.device.type", "robot.device.missing",
+    ]);
+    expect(scanned(project).find((item) => item.code === "robot.device.missing")?.location).toEqual({ subsystemId: "claw", deviceId: "lift" });
+  });
+
+  it("skips hardware checks until the robot has been scanned, but still catches a device used twice", () => {
+    const project = createProject("Unscanned");
+    project.robot.drivetrain = drivetrain;
+    project.subsystems.push({ id: "intake", name: "Intake", devices: [{ id: "d", name: "left_front_drive", kind: "motor", reversed: false }], states: [], initialStateId: null });
+    expect(scanned(project).map((item) => item.code)).toEqual(["robot.device.drive"]);
+  });
+});

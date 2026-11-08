@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Play, Square, Plug } from "lucide-react";
-import { buildTimeline, findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient, type ConnectionStatus, type GamepadStateMessage, type PoseMessage, type Program, type Project, type ServerMessage, type OpModeInfo, type Phase } from "../core";
+import { buildTimeline, findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient, type ConnectionStatus, type GamepadStateMessage, type PoseMessage, type Program, type Project, type ScannedDevice, type ServerMessage, type OpModeInfo, type Phase } from "../core";
 import { isDesktop } from "../desktop/backend";
 import type { DesktopSimulator } from "../desktop/robotProject";
 import { Field } from "./FieldEditor";
@@ -12,7 +12,9 @@ const PHASES:Phase[]=["idle","init","running","stopped"],FOLLOWER=new Map([["fol
 /** Frames come from the network, so values are checked before they are drawn or formatted. */
 const finite=(p?:PoseMessage)=>p&&[p.x,p.y,p.heading].every(Number.isFinite)?p:undefined,show=(value:unknown)=>typeof value==="string"?value:JSON.stringify(value)??String(value),degrees=(heading:number)=>(heading*180/Math.PI).toFixed(1);
 
-export function Simulation({project,program,launch,busy,cancel,onLog,robot=false,host="192.168.43.1",onHost,simulatorSetup,robotSetup,canLaunch=true}:{project:Project;program:Program;launch:()=>Promise<DesktopSimulator|undefined>;busy:string;cancel:()=>void;onLog:(s:string)=>void;robot?:boolean;host?:string;onHost?:(host:string)=>void;simulatorSetup?:ReactNode;robotSetup?:ReactNode;canLaunch?:boolean}){
+export function Simulation({project,program,launch,busy,cancel,onLog,robot=false,host="192.168.43.1",onHost,onScan,simulatorSetup,robotSetup,canLaunch=true}:{project:Project;program:Program;launch:()=>Promise<DesktopSimulator|undefined>;busy:string;cancel:()=>void;onLog:(s:string)=>void;robot?:boolean;host?:string;onHost?:(host:string)=>void;onScan?:(devices:ScannedDevice[])=>void;simulatorSetup?:ReactNode;robotSetup?:ReactNode;canLaunch?:boolean}){
+ // Stream handlers outlive the render that created them, so they read the latest callback here.
+ const scan=useRef(onScan);scan.current=onScan;
  const [connection,setConnection]=useState<ConnectionStatus>("closed"),[linked,setLinked]=useState(false),[opened,setOpened]=useState(false),[finding,setFinding]=useState(false),[phase,setPhase]=useState<Phase>("idle"),[active,setActive]=useState<string|null>(null),[modes,setModes]=useState<OpModeInfo[]>([]),[mode,setMode]=useState(""),[pose,setPose]=useState<PoseMessage>(),[target,setTarget]=useState<PoseMessage>(),[route,setRoute]=useState<[number,number][]>(),[telemetry,setTelemetry]=useState<string[]>([]),[data,setData]=useState<Record<string,unknown>>({}),[loop,setLoop]=useState<number>(),[follower,setFollower]=useState<string>(),[hello,setHello]=useState<Hello>(),[elapsed,setElapsed]=useState(0),[playing,setPlaying]=useState(false),[limit,setLimit]=useState(30),[keyboard,setKeyboard]=useState(false);
  // `linked` is true while a StreamClient exists, including while it reconnects; `opened` is whether that client has connected yet.
  const client=useRef<StreamClient|null>(null),sim=useRef<DesktopSimulator|null>(null),alive=useRef(true),starting=useRef(false),epoch=useRef(0),runStart=useRef<number|null>(null),source=useRef<Hello["source"]>(robot?"robot":"simulator"),keys=useRef(new Set<string>()),screen=useRef<GamepadStateMessage>({});
@@ -33,7 +35,9 @@ export function Simulation({project,program,launch,busy,cancel,onLog,robot=false
  const time=(next:Phase)=>{const now=performance.now();if(next==="running"){if(runStart.current===null){runStart.current=now;setElapsed(0);}return;}if(next==="stopped"&&runStart.current!==null)setElapsed(now-runStart.current);if(next==="init"||next==="idle")setElapsed(0);runStart.current=null;};
  const receive=(m:ServerMessage)=>{
   if(m.type==="hello"){setHello(m);source.current=m.source==="simulator"?"simulator":"robot";}
-  else if(m.type==="manifest"){const list=Array.isArray(m.opModes)?m.opModes.filter(o=>o&&typeof o.name==="string"&&typeof o.flavor==="string"):[];setModes(list);setMode(v=>list.some(o=>o.name===v)?v:list.find(o=>o.name===program.name)?.name??list[0]?.name??"");}
+  else if(m.type==="manifest"){const list=Array.isArray(m.opModes)?m.opModes.filter(o=>o&&typeof o.name==="string"&&typeof o.flavor==="string"):[];setModes(list);setMode(v=>list.some(o=>o.name===v)?v:list.find(o=>o.name===program.name)?.name??list[0]?.name??"");
+   // A hub's manifest lists its configured hardware; during startup it may still be empty.
+   if(source.current==="robot"&&Array.isArray(m.devices)){const devices=m.devices.filter(d=>d&&typeof d.name==="string"&&typeof d.type==="string").slice(0,300).map(d=>({name:d.name.slice(0,80),type:d.type.slice(0,80)}));if(devices.length)scan.current?.(devices);}}
   else if(m.type==="lifecycle"&&PHASES.includes(m.phase)){setPhase(m.phase);setActive(typeof m.opMode==="string"?m.opMode:null);if(typeof m.opMode==="string"&&m.phase!=="stopped")setMode(m.opMode);if(m.phase==="init"){clearRun();setTelemetry([]);if(robot)setPose(undefined);}if(robot)time(m.phase);}
   // The simulator's `robot` pose is the true pose; `state.pose` is the follower's estimate, drawn only for a hub.
   else if(m.type==="robot"){const p=finite(m.pose);if(p)setPose(p);if(Number.isFinite(m.elapsed))setElapsed(m.elapsed*1000);if(PHASES.includes(m.phase))setPhase(m.phase);}

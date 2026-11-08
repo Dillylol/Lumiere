@@ -1,5 +1,6 @@
 /**
- * Project format version 2: the single source of truth for a team's robot program.
+ * Project format version 3: the single source of truth for a team's robot program. Version 3 adds
+ * the robot profile read from the team's Pedro Pathing constants and the robot's hardware scan.
  *
  * Coordinates use Pedro Pathing field coordinates: inches from the bottom-left corner of the field
  * (0 to 144 on both axes), with heading 0 along +x and angles increasing counterclockwise. Headings
@@ -10,7 +11,7 @@
  */
 
 export const PROJECT_FORMAT = "ftc-robot-project";
-export const PROJECT_VERSION = 2;
+export const PROJECT_VERSION = 3;
 export const FIELD_INCHES = 144;
 
 export interface Point {
@@ -176,13 +177,67 @@ export interface Subsystem {
   initialStateId: string | null;
 }
 
+export type DriveMotorPosition = "frontLeft" | "frontRight" | "backLeft" | "backRight";
+export const DRIVE_MOTOR_POSITIONS: readonly DriveMotorPosition[] = ["frontLeft", "frontRight", "backLeft", "backRight"];
+
+export interface DriveMotor {
+  name: string;
+  reversed: boolean;
+}
+
+export interface RobotLocalizer {
+  /** `pinpoint` for the goBILDA Pinpoint; otherwise the Pedro config type in lower case without "config", such as `otos`. */
+  kind: string;
+  /** The device name in the Robot Controller configuration, when the config sets one. */
+  name?: string;
+  /** Pinpoint pod offsets from the robot's center, in inches. */
+  xPodOffset?: number;
+  yPodOffset?: number;
+}
+
+/** A configured device the robot reported in its manifest. */
+export interface ScannedDevice {
+  name: string;
+  /** `motor`, `servo`, `crservo`, `imu`, `voltage`, `pinpoint`, `otos`, `camera`, … (see docs/protocol.md). */
+  type: string;
+}
+
+/**
+ * The physical robot. The footprint, acceleration and turn rate are the team's to set. When the
+ * project is linked to an FTC SDK project, the drive motors, localizer, velocities and decelerations
+ * follow the team's Pedro Pathing constants class (`constants` records where they came from).
+ */
 export interface RobotProfile {
   widthInches: number;
+  /** Measured along the robot's heading. */
   lengthInches: number;
-  /** Top speed used by the web preview, in inches per second. */
-  maxVelocity: number;
-  /** Acceleration used by the web preview, in inches per second squared. */
-  maxAcceleration: number;
+  /** Full-power speed driving forward, in inches per second (Pedro's `maxAchievableForwardVelocity`). */
+  maxForwardVelocity: number;
+  /** Full-power speed strafing sideways, in inches per second (Pedro's `maxAchievableStrafeVelocity`). */
+  maxStrafeVelocity: number;
+  /** How quickly the robot slows when coasting forward, in in/s² (Pedro's `naturalForwardDeceleration`). */
+  forwardDeceleration: number;
+  /** How quickly the robot slows when coasting sideways, in in/s² (Pedro's `naturalStrafeDeceleration`). */
+  strafeDeceleration: number;
+  /** How quickly the robot speeds up from rest, in in/s². */
+  acceleration: number;
+  /** How fast the robot turns in place, in degrees per second. */
+  turnRateDeg: number;
+  drivetrain?: Record<DriveMotorPosition, DriveMotor>;
+  localizer?: RobotLocalizer;
+  /** Set while the values above follow the team's Pedro constants. */
+  constants?: {
+    /** The constants file, relative to the FTC SDK project. */
+    file: string;
+    /** When the values last changed. */
+    readAt: string;
+    /** The class's `TUNED` flag, or null when it has none. */
+    tuned: boolean | null;
+    /** Settings Lumière could not read because they are computed rather than written as values. */
+    unreadable: string[];
+  };
+  /** The configured hardware the robot last reported. */
+  scan?: { devices: ScannedDevice[]; scannedAt: string };
 }
 
 export interface Project {

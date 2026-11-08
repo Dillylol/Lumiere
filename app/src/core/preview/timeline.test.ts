@@ -4,7 +4,7 @@ import { parseProject } from "../ir/schema";
 import type { AutonomousProgram } from "../ir/types";
 import { buildTimeline, distanceAt, TARGET_STATE_ESTIMATE_MS, travelTimeMs } from "./timeline";
 
-const robot = { maxVelocity: 50, maxAcceleration: 60 };
+const robot = { maxForwardVelocity: 50, acceleration: 60 };
 
 describe("trapezoidal profile", () => {
   it("uses a triangle for short moves and a trapezoid for long ones", () => {

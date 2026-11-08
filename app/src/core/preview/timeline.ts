@@ -31,20 +31,20 @@ export interface TimelineEntry {
 export const TARGET_STATE_ESTIMATE_MS = 500;
 
 /** Time to travel `distance` from rest to rest with a speed and acceleration limit. */
-export function travelTimeMs(distance: number, robot: Pick<RobotProfile, "maxVelocity" | "maxAcceleration">): number {
+export function travelTimeMs(distance: number, robot: Pick<RobotProfile, "maxForwardVelocity" | "acceleration">): number {
   if (distance <= 0) return 0;
-  const { maxVelocity: v, maxAcceleration: a } = robot;
+  const { maxForwardVelocity: v, acceleration: a } = robot;
   const rampDistance = (v * v) / a;
   const seconds = distance < rampDistance ? 2 * Math.sqrt(distance / a) : distance / v + v / a;
   return seconds * 1000;
 }
 
 /** Distance covered after `ms` on the same profile. */
-export function distanceAt(ms: number, distance: number, robot: Pick<RobotProfile, "maxVelocity" | "maxAcceleration">): number {
+export function distanceAt(ms: number, distance: number, robot: Pick<RobotProfile, "maxForwardVelocity" | "acceleration">): number {
   const total = travelTimeMs(distance, robot) / 1000;
   const t = Math.max(0, Math.min(total, ms / 1000));
   if (total === 0) return distance;
-  const { maxVelocity: v, maxAcceleration: a } = robot;
+  const { maxForwardVelocity: v, acceleration: a } = robot;
   const rampDistance = (v * v) / a;
   if (distance < rampDistance) {
     const half = total / 2;

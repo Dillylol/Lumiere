@@ -7,18 +7,28 @@ import {
   type Project,
   type Step,
 } from "./types";
+import { migrateVersion2 } from "./migrate";
 
 const finite = z.number().finite();
 const id = z.string().min(1).max(100);
 const name = z.string().max(120);
 
-/** Robot profile bounds, shared with the forms that edit it. Speeds only need to be above zero here; forms start at 1. */
+/**
+ * Robot profile bounds, shared with the forms that edit it. Motion values only need to be above
+ * zero here, so upgraded version 2 projects always load; forms start at the minimum.
+ */
 export const ROBOT_LIMITS = {
   widthInches: { min: 4, max: 36 },
   lengthInches: { min: 4, max: 36 },
-  maxVelocity: { min: 1, max: 200 },
-  maxAcceleration: { min: 1, max: 1000 },
+  maxForwardVelocity: { min: 1, max: 200 },
+  maxStrafeVelocity: { min: 1, max: 200 },
+  forwardDeceleration: { min: 1, max: 1000 },
+  strafeDeceleration: { min: 1, max: 1000 },
+  acceleration: { min: 1, max: 1000 },
+  turnRateDeg: { min: 10, max: 1440 },
 } as const;
+const motion = (key: keyof typeof ROBOT_LIMITS) => z.number().gt(0).max(ROBOT_LIMITS[key].max);
+const driveMotor = z.object({ name: z.string().max(60), reversed: z.boolean() });
 
 const point = z.object({ x: finite, y: finite });
 const startPose = z.object({ x: finite, y: finite, headingDeg: finite });
@@ -148,21 +158,45 @@ export const projectSchema: z.ZodType<Project> = z.object({
   robot: z.object({
     widthInches: z.number().min(ROBOT_LIMITS.widthInches.min).max(ROBOT_LIMITS.widthInches.max),
     lengthInches: z.number().min(ROBOT_LIMITS.lengthInches.min).max(ROBOT_LIMITS.lengthInches.max),
-    maxVelocity: z.number().gt(0).max(ROBOT_LIMITS.maxVelocity.max),
-    maxAcceleration: z.number().gt(0).max(ROBOT_LIMITS.maxAcceleration.max),
+    maxForwardVelocity: motion("maxForwardVelocity"),
+    maxStrafeVelocity: motion("maxStrafeVelocity"),
+    forwardDeceleration: motion("forwardDeceleration"),
+    strafeDeceleration: motion("strafeDeceleration"),
+    acceleration: motion("acceleration"),
+    turnRateDeg: motion("turnRateDeg"),
+    drivetrain: z.object({ frontLeft: driveMotor, frontRight: driveMotor, backLeft: driveMotor, backRight: driveMotor }).optional(),
+    localizer: z.object({
+      kind: z.string().min(1).max(40),
+      name: z.string().max(60).optional(),
+      xPodOffset: finite.optional(),
+      yPodOffset: finite.optional(),
+    }).optional(),
+    constants: z.object({
+      file: z.string().max(400),
+      readAt: z.string().max(40),
+      tuned: z.boolean().nullable(),
+      unreadable: z.array(z.string().max(160)).max(40),
+    }).optional(),
+    scan: z.object({
+      devices: z.array(z.object({ name: z.string().max(80), type: z.string().max(80) })).max(300),
+      scannedAt: z.string().max(40),
+    }).optional(),
   }),
   subsystems: z.array(subsystem).max(30),
   programs: z.array(program).max(50),
 }) as z.ZodType<Project>;
 
-/** Parses and checks the structure of a stored project. Throws a ZodError when it is invalid. */
+/**
+ * Parses and checks the structure of a stored project, upgrading a version 2 project first.
+ * Throws a ZodError when it is invalid.
+ */
 export function parseProject(value: unknown): Project {
-  return projectSchema.parse(value);
+  return projectSchema.parse(migrateVersion2(value));
 }
 
 /** Like {@link parseProject}, but returns a readable message instead of throwing. */
 export function safeParseProject(value: unknown): { ok: true; project: Project } | { ok: false; error: string } {
-  const result = projectSchema.safeParse(value);
+  const result = projectSchema.safeParse(migrateVersion2(value));
   if (result.success) return { ok: true, project: result.data };
   const issue = result.error.issues[0];
   const where = issue.path.length ? ` at ${issue.path.join(".")}` : "";

@@ -1,5 +1,5 @@
 // GENERATED FILE: edit the "Sample Robot" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: ca571eb9b5d76b7d
+// checksum: 112a9a8292024da6
 package org.firstinspires.ftc.teamcode.generated.samplerobot;
 
 import static com.pedropathing.api.Paths.curve;
@@ -29,7 +29,7 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "Blue Basket" autonomous. */
 @Autonomous(name = "Blue Basket", group = "Match", preselectTeleOp = "Driver Control")
 public class BlueBasket extends OpMode {
-    private static final String ROUTINE_REVISION = "26190255e98e91d6";
+    private static final String ROUTINE_REVISION = "ccf8cf5a09aa3290";
 
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(9, 111, 270);

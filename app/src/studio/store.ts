@@ -63,7 +63,14 @@ export async function listProjects(): Promise<{ projects: Project[]; warnings: s
     await fs.mkdir("projects-v2", { ...opts, recursive: true });
     for (const entry of await fs.readDir("projects-v2", opts)) {
       if (!entry.name.endsWith(`.${BRAND.projectExtension}`)) continue;
-      try { projects.push(parseProject(JSON.parse(await fs.readTextFile(`projects-v2/${entry.name}`, opts)))); }
+      try {
+        const text = await fs.readTextFile(`projects-v2/${entry.name}`, opts);
+        const stored: unknown = JSON.parse(text);
+        // Saving rewrites a version 2 file as version 3, which older Lumière versions cannot open.
+        // Keep the original beside it until then; once saved, the file is no longer version 2.
+        if ((stored as { version?: unknown } | null)?.version === 2) await fs.writeTextFile(`projects-v2/${entry.name}.v2.bak`, text, opts);
+        projects.push(parseProject(stored));
+      }
       catch { warnings.push(`Could not read ${entry.name}. The original file is still available.`); }
     }
   } else projects.push(...(await (await db()).getAll("projects")).map(parseProject));

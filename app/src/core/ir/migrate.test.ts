@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isVersion1Project, migrateVersion1 } from "./migrate";
+import { createProject } from "./create";
+import { isVersion1Project, migrateVersion1, migrateVersion2 } from "./migrate";
 import { parseProject } from "./schema";
 import type { AutonomousProgram } from "./types";
 import { validateProject } from "./validate";
@@ -53,5 +54,26 @@ describe("version 1 migration", () => {
     expect(warnings.some((warning) => warning.includes("drives by time"))).toBe(true);
     expect(warnings.some((warning) => warning.includes("disabled"))).toBe(true);
     expect(validateProject(project).filter((item) => item.severity === "error")).toEqual([]);
+  });
+});
+
+describe("version 2 upgrade", () => {
+  it("turns the preview speed and acceleration into the robot profile, keeping preview timing", () => {
+    const stored = { ...createProject("Old"), version: 2, robot: { widthInches: 16, lengthInches: 17, maxVelocity: 40, maxAcceleration: 50 } };
+    const project = parseProject(stored);
+    expect(project.version).toBe(3);
+    expect(project.robot).toEqual({
+      widthInches: 16, lengthInches: 17,
+      maxForwardVelocity: 40, maxStrafeVelocity: 40,
+      forwardDeceleration: 50, strafeDeceleration: 50, acceleration: 50,
+      turnRateDeg: 180,
+    });
+  });
+
+  it("leaves current projects and other values untouched", () => {
+    const current = createProject("New");
+    expect(migrateVersion2(current)).toBe(current);
+    expect(migrateVersion2(null)).toBeNull();
+    expect(migrateVersion2("text")).toBe("text");
   });
 });
