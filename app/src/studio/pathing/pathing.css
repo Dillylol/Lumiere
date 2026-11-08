@@ -1,75 +1,250 @@
-/* Lumière Pathing Visualizer: field, path tools, routine timeline and path properties. */
-.pathing { display: grid; grid-template-columns: minmax(0, 1fr) 300px; height: 100%; min-height: 360px; }
-.pathing-main { display: flex; flex-direction: column; min-width: 0; padding: 12px 16px 14px; overflow: auto; }
-.pathing-toolbar { flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
-.pathing-toolbar button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
-.pathing-toolbar .icon-tool { padding: 6px 8px; }
-.compact-select { flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
-.compact-select select { width: auto; min-height: 32px; padding: 4px 8px; }
+/*
+ * Lumière Pathing Visualizer. The layout follows the Pedro Pathing Visualizer (Apache-2.0): a top bar,
+ * floating rounded panels for layers and the inspector, and a field card with tool rails and playback.
+ * Colors come from Lumière's theme tokens.
+ */
+.pathing {
+  --pv-left: clamp(208px, 18vw, 264px);
+  --pv-right: clamp(256px, 22vw, 330px);
+  --pv-surface: color-mix(in srgb, var(--surface) 86%, transparent);
+  --pv-well: color-mix(in srgb, var(--background) 62%, transparent);
+  --pv-hover: color-mix(in srgb, var(--muted) 14%, transparent);
+  --pv-selected: color-mix(in srgb, var(--accent) 14%, transparent);
+  --pv-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background:
+    radial-gradient(60% 40% at 50% 0, color-mix(in srgb, var(--accent) 9%, transparent), transparent),
+    radial-gradient(40% 30% at 80% 50%, color-mix(in srgb, var(--accent) 5%, transparent), transparent),
+    radial-gradient(40% 30% at 10% 60%, color-mix(in srgb, var(--accent) 4%, transparent), transparent),
+    var(--background);
+}
+div.pathing:focus, div.pathing:focus-visible { outline: none; }
 
-.pathing-title { display: inline-flex; align-items: center; gap: 8px; }
-.pathing-title svg { width: 24px; height: 24px; color: var(--accent); }
-.pathing-credit { color: var(--muted); }
+/* Top bar: flame, name and credit, File menu, program, then Export, settings and preview. */
+.pv-topbar { position: relative; z-index: 30; display: flex; flex-shrink: 0; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 82%, transparent); backdrop-filter: blur(8px); }
+.pv-brand { display: flex; align-items: center; gap: 9px; min-width: 0; padding-right: 4px; }
+.pv-mark { display: grid; place-items: center; width: 26px; height: 26px; color: var(--accent); }
+.pv-mark svg { width: 22px; height: 22px; fill: color-mix(in srgb, var(--accent) 22%, transparent); }
+.pv-title { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.pv-title h1 { margin: 0; overflow: hidden; color: var(--text); font-size: 14px; font-weight: 650; letter-spacing: 0; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.pv-title small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.pv-program { min-width: 0; overflow: hidden; padding: 4px 8px; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.pv-topbar-actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; margin-left: auto; }
+.pv-topbar-divider { width: 1px; height: 20px; margin: 0 6px; background: var(--border); }
+button.pv-preview { min-height: 32px; padding: 5px 12px; font-size: 13px; }
+.pv-preview svg { width: 15px; height: 15px; }
 
-/* The field takes whatever height the toolbar and timeline leave; the drawing stays square inside it. */
-.pathing-stage { display: flex; flex: 1 1 0; justify-content: center; min-height: 220px; }
-.pathing-stage .pathing-canvas { width: 100%; max-width: 640px; height: 100%; margin: 0; aspect-ratio: auto; }
-.pathing-canvas { outline: none; }
-.pathing-canvas .path-line { fill: none; stroke-width: 1.1; stroke-linejoin: round; cursor: pointer; }
-.pathing-canvas .path-line.selected { stroke-width: 1.9; }
-.pathing-canvas .control-polygon { fill: none; stroke: var(--muted); stroke-width: .4; stroke-dasharray: 1 1; pointer-events: none; }
-.pathing-canvas .handle { stroke: var(--background); stroke-width: .7; cursor: grab; }
-.pathing-canvas rect.handle { fill: var(--surface); stroke: var(--accent); }
-.pathing-canvas .handle.selected { stroke: var(--text); stroke-width: 1; }
-.pathing-canvas .handle:focus-visible { outline: none; stroke: var(--accent); stroke-width: 1.3; }
-.pathing-canvas .fixed-point { stroke: var(--background); stroke-width: .7; }
-.pathing-canvas .tile-line line { stroke: var(--border); stroke-width: .5; pointer-events: none; }
-.pathing-canvas .axis-label text { fill: var(--muted); font-size: 4px; }
-.robot rect { fill: var(--accent); fill-opacity: .18; stroke: var(--accent); stroke-width: .7; }
-.robot .robot-heading { stroke: var(--accent); stroke-width: .9; stroke-linecap: round; }
-.robot .robot-front { stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
-.robot.ghost rect { fill-opacity: .05; stroke-dasharray: 1.6 1.2; }
-.robot.ghost .robot-heading, .robot.ghost .robot-front { opacity: .6; }
-.pathing-hint { min-height: 16px; margin: 2px 0 6px; color: var(--muted); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+.pv-menu { position: relative; flex-shrink: 0; }
+.pv-menu-button { gap: 5px; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 6px; font-size: 13px; }
+.pv-menu-button svg { width: 16px; height: 16px; }
+.pv-menu-button .pv-caret { width: 14px; height: 14px; opacity: .6; }
+.pv-menu-button[aria-expanded=true] { background: var(--pv-hover); }
+.pv-menu-list { position: absolute; top: calc(100% + 6px); z-index: 40; display: flex; flex-direction: column; min-width: 230px; padding: 4px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 14px 36px rgb(0 0 0 / .32); }
+.pv-menu-list.start { left: 0; }
+.pv-menu-list.end { right: 0; }
+.pv-menu-list [role=menuitem] { justify-content: flex-start; min-height: 32px; padding: 6px 10px; border: 0; border-radius: 8px; font-size: 13px; text-align: left; }
+.pv-menu-list [role=menuitem]:hover:not(:disabled) { background: var(--pv-hover); }
+.pv-menu-separator { height: 1px; margin: 4px 2px; background: var(--border); }
 
-.routine-timeline { margin-top: auto; }
-.timeline-steps { position: relative; display: flex; gap: 2px; height: 34px; }
-.timeline-steps .timeline-step { flex: 1 1 0; min-width: 4px; min-height: 0; padding: 0 6px; justify-content: flex-start; overflow: hidden;
-  border: 1px solid var(--border); border-top-width: 3px; border-radius: 4px; background: var(--surface); font-size: 11px; }
-.timeline-step span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.timeline-step.wait { background: transparent; border-style: dashed; border-top-style: solid; }
-.timeline-step.state, .timeline-step.together, .timeline-step.race { border-top-color: var(--mint); }
-.playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); transform: translateX(-1px); pointer-events: none; }
-.timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
-.timeline-controls button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
-.timeline-controls input[type=range] { flex: 1; min-width: 120px; }
-.timeline-time { font-size: 12px; font-variant-numeric: tabular-nums; }
-.chip-warning { color: #e5a54b; border-color: currentColor; }
+/* Layers | field | inspector, as floating cards. */
+.pv-layout { display: grid; flex: 1; grid-template-columns: var(--pv-left) minmax(0, 1fr) var(--pv-right); gap: 10px; min-height: 0; padding: 10px; }
+.pv-layout.left-hidden { --pv-left: 2rem; }
+.pv-layout.right-hidden { --pv-right: 2rem; }
+.pv-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--border); border-radius: 16px;
+  background: var(--pv-surface); box-shadow: 0 1px 2px rgb(0 0 0 / .12); backdrop-filter: blur(10px); }
+.pv-layers, .pv-inspector { overflow: hidden; padding: 8px; }
+.pv-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 6px; }
+.pv-panel-head h2 { margin: 0; color: var(--text); font-size: 14px; font-weight: 600; letter-spacing: 0; }
+.pv-panel-scroll { display: flex; flex: 1; flex-direction: column; gap: 2px; min-height: 0; overflow-y: auto; padding: 0 4px 4px; scrollbar-width: thin; }
+button.pv-restore { align-self: stretch; width: 2rem; min-height: 0; padding: 0; border-radius: 12px; color: var(--muted);
+  background: color-mix(in srgb, var(--text) 5%, var(--surface)); }
 
-.pathing-panel h2 { margin: 20px 0 10px; font-size: 15px; }
-.pathing-panel h2:first-child { margin-top: 0; }
-.form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
-.control-row { grid-template-columns: 1fr 1fr auto; align-items: end; }
-.control-row > button { margin-bottom: 16px; padding: 8px; }
-.path-list { display: grid; gap: 4px; margin: 0 0 6px; padding: 0; list-style: none; }
-.path-list li { display: flex; gap: 4px; }
-.path-list li > button:not(.path-pick) { padding: 6px; }
-.path-pick { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; }
-.path-pick i { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; }
-.path-pick span { flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-.path-pick small { color: var(--muted); font-variant-numeric: tabular-nums; }
-.color-field input[type=color] { height: 36px; padding: 2px 4px; }
-.piecewise fieldset { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
-.piecewise legend { padding: 0 4px; color: var(--muted); font-size: 12px; }
-.pathing-panel > .danger { margin-top: 14px; }
+/* Icon buttons, as in the Visualizer: 32 px, rounded, muted until hovered or on. */
+button.pv-icon { position: relative; flex-shrink: 0; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 8px; color: var(--muted); background: transparent; }
+.pv-icon svg { width: 16px; height: 16px; }
+button.pv-icon:hover:not(:disabled) { color: var(--text); background: var(--pv-hover); }
+button.pv-icon.active, button.pv-icon.active:hover:not(:disabled) { color: var(--accent); background: var(--pv-selected); }
+button.pv-icon.small { width: 28px; height: 28px; }
+button.pv-icon.tiny { width: 24px; height: 24px; border-radius: 6px; }
+.pv-icon.tiny svg { width: 14px; height: 14px; }
+button.pv-icon.danger { color: var(--muted); }
+button.pv-icon.danger:hover:not(:disabled) { color: var(--danger); }
+button.pv-icon:focus-visible { outline-offset: 1px; }
+.pv-badge { position: absolute; right: -1px; bottom: -1px; padding: 1px 2px; border-radius: 3px; color: var(--text); background: var(--surface); font: 9px/1 var(--pv-mono); }
 
-@media (max-width: 1400px) { .pathing { grid-template-columns: minmax(0, 1fr) 270px; } }
-/* Narrow windows stack the properties under the field, which keeps most of the height. */
+/* Panel sections: uppercase headers with a count, collapsible. */
+.pv-section { display: flex; flex-direction: column; flex-shrink: 0; }
+.pv-section-head { display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 2px; }
+button.pv-section-toggle { flex: 1; justify-content: flex-start; gap: 6px; min-width: 0; min-height: 0; padding: 4px 2px; border: 0; color: var(--muted);
+  background: none; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+button.pv-section-toggle:hover:not(:disabled) { color: var(--text); background: none; }
+.pv-section-toggle svg { width: 14px; height: 14px; transition: transform .15s; }
+.pv-section-toggle svg.collapsed { transform: rotate(-90deg); }
+.pv-count { font-family: var(--pv-mono); font-weight: 400; letter-spacing: 0; }
+.pv-section-body { padding-bottom: 8px; }
+.pv-section-body [role=tree] { display: flex; flex-direction: column; gap: 1px; }
+.pv-empty { margin: 0; padding: 4px 8px; font-size: 12px; line-height: 1.5; }
+
+.pv-row, .pv-step { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px 0 8px; border-radius: 6px; color: var(--muted); font-size: 13px; }
+.pv-row:hover, .pv-step:hover { background: color-mix(in srgb, var(--muted) 9%, transparent); }
+.pv-row.selected { color: var(--text); background: var(--pv-selected); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.pv-row small, .pv-step small { color: var(--muted); font-family: var(--pv-mono); font-size: 11px; }
+.pv-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; }
+button.pv-row-name, .pv-row-name { display: block; flex: 1; min-width: 0; min-height: 0; overflow: hidden; padding: 0; border: 0; color: inherit; background: none;
+  font-size: 13px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+button.pv-row-name:hover:not(:disabled) { color: var(--text); background: none; }
+.pv-routine { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.pv-step { height: 26px; font-size: 12px; }
+.pv-step:not(.path) .pv-dot { border-radius: 2px; }
+.pv-step.wait .pv-dot { border: 1px dashed var(--muted); }
+.pv-total { margin: 6px 8px 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pv-total.over { color: var(--danger); }
+
+.pv-readouts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; padding: 0 4px; }
+.pv-readouts > div { display: flex; flex-direction: column; gap: 2px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--pv-well); }
+.pv-readouts dt { color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.pv-readouts dd { display: flex; align-items: baseline; gap: 4px; margin: 0; color: var(--text); font-family: var(--pv-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pv-readouts dd span { color: var(--muted); font-size: 10px; }
+
+/* The field card: a tinted stage holding the square field, the two tool rails and the playback bar. */
+.pv-field-panel { gap: 8px; overflow: hidden; padding: 8px; }
+.pv-stage { position: relative; display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; border-radius: 12px;
+  background: color-mix(in srgb, var(--muted) 10%, transparent); }
+.pv-rail { position: absolute; top: 8px; z-index: 5; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px;
+  border: 1px solid var(--border); border-radius: 16px; background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .16); backdrop-filter: blur(8px); }
+.pv-rail-left { left: 8px; }
+.pv-rail-right { right: 8px; }
+.pv-rail-divider { width: calc(100% - 10px); height: 1px; margin: 2px 0; background: var(--border); }
+.pv-field { position: relative; flex-shrink: 0; overflow: clip; border-radius: 8px; background: var(--field); box-shadow: 0 1px 4px rgb(0 0 0 / .22); user-select: none; }
+.pv-field-image { position: absolute; max-width: none; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.pv-field-plain { position: absolute; inset: 0; background: var(--field); }
+svg.pv-scene { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; outline: none; touch-action: none; }
+.pv-scene.tool-pen, .pv-scene.tool-coordinate { cursor: crosshair; }
+.pv-scene.dragging { cursor: grabbing; }
+.pv-scene [role=button] { cursor: grab; }
+.pv-scene [role=button]:focus, .pv-scene [role=button]:focus-visible { outline: none; }
+.pv-scene:not(.tool-select) [role=button], .pv-scene:not(.tool-select) .pv-path-hit { pointer-events: none; }
+
+.pv-seam line { stroke: var(--border); stroke-width: .4; pointer-events: none; }
+.pv-grid line { stroke: color-mix(in srgb, #fff 42%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; pointer-events: none; }
+[data-theme=light] .pv-grid line { stroke: color-mix(in srgb, #000 30%, transparent); }
+.pv-overlay polyline { fill: none; opacity: .45; stroke-dasharray: 1.6 1.2; stroke-linecap: round; pointer-events: none; }
+.pv-path-line { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.pv-path-hit { fill: none; stroke: transparent; stroke-linecap: round; pointer-events: stroke; cursor: pointer; }
+.pv-path.selected .pv-path-line { filter: drop-shadow(0 0 .5px rgb(0 0 0 / .7)); }
+.pv-control-polygon { fill: none; stroke-width: .3; stroke-dasharray: 1 .8; opacity: .8; pointer-events: none; }
+.pv-handle:not([data-kind=control]), .pv-fixed { stroke: #fff; stroke-width: .35; }
+.pv-handle[data-kind=control] { fill: #fff; stroke-width: .45; }
+.pv-handle.selected:not([data-kind=control]) { stroke: var(--accent); stroke-width: .6; }
+.pv-handle[data-kind=control].selected { fill: var(--accent); }
+.pv-scene .pv-handle:focus-visible { stroke: var(--accent); stroke-width: .8; }
+.pv-pen-preview { fill: none; stroke: var(--accent); stroke-width: .6; stroke-dasharray: 1.2 .8; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+
+/* The robot, drawn like the Visualizer's sprite in Lumière's accent. */
+.pv-robot-body { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: .35; }
+.pv-robot-bar { fill: color-mix(in srgb, var(--accent) 48%, #141414); stroke: var(--accent); stroke-width: .2; }
+.pv-robot-hatch { fill: url(#pv-hatch); }
+.pv-hatch-line { stroke: color-mix(in srgb, var(--accent) 75%, #fff); stroke-width: .45; }
+.pv-robot-rail { stroke: var(--accent); stroke-width: .35; opacity: .7; }
+.pv-robot-center { fill: var(--accent); }
+.pv-robot-chevron { fill: none; stroke: var(--accent); stroke-width: .45; stroke-linecap: round; stroke-linejoin: round; }
+.pv-robot-arrow { stroke: var(--accent); stroke-width: .45; }
+.pv-arrowhead { fill: var(--accent); }
+.pv-robot.ghost { opacity: .45; }
+
+/* Measuring tools and labels drawn over the field picture, legible on either theme. */
+/* Their sizes are set in screen pixels by the field view; these give the colors. */
+.pv-ruler line { stroke: #fff; pointer-events: none; }
+.pv-ruler circle, .pv-protractor-handle, .pv-protractor-center { fill: var(--accent); stroke: #fff; cursor: grab; }
+.pv-protractor-dial { fill: rgb(0 0 0 / .26); stroke: #fff; pointer-events: none; }
+.pv-protractor line { stroke: #fff; pointer-events: none; }
+.pv-protractor .pv-protractor-zero { stroke: rgb(255 255 255 / .5); }
+.pv-protractor .pv-protractor-arm { stroke: var(--accent); }
+.pv-label { fill: #fff; stroke: rgb(0 0 0 / .75); stroke-linejoin: round; paint-order: stroke; font-family: var(--pv-mono); font-weight: 600; pointer-events: none; }
+.pv-coordinate { position: absolute; z-index: 6; padding: 3px 8px; border-radius: 4px; color: #fff; background: rgb(0 0 0 / .85); box-shadow: 0 2px 6px rgb(0 0 0 / .3);
+  font-size: 11px; font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; pointer-events: none; transform: translate(-50%, calc(-100% - 8px)); }
+.pv-coordinate span { margin-right: 4px; color: var(--accent); }
+
+/* Playback: play and loop, a rounded track with a dot where each path ends, then time and distance. */
+.pv-playback { display: flex; flex-shrink: 0; align-items: center; gap: 12px; padding: 0 4px; }
+button.pv-play { margin-right: -10px; }
+.pv-track { position: relative; flex: 1; min-width: 0; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 24%, transparent); }
+.pv-track-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: color-mix(in srgb, var(--accent) 75%, transparent); pointer-events: none; }
+.pv-track input[type=range] { position: absolute; inset: 0; z-index: 1; width: 100%; height: 8px; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.pv-track input[type=range]::-webkit-slider-runnable-track { height: 8px; background: transparent; }
+.pv-track input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -4px; border: 2px solid var(--background); border-radius: 999px; background: var(--accent); cursor: pointer; appearance: none; -webkit-appearance: none; }
+.pv-track input[type=range]::-moz-range-track { height: 8px; background: transparent; }
+.pv-track input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border: 2px solid var(--background); border-radius: 999px; background: var(--accent); cursor: pointer; }
+.pv-track input[type=range]:focus-visible { outline-offset: 4px; }
+button.pv-marker { position: absolute; top: 50%; z-index: 2; width: 10px; height: 10px; min-height: 0; padding: 0; border: 0; border-radius: 50%; box-shadow: 0 0 0 2px var(--background); transform: translate(-50%, -50%); }
+.pv-time { color: var(--muted); font-family: var(--pv-mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pv-time b { color: var(--text); font-weight: 500; }
+.pv-time .over { color: var(--danger); }
+.pv-error { margin: 0; padding: 6px 10px; border-radius: 8px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); font-size: 12px; }
+
+/* Inspector */
+.pv-stack { display: flex; flex-direction: column; gap: 12px; }
+.pv-field-label { display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.4; }
+.pv-input { min-height: 32px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--background);
+  font-size: 13px; font-variant-numeric: tabular-nums; transition: border-color .12s, box-shadow .12s; }
+input.pv-input:focus-visible, select.pv-input:focus-visible { outline: 2px solid transparent; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent); }
+.pv-input.mono { padding: 5px 8px; font-family: var(--pv-mono); font-size: 12px; }
+.pv-input[aria-invalid=true] { border-color: var(--danger); }
+.pv-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pv-name-row { display: flex; align-items: flex-end; gap: 6px; }
+.pv-name-row .pv-field-label { flex: 1; }
+.pv-check { flex-direction: row; align-items: center; gap: 8px; margin: 0; color: var(--text); font-size: 12px; }
+.pv-swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+button.pv-swatch { width: 21px; height: 21px; min-height: 0; padding: 0; border: 2px solid transparent; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .2); }
+button.pv-swatch.selected { border-color: var(--text); box-shadow: inset 0 0 0 2px var(--background); }
+.pv-points-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pv-points { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) minmax(0, 1fr) auto; gap: 4px 6px; align-items: center; }
+.pv-point-row { display: contents; }
+.pv-chip { display: inline-flex; align-items: center; justify-content: center; height: 26px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font: 11px/1 var(--pv-mono); }
+.pv-chip.selected { border-color: var(--accent); color: var(--accent); background: var(--pv-selected); }
+.pv-icon-space { width: 24px; }
+button.pv-ghost-button { align-self: flex-start; gap: 4px; min-height: 26px; padding: 3px 8px; border: 0; border-radius: 6px; color: var(--accent); background: transparent; font-size: 12px; }
+.pv-ghost-button svg { width: 14px; height: 14px; }
+button.pv-ghost-button:hover:not(:disabled) { background: var(--pv-selected); }
+.pv-heading { display: flex; flex-direction: column; gap: 8px; }
+.pv-segmented { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
+.pv-segmented button { min-width: 0; min-height: 28px; padding: 2px 3px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; font-size: 12px; }
+.pv-segmented button:hover:not(:disabled) { color: var(--text); background: var(--pv-hover); }
+.pv-segmented button.active, .pv-segmented button.active:hover:not(:disabled) { color: var(--accent); background: var(--pv-selected); }
+.pv-piecewise { display: flex; flex-direction: column; gap: 8px; }
+.pv-rule { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--pv-well); }
+.pv-rule-head { display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 12px; font-weight: 600; }
+.pv-estimate { display: grid; gap: 4px; margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--pv-well); }
+.pv-estimate > div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.pv-estimate dt { color: var(--muted); }
+.pv-estimate dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.pv-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--pv-well); }
+.pv-group h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.pv-credit { margin: 0; font-size: 11px; line-height: 1.5; }
+
+/* Narrow windows: the field on top at the height the window allows, layers and inspector side by side below. */
 @media (max-width: 1050px) {
-  .pathing { display: block; height: auto; }
-  .pathing-stage { flex: none; height: clamp(220px, calc(100cqh - 200px), 640px); }
-  .pathing-panel { border-top: 1px solid var(--border); border-left: 0; }
+  .pathing { height: auto; min-height: 100%; }
+  .pv-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .pv-layout.left-hidden, .pv-layout.right-hidden { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .pv-field-panel { grid-column: 1 / -1; order: -1; }
+  .pv-stage { flex: none; height: clamp(260px, calc(100cqh - 136px), 640px); }
+  .pv-panel-scroll { overflow: visible; }
+  button.pv-restore { justify-self: start; width: auto; min-height: 32px; padding: 6px 10px; }
+  /* Room for the name and credit: the program shows in the sidebar, and these keep their names for screen readers. */
+  .pv-program { display: none; }
+  .pv-narrow-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .pv-preview { gap: 6px; }
 }
 @media (max-width: 760px) {
-  .pathing-stage { height: min(calc(100vw - 32px), 640px); }
+  .pv-layout { grid-template-columns: minmax(0, 1fr); }
+  .pv-layout.left-hidden, .pv-layout.right-hidden { grid-template-columns: minmax(0, 1fr); }
+  .pv-stage { height: min(calc(100vw - 40px), 560px); }
+  .pv-topbar { gap: 6px; padding: 0 8px; }
 }

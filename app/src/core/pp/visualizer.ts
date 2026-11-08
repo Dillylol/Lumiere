@@ -127,7 +127,7 @@ function bernstein(n: number, t: number): number[] {
  * that curve's first and last control points, so the unknowns are the interior control points, one
  * per through point.
  */
-function throughControlPoints(start: Point, through: readonly Point[], end: Point): Point[] {
+export function throughControlPoints(start: Point, through: readonly Point[], end: Point): Point[] {
   const size = through.length;
   const degree = size + 1;
   // Row i says the curve at t = (i + 1) / degree is through point i, with the known start and end

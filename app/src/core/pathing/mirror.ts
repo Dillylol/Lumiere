@@ -3,14 +3,14 @@
  *
  * Adapted from the Pedro Pathing Visualizer's `src/model/mirror.ts`
  * (https://github.com/Pedro-Pathing/Visualizer), licensed under the Apache License 2.0.
- * Modified by The Lumière Contributors: it works on Lumière's programs, normalizes mirrored
- * angles to 0–360°, and mirrors across x = 72, the middle of Pedro's 144-inch coordinate field.
- * (The Visualizer mirrors across x = 70.75, the middle of a 141.5-inch field interior.)
+ * Modified by The Lumière Contributors: it works on Lumière's programs and normalizes mirrored
+ * angles to 0–360°. Like the Visualizer, it mirrors across x = 70.75, the middle of the floor.
  */
-import { FIELD_INCHES, type AutonomousProgram, type Heading, type HeadingSegment, type PathDoc, type Point } from "../ir/types";
+import type { AutonomousProgram, Heading, HeadingSegment, PathDoc, Point } from "../ir/types";
+import { FIELD_FLOOR_INCHES } from "./field";
 
 /** Pedro's `PoseFactory.mirrorX(axis)` reflects across x = axis: x → 2·axis − x and heading → 180° − heading. */
-export const MIRROR_AXIS = FIELD_INCHES / 2;
+export const MIRROR_AXIS = FIELD_FLOOR_INCHES / 2;
 
 export function mirrorAngle(degrees: number): number {
   const mirrored = (180 - degrees) % 360;

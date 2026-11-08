@@ -54,6 +54,7 @@ export {
 export { exportVisualizer, importVisualizer, VISUALIZER_VERSION, type ImportedPaths } from "./pp/visualizer";
 export {
   addPath,
+  addPenPath,
   deletePath,
   endPose,
   insertControlPoint,
@@ -62,11 +63,15 @@ export {
   pointAt,
   removeControlPoint,
   setHeading,
+  setWaitAfter,
   snapPoint,
   updatePath,
+  waitAfter,
   type PointRef,
 } from "./pathing/edit";
 export { MIRROR_AXIS, mirrorAngle, mirrorHeading, mirrorProgram } from "./pathing/mirror";
+export { clampToFloor, FIELD_FLOOR_INCHES, FIELD_IMAGE_OVERHANG, GRID_SIZES, gridLines, snapToGrid, TILE_INCHES } from "./pathing/field";
+export { fitStroke, PEN_MAX_VERTICES } from "./pathing/pen";
 
 export { generateJava, GENERATED_PACKAGE, TEAMCODE_JAVA_ROOT, type GeneratedFile, type GenerationResult } from "./codegen/java/generate";
 export { ownershipOf, planWrites, type Ownership, type WritePlanEntry } from "./codegen/java/ownership";

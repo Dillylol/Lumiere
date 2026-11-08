@@ -12,7 +12,7 @@ async function seriousViolations(page: Page) {
 /** Neither the page nor any workspace panel scrolls sideways. */
 async function expectNoHorizontalScroll(page: Page) {
   const overflowing = await page.evaluate(() => {
-    const panels = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".workbench-surface, .editor-scroll, .flow-canvas, .field-main, .simulation-field, .properties, .studio-home-main")];
+    const panels = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".workbench-surface, .editor-scroll, .flow-canvas, .field-main, .simulation-field, .properties, .studio-home-main, .pathing, .pv-panel-scroll")];
     return panels.filter((panel) => panel.scrollWidth - panel.clientWidth > 1).map((panel) => panel.className || panel.tagName);
   });
   expect(overflowing).toEqual([]);
@@ -20,7 +20,7 @@ async function expectNoHorizontalScroll(page: Page) {
 
 /** The field fits inside the visible workspace without scrolling. */
 async function expectFieldVisible(page: Page) {
-  const [field, surface] = await Promise.all([page.locator(".studio-field").first().boundingBox(), page.locator(".workbench-surface").boundingBox()]);
+  const [field, surface] = await Promise.all([page.locator(".pv-field, .studio-field").first().boundingBox(), page.locator(".workbench-surface").boundingBox()]);
   expect(field && surface).toBeTruthy();
   expect(field!.y).toBeGreaterThanOrEqual(surface!.y - 1);
   expect(field!.y + field!.height).toBeLessThanOrEqual(surface!.y + surface!.height + 1);
@@ -119,16 +119,16 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   await expect(page.getByRole("heading", { name: /Pathing Visualizer/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(4);
   await expectFieldVisible(page);
-  await page.getByLabel("End X (in)").fill("96");
-  await page.getByRole("combobox", { name: "Heading", exact: true }).selectOption("constant");
-  await expect(page.getByRole("spinbutton", { name: "Heading (°)", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Add curve handle" }).click();
+  await page.getByRole("spinbutton", { name: "End X", exact: true }).fill("96");
+  await page.getByRole("group", { name: "Heading type" }).getByRole("button", { name: "Constant" }).click();
+  await expect(page.getByRole("spinbutton", { name: "Heading (deg)", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Add control point" }).click();
   await expect(page.getByRole("button", { name: /^Control point/ })).toHaveCount(1);
-  await page.getByRole("button", { name: "Add path" }).click();
+  await page.getByRole("button", { name: "Add path", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(5);
   // Drag the new waypoint up and to the right, then nudge it with the keyboard.
-  const endX = page.getByLabel("End X (in)");
-  const endY = page.getByLabel("End Y (in)");
+  const endX = page.getByRole("spinbutton", { name: "End X", exact: true });
+  const endY = page.getByRole("spinbutton", { name: "End Y", exact: true });
   const [startX, startY] = [Number(await endX.inputValue()), Number(await endY.inputValue())];
   const waypoint = page.getByRole("button", { name: "Waypoint 5" });
   await waypoint.scrollIntoViewIfNeeded();
@@ -196,8 +196,8 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   await expect(page.locator(".flow-step")).toHaveCount(7);
   await page.getByRole("button", { name: "Pathing", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(5);
-  await page.locator(".path-pick").first().click();
-  await expect(page.getByLabel("End X (in)")).toHaveValue("96");
+  await page.getByRole("tree", { name: "Paths" }).locator(".pv-row-name").first().click();
+  await expect(page.getByRole("spinbutton", { name: "End X", exact: true })).toHaveValue("96");
   await page.getByRole("button", { name: "All projects" }).click();
   await expect(page.getByRole("heading", { name: "Your projects" })).toBeVisible();
   await expect(page.locator(".project-open").filter({ hasText: "Validation Robot" })).toContainText("1 program ·");

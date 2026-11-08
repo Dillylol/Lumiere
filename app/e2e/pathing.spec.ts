@@ -7,6 +7,13 @@ async function openPathing(page: Page) {
   await expect(page.getByRole("heading", { name: /Pathing Visualizer/ })).toBeVisible();
 }
 
+async function newSquareProject(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Square autonomous/ }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  await openPathing(page);
+}
+
 async function drag(page: Page, name: string, dx: number, dy: number) {
   const handle = page.getByRole("button", { name, exact: true });
   await handle.scrollIntoViewIfNeeded();
@@ -17,40 +24,89 @@ async function drag(page: Page, name: string, dx: number, dy: number) {
   await page.mouse.up();
 }
 
+const pathRow = (page: Page, name: string) => page.getByRole("tree", { name: "Paths" }).getByRole("button", { name, exact: true });
+const spin = (page: Page, name: string) => page.getByRole("spinbutton", { name, exact: true });
+
+async function fileMenu(page: Page, item: string) {
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: item }).click();
+}
+
 test("draws, mirrors, times and plays a program's paths", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
-  await page.getByRole("button", { name: /Square autonomous/ }).click();
-  await page.getByRole("button", { name: "Create project" }).click();
-  await openPathing(page);
-  await expect(page.getByText("Based on the Pedro Pathing Visualizer", { exact: false })).toBeVisible();
+  await newSquareProject(page);
+  await expect(page.getByText("Based on the Pedro Pathing Visualizer", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(4);
-  await expect(page.getByRole("region", { name: "Routine timeline" }).getByRole("button")).not.toHaveCount(0);
+  // The playback track marks where each path ends.
+  await expect(page.getByRole("button", { name: /^Jump to the end of/ })).toHaveCount(4);
 
   // A drag is one undo step.
-  await page.locator(".path-pick").nth(1).click();
-  const endX = page.getByLabel("End X (in)");
+  await pathRow(page, "Path 2").click();
+  const endX = spin(page, "End X");
   const before = await endX.inputValue();
   await drag(page, "Waypoint 2", 40, -40);
   await expect(endX).not.toHaveValue(before);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(endX).toHaveValue(before);
 
-  // Mirroring changes the data, so the start pose moves to the other side.
-  const startX = Number(await page.getByLabel("Start X (in)").inputValue());
-  await page.getByRole("button", { name: "Mirror", exact: true }).click();
-  await expect(page.getByLabel("Start X (in)")).toHaveValue(String(144 - startX));
-  await page.getByRole("button", { name: "Mirrored copy" }).click();
+  // Mirroring changes the data, so the start pose moves across the middle of the floor (x = 70.75).
+  await page.getByRole("button", { name: "Start, field and robot" }).click();
+  const startX = Number(await spin(page, "Start X").inputValue());
+  await fileMenu(page, "Mirror to the other alliance");
+  await expect(spin(page, "Start X")).toHaveValue(String(141.5 - startX));
+  await fileMenu(page, "Mirrored copy as a new program");
   await expect(page.getByRole("navigation", { name: "Programs" }).getByRole("button", { name: /\(mirrored\)$/ })).toBeVisible();
 
   // Every heading rule is editable, including piecewise rules.
-  await page.getByRole("combobox", { name: "Heading", exact: true }).selectOption("piecewise");
+  await pathRow(page, "Path 1").click();
+  await page.getByRole("group", { name: "Heading type" }).getByRole("button", { name: "Piecewise" }).click();
   await page.getByRole("button", { name: "Add rule" }).click();
   await expect(page.getByText("Rule 2", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.locator(".timeline-time")).not.toHaveText(/^0\.0 s/);
+  await page.getByRole("button", { name: "Play (Space)" }).click();
+  await expect(page.locator(".pv-time")).not.toHaveText(/^0\.0s/);
+  expect(errors).toEqual([]);
+});
+
+test("offers the Visualizer's grid, measuring tools, pen and panels", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await newSquareProject(page);
+  const view = page.getByRole("toolbar", { name: "Field view" });
+
+  // The grid steps through its sizes and shows its lines; snapping appears while it is on.
+  await view.getByRole("button", { name: "Grid (G)" }).click();
+  await expect(view.getByRole("button", { name: /^Grid: 1 in/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(view.getByRole("button", { name: "Snapping to the grid" })).toBeVisible();
+  await expect(page.locator(".pv-grid line")).not.toHaveCount(0);
+  await view.getByRole("button", { name: /^Grid: 1 in/ }).click();
+  await expect(view.getByRole("button", { name: /^Grid: 3 in/ })).toBeVisible();
+
+  await view.getByRole("button", { name: "Ruler (R)" }).click();
+  await expect(page.getByRole("button", { name: "Ruler end 2" })).toBeVisible();
+  await view.getByRole("button", { name: "Protractor" }).click();
+  await expect(page.getByRole("button", { name: "Protractor arm" })).toBeVisible();
+
+  // A pen stroke becomes one more path, continuing from the last one.
+  await page.getByRole("toolbar", { name: "Tools" }).getByRole("button", { name: "Pen: draw a path (P)" }).click();
+  const scene = page.locator(".pv-scene");
+  await scene.scrollIntoViewIfNeeded();
+  const box = (await scene.boundingBox())!;
+  await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.25);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i += 1) await page.mouse.move(box.x + box.width * (0.55 + i * 0.025), box.y + box.height * (0.25 + Math.sin(i / 4) * 0.08));
+  await page.mouse.up();
+  await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(5);
+  await expect(pathRow(page, "Path 5")).toBeVisible();
+
+  // Both side panels hide and come back.
+  await page.getByRole("button", { name: "Hide layers" }).click();
+  await page.getByRole("button", { name: "Hide inspector" }).click();
+  await expect(page.getByRole("tree", { name: "Paths" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Show layers" }).click();
+  await page.getByRole("button", { name: "Show inspector" }).click();
+  await expect(page.getByRole("tree", { name: "Paths" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -68,7 +124,8 @@ test("keeps mechanism steps through path edits and asks before a .pp replaces th
 
   await openPathing(page);
   const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export .pp" }).click();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Pedro Pathing file (.pp)" }).click();
   const exported = JSON.parse(await readFile(await (await pending).path(), "utf8"));
   exported.lines[0].name = "Renamed in a .pp";
   const dialogs: string[] = [];
@@ -76,7 +133,7 @@ test("keeps mechanism steps through path edits and asks before a .pp replaces th
   await page.getByLabel("Open a Pedro Pathing .pp file").setInputFiles({
     name: "roundtrip.pp", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)),
   });
-  await expect(page.locator(".path-pick").first()).toContainText("Renamed in a .pp");
+  await expect(page.getByRole("tree", { name: "Paths" }).getByRole("treeitem").first()).toContainText("Renamed in a .pp");
   expect(dialogs[0]).toContain("including its mechanism steps");
   await page.screenshot({ path: info.outputPath("pathing.png") });
 });

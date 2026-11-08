@@ -5,7 +5,9 @@
 import { createLine, newId } from "../ir/create";
 import { resolveProgramPaths } from "../geometry/paths";
 import { toDegrees } from "../geometry/curves";
-import { FIELD_INCHES, type AtomicPath, type AutonomousProgram, type Heading, type PathDoc, type Point, type Step } from "../ir/types";
+import type { AtomicPath, AutonomousProgram, Heading, PathDoc, Point, Step } from "../ir/types";
+import { snapToGrid } from "./field";
+import { fitStroke } from "./pen";
 
 /** A point on the field that can be dragged. */
 export type PointRef =
@@ -13,13 +15,8 @@ export type PointRef =
   | { kind: "end"; pathId: string }
   | { kind: "control"; pathId: string; index: number };
 
-const clampToField = (value: number) => Math.max(0, Math.min(FIELD_INCHES, value));
-
-/** Rounds to a grid of `grid` inches (no rounding when 0) and keeps the point on the field. */
-export function snapPoint(point: Point, grid: number): Point {
-  const snap = (value: number) => grid > 0 ? Math.round(value / grid) * grid : Math.round(value * 10) / 10;
-  return { x: clampToField(snap(point.x)), y: clampToField(snap(point.y)) };
-}
+/** Keeps a point on the floor, snapped to a grid of `grid` inches aligned to the tile seams, or to a tenth of an inch. */
+export const snapPoint = snapToGrid;
 
 const mapPath = (program: AutonomousProgram, pathId: string, change: (path: PathDoc) => PathDoc): AutonomousProgram =>
   ({ ...program, paths: program.paths.map((path) => path.id === pathId ? change(path) : path) });
@@ -106,4 +103,53 @@ export function updatePath(program: AutonomousProgram, pathId: string, patch: Pa
 
 export function setHeading(program: AutonomousProgram, pathId: string, heading: Heading): AutonomousProgram {
   return mapPath(program, pathId, (path) => path.kind === "atomic" ? { ...path, heading } : { ...path, heading });
+}
+
+/** The top-level routine step that drives a path, or -1. */
+const pathStepIndex = (program: AutonomousProgram, pathId: string) =>
+  program.routine.findIndex((step) => step.kind === "path" && step.pathId === pathId);
+
+/** How long the routine waits right after driving a path, in milliseconds. */
+export function waitAfter(program: AutonomousProgram, pathId: string): number {
+  const next = program.routine[pathStepIndex(program, pathId) + 1];
+  return pathStepIndex(program, pathId) >= 0 && next?.kind === "wait" ? next.ms : 0;
+}
+
+/** Sets the wait right after a path, adding, changing or removing the routine's wait step. */
+export function setWaitAfter(program: AutonomousProgram, pathId: string, ms: number): AutonomousProgram {
+  const index = pathStepIndex(program, pathId);
+  if (index < 0) return program;
+  const routine = [...program.routine];
+  const next = routine[index + 1];
+  if (next?.kind === "wait") {
+    if (ms > 0) routine[index + 1] = { ...next, ms };
+    else routine.splice(index + 1, 1);
+  } else if (ms > 0) {
+    routine.splice(index + 1, 0, { id: newId("step"), kind: "wait", ms } as Step);
+  }
+  return { ...program, routine };
+}
+
+/**
+ * Adds a path drawn with the pen. It continues from where the routine ends, or sets the start pose
+ * when the program has no paths yet, and faces along the stroke. Null when the stroke is too short.
+ */
+export function addPenPath(program: AutonomousProgram, stroke: Point[]): { program: AutonomousProgram; pathId: string } | null {
+  const first = program.paths.length === 0;
+  const fitted = fitStroke(stroke, first ? undefined : endPose(program).point);
+  if (!fitted) return null;
+  const path: AtomicPath = {
+    ...createLine(fitted.end, 0, 0, program.paths.length, `Path ${program.paths.length + 1}`),
+    controlPoints: fitted.controlPoints,
+    heading: { type: "tangential", reverse: false },
+  };
+  return {
+    pathId: path.id,
+    program: {
+      ...program,
+      start: first ? { ...program.start, x: fitted.start.x, y: fitted.start.y } : program.start,
+      paths: [...program.paths, path],
+      routine: [...program.routine, { id: newId("step"), kind: "path", pathId: path.id }],
+    },
+  };
 }
