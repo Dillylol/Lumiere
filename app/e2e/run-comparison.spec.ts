@@ -21,7 +21,9 @@ test("compares reported routine time with the latest matching simulator result",
     }]));
   });
 
-  await page.getByRole("button", { name: "Robot", exact: true }).click();
+  const workspace = page.getByRole("navigation", { name: "Workspace" });
+  await workspace.getByRole("button", { name: "Simulate", exact: true }).click();
+  await page.getByRole("group", { name: "Run on" }).getByRole("button", { name: "Robot" }).click();
   await page.getByRole("button", { name: "Connect robot" }).click();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible();
   const comparison = page.getByRole("region", { name: "Run comparison" });
@@ -47,6 +49,12 @@ test("compares reported routine time with the latest matching simulator result",
   await expect(comparison).toContainText("Robot ran 0.6 s longer");
 
   await page.reload();
-  await page.getByRole("button", { name: "Robot", exact: true }).click();
+  await workspace.getByRole("button", { name: "Simulate", exact: true }).click();
   await expect(comparison).toContainText("Robot ran 0.6 s longer");
+
+  // Robot setup lists the same runs side by side.
+  await workspace.getByRole("button", { name: "Robot", exact: true }).click();
+  const breakdown = page.getByRole("region", { name: "Robot breakdown" });
+  await expect(breakdown.getByRole("row", { name: "Main Auto 2.4 s 3.0 s +0.6 s" })).toBeVisible();
+  await expect(page.locator(".editor-scroll .studio-field")).toHaveCount(0);
 });

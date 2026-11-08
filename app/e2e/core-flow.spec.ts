@@ -46,7 +46,9 @@ test.beforeEach(async ({ page }) => {
     });
   });
   await page.reload();
-  await expect(page).toHaveTitle(`${BRAND.name} · ${BRAND.tagline}`);
+  // The window shows the name alone; the tagline lives on the home page.
+  await expect(page).toHaveTitle(BRAND.name);
+  await expect(page.getByText(BRAND.tagline, { exact: true })).toBeVisible();
 });
 
 test("reveals the flame easter egg from projects and the workbench", async ({ page }, testInfo) => {

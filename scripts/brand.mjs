@@ -19,7 +19,8 @@ export function brandChanges(directory = root, brand = readBrand(directory)) {
     if (after !== before) changes.set(file, after);
   }
   const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
-  const title = `${brand.name} · ${brand.tagline}`;
+  // The window and tab show the name alone; the tagline lives on the home page.
+  const title = brand.name;
   const html = (value) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
   update("app/src-tauri/tauri.conf.json", (text) => {
     const config = JSON.parse(text);

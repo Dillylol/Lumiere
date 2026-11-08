@@ -28,9 +28,9 @@ test("exchanges .pp files and applies Visualizer drafts to testing", async ({ pa
   await expect(editor.getByAltText("Field")).toHaveJSProperty("complete", true);
   expect(await editor.getByAltText("Field").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
 
-  await expect(apply).toBeDisabled();
-  await page.getByRole("button", { name: "Load selected program" }).click();
+  // The Visualizer opens on the selected program.
   await expect(page.getByRole("status")).toHaveText(/Opened Main Auto\.pp/);
+  await expect(apply).toBeEnabled();
   const program = await savePath(page, "Main Auto.pp");
   expect(program.version).toBe("2.0.0");
   expect(program.lines).toHaveLength(4);
@@ -54,9 +54,11 @@ test("exchanges .pp files and applies Visualizer drafts to testing", async ({ pa
   await expect(page.locator(".flow-canvas").getByText("Visualized path", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.locator(".flow-canvas").getByText("Path 1", { exact: true })).toBeVisible();
+  // The applied draft has no changes of its own, so the Visualizer follows the program back.
   await openVisualizer();
-  await expect(apply).toBeDisabled();
-  await expect(page.getByRole("status")).toContainText("The selected program has changed.");
+  await expect(page.getByRole("status")).toHaveText(/Opened Main Auto\.pp/);
+  await expect(editor.getByText("Path 1", { exact: true }).first()).toBeVisible();
+  await expect(apply).toBeEnabled();
   await workspace.getByRole("button", { name: "Build", exact: true }).click();
   await page.getByLabel("Add action", { exact: true }).selectOption("together");
   await openVisualizer();

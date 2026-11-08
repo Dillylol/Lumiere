@@ -1,7 +1,7 @@
 /** Single source of product naming. Keep this object JSON-compatible for scripts/brand.mjs. */
 export const BRAND = {
   "name": "Lumière",
-  "tagline": "Light the spark. Streamline the build.",
+  "tagline": "Light the spark.",
   "description": "From first idea to field-ready robot, Lumière streamlines FTC programming, simulation, and deployment in one focused offline workspace.",
   "slug": "lumiere",
   "identifier": "dev.lumiere.desktop",

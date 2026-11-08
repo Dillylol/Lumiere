@@ -73,7 +73,7 @@ test("rename keeps accents in the display name and uses an ASCII spelling for id
     assert.equal(tauri.bundle.createUpdaterArtifacts, true);
     assert.equal(tauri.plugins.updater.pubkey, brand.updaterPublicKey);
     assert.equal(tauri.plugins.updater.endpoints[0], "https://github.com/Dillylol/Lumiere/releases/latest/download/latest.json");
-    assert.match(readFileSync(join(directory, "app/index.html"), "utf8"), /<title>Lumière Robotics · /);
+    assert.match(readFileSync(join(directory, "app/index.html"), "utf8"), /<title>Lumière Robotics<\/title>/);
     assert.equal(brandChanges(directory).size, 0);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

@@ -11,7 +11,9 @@ test("follows the robot stream and reconnects without a second client", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "New project" }).click();
   await page.getByRole("button", { name: "Create project" }).click();
-  await page.getByRole("button", { name: "Robot", exact: true }).click();
+  // The live robot view lives in Simulate, beside the simulator.
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Simulate", exact: true }).click();
+  await page.getByRole("group", { name: "Run on" }).getByRole("button", { name: "Robot" }).click();
   const robot = page.locator(".simulation");
   await robot.getByRole("button", { name: "Connect robot" }).click();
   await expect(robot.getByText("Connected", { exact: true })).toBeVisible();
