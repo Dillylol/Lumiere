@@ -222,9 +222,6 @@ function throughWarning(tally: ThroughTally): string {
   return `${paths} converted to Bezier control points with the same shape.${ignored}`;
 }
 
-/** Robot settings other than size, by their 2.0.0 names. */
-const ROBOT_MOTION_KEYS = ["forwardVelocity", "strafeVelocity", "aVelocity", "kFriction", "safetyMargin", "maxAcceleration", "maxDeceleration"];
-
 /**
  * Where files before 2.0.0 kept each robot setting in their `settings` block, by its 2.0.0 name,
  * preferred source first. Those files named the speeds by axis and measured `rWidth` along the
@@ -268,22 +265,21 @@ function sizeText(length: number | null, width: number | null): string {
 }
 
 /**
- * Describes the file's robot settings, which are never applied: the robot size and motion settings
- * belong to the project. Null when the file has none, or only a size equal to the project's.
+ * Notes a robot size that differs from the project's. The project's robot is never replaced by a
+ * file's. A file's motion settings are the Visualizer's own timing assumptions, while Lumière times
+ * paths from the project's robot, so they are expected to differ and are not reported. Null when the
+ * file has no size or the same size as the project.
  */
 function robotWarning(robot: Json, project: RobotSize | undefined): string | null {
   const length = finiteOrNull(robot.rLength);
   const width = finiteOrNull(robot.rWidth);
-  const motion = ROBOT_MOTION_KEYS.some((key) => finiteOrNull(robot[key]) !== null);
-  if (length === null && width === null) return motion ? "The file's robot motion settings were not imported." : null;
-  const size = sizeText(length, width);
+  if (length === null && width === null) return null;
   const sameSize = project !== undefined
     && (length === null || inches(length) === inches(project.lengthInches))
     && (width === null || inches(width) === inches(project.widthInches));
-  if (sameSize) return motion ? `The file's robot is ${size}, the same as this project's. Its motion settings were not imported.` : null;
-  const dropped = motion ? "Its size and motion settings were not imported" : "Its size was not imported";
-  const kept = project ? `; this project's robot stays ${inches(project.lengthInches)} × ${inches(project.widthInches)} in.` : ".";
-  return `The file's robot is ${size}. ${dropped}${kept}`;
+  if (sameSize) return null;
+  const kept = project ? ` This project keeps its ${inches(project.lengthInches)} × ${inches(project.widthInches)} in robot.` : "";
+  return `The file's robot is ${sizeText(length, width)}.${kept}`;
 }
 
 function waitStep(ms: number): Step {

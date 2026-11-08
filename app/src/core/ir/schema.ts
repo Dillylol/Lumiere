@@ -12,6 +12,14 @@ const finite = z.number().finite();
 const id = z.string().min(1).max(100);
 const name = z.string().max(120);
 
+/** Robot profile bounds, shared with the forms that edit it. Speeds only need to be above zero here; forms start at 1. */
+export const ROBOT_LIMITS = {
+  widthInches: { min: 4, max: 36 },
+  lengthInches: { min: 4, max: 36 },
+  maxVelocity: { min: 1, max: 200 },
+  maxAcceleration: { min: 1, max: 1000 },
+} as const;
+
 const point = z.object({ x: finite, y: finite });
 const startPose = z.object({ x: finite, y: finite, headingDeg: finite });
 
@@ -138,10 +146,10 @@ export const projectSchema: z.ZodType<Project> = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   robot: z.object({
-    widthInches: z.number().min(4).max(36),
-    lengthInches: z.number().min(4).max(36),
-    maxVelocity: z.number().gt(0).max(200),
-    maxAcceleration: z.number().gt(0).max(1000),
+    widthInches: z.number().min(ROBOT_LIMITS.widthInches.min).max(ROBOT_LIMITS.widthInches.max),
+    lengthInches: z.number().min(ROBOT_LIMITS.lengthInches.min).max(ROBOT_LIMITS.lengthInches.max),
+    maxVelocity: z.number().gt(0).max(ROBOT_LIMITS.maxVelocity.max),
+    maxAcceleration: z.number().gt(0).max(ROBOT_LIMITS.maxAcceleration.max),
   }),
   subsystems: z.array(subsystem).max(30),
   programs: z.array(program).max(50),

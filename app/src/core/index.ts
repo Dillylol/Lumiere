@@ -3,7 +3,7 @@
  * so it runs in the web app, the desktop app, and tests alike. See README.md in this folder.
  */
 export * from "./ir/types";
-export { parseProject, safeParseProject, projectSchema } from "./ir/schema";
+export { parseProject, safeParseProject, projectSchema, ROBOT_LIMITS } from "./ir/schema";
 export {
   createAutonomous,
   createDevice,

@@ -133,6 +133,18 @@ describe("Visualizer .pp files", () => {
     expect(importVisualizer(exported.text, { robot }).warnings).toEqual([]);
   });
 
+  it("says nothing about a robot that matches the project, whatever its motion settings", () => {
+    const source = JSON.stringify({
+      version: "2.0.0",
+      startPoint: { x: 10, y: 10, headingDeg: 0 },
+      robot: { rLength: 18, rWidth: 18, forwardVelocity: 75, strafeVelocity: 65, maxAcceleration: 50 },
+      lines: [{ id: "line", endPoint: { x: 40, y: 10 }, controlPoints: [] }],
+    });
+    expect(importVisualizer(source, { robot: { lengthInches: 18, widthInches: 18 } }).warnings).toEqual([]);
+    expect(importVisualizer(source, { robot: { lengthInches: 16, widthInches: 18 } }).warnings)
+      .toEqual(["The file's robot is 18 × 18 in (length × width). This project keeps its 16 × 18 in robot."]);
+  });
+
   it("reads the Visualizer's legacy length and width settings in the right order", () => {
     const source = JSON.stringify({ ...JSON.parse(legacy), settings: { rWidth: 20, rHeight: 15 } });
     expect(importVisualizer(source).warnings.join("\n")).toContain("20 × 15 in");

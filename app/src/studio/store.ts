@@ -10,10 +10,22 @@ const path = (id: string) => {
   if (!/^[\w-]+$/.test(id)) throw new Error("Invalid project identifier.");
   return `projects-v2/${id}.${BRAND.projectExtension}`;
 };
-export function recovery(): Record<string, Project> {
-  try { return Object.fromEntries(Object.entries(JSON.parse(localStorage.getItem(recoveryKey) ?? "{}")).map(([id, value]) => [id, parseProject(value)])); } catch { return {}; }
+/** Every staged draft as stored, including any that no longer parse. */
+function storedDrafts(): Record<string, unknown> {
+  try {
+    const drafts: unknown = JSON.parse(localStorage.getItem(recoveryKey) ?? "{}");
+    return drafts && typeof drafts === "object" && !Array.isArray(drafts) ? drafts as Record<string, unknown> : {};
+  } catch { return {}; }
 }
-export function stage(project: Project) { localStorage.setItem(recoveryKey, JSON.stringify({ ...recovery(), [project.id]: project })); }
+/** The drafts that parse. One unreadable draft never hides or erases the others; it stays in storage untouched. */
+export function recovery(): Record<string, Project> {
+  const drafts: Record<string, Project> = {};
+  for (const [id, value] of Object.entries(storedDrafts())) {
+    try { drafts[id] = parseProject(value); } catch { /* Left in storage so it is not lost. */ }
+  }
+  return drafts;
+}
+export function stage(project: Project) { localStorage.setItem(recoveryKey, JSON.stringify({ ...storedDrafts(), [project.id]: project })); }
 export async function saveProject(project: Project) {
   parseProject(project);
   if (isDesktop()) {
@@ -23,13 +35,25 @@ export async function saveProject(project: Project) {
     await fs.writeTextFile(`${path(project.id)}.tmp`, JSON.stringify(project, null, 2), opts);
     await fs.rename(`${path(project.id)}.tmp`, path(project.id), { oldPathBaseDir: opts.baseDir, newPathBaseDir: opts.baseDir });
   } else await (await db()).put("projects", project);
-  const drafts = recovery();
-  if (drafts[project.id]?.updatedAt === project.updatedAt) { delete drafts[project.id]; localStorage.setItem(recoveryKey, JSON.stringify(drafts)); }
+  const drafts = storedDrafts();
+  if ((drafts[project.id] as { updatedAt?: unknown } | undefined)?.updatedAt === project.updatedAt) { delete drafts[project.id]; localStorage.setItem(recoveryKey, JSON.stringify(drafts)); }
 }
 export async function deleteProject(id: string) {
   if (isDesktop()) { const fs = await import("@tauri-apps/plugin-fs"); await fs.remove(path(id), { baseDir: fs.BaseDirectory.AppData }); }
   else await (await db()).delete("projects", id);
-  const drafts = recovery(); delete drafts[id]; localStorage.setItem(recoveryKey, JSON.stringify(drafts));
+  const drafts = storedDrafts(); delete drafts[id]; localStorage.setItem(recoveryKey, JSON.stringify(drafts));
+}
+
+const DEFAULT_ROBOT_HOST = "192.168.43.1";
+const robotHostKey = (projectId: string) => `lumiere-robot-host:${projectId}`;
+/** The Control Hub address last used with this project on this computer. */
+export function robotHost(projectId: string): string {
+  try { return localStorage.getItem(robotHostKey(projectId)) || DEFAULT_ROBOT_HOST; } catch { return DEFAULT_ROBOT_HOST; }
+}
+export function saveRobotHost(projectId: string, host: string) {
+  try {
+    if (host.trim()) localStorage.setItem(robotHostKey(projectId), host.trim());
+  } catch { /* The address then falls back to the default next time. */ }
 }
 export async function listProjects(): Promise<{ projects: Project[]; warnings: string[] }> {
   const warnings: string[] = [];
