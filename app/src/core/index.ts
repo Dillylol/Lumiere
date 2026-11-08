@@ -38,7 +38,19 @@ export {
 export { headingAt } from "./geometry/headings";
 export { resolvePath, resolveProgramPaths, samplePath, type Pose, type ResolvedPath } from "./geometry/paths";
 
-export { buildTimeline, travelTimeMs, type PreviewTimeline, type TimelineEntry } from "./preview/timeline";
+export {
+  estimateRoutine,
+  estimateRoutine as buildTimeline,
+  profilePath,
+  directional,
+  SETTLE_MS,
+  TARGET_STATE_ESTIMATE_MS,
+  type MotionRobot,
+  type PathProfile,
+  type RoutineEstimate,
+  type RoutineEstimate as PreviewTimeline,
+  type TimelineEntry,
+} from "./motion/estimate";
 export { exportVisualizer, importVisualizer, VISUALIZER_VERSION, type ImportedPaths } from "./pp/visualizer";
 
 export { generateJava, GENERATED_PACKAGE, TEAMCODE_JAVA_ROOT, type GeneratedFile, type GenerationResult } from "./codegen/java/generate";

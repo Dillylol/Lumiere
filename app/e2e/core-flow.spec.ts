@@ -160,7 +160,7 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
 
   // Preview plays and resets.
   await page.getByRole("button", { name: "Simulate", exact: true }).first().click();
-  await expect(page.getByText("Preview · ideal path motion")).toBeVisible();
+  await expect(page.getByText("Estimate · robot profile")).toBeVisible();
   await expectFieldVisible(page);
   await page.getByRole("button", { name: "Run preview" }).last().click();
   await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
