@@ -3,9 +3,15 @@
 Updated 2026-11-07. This record separates what has been verified locally from what still waits on hardware,
 continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.2.0 is tagged from this record.
 
+## Unreleased
+
+- **Lumière Pathing Visualizer:** [Pathing](pathing.md) replaces Paths and the embedded Visualizer. It is a credited React rebuild of the Pedro Pathing Visualizer that edits programs directly: drags are single undo steps, all heading rules are editable, mirroring works on the data, and the routine is timed on a timeline with playback. `.pp` import and export remain.
+- **Robot profile:** project format 3 reads drive motors, the localizer, speeds and decelerations from the linked project's Pedro 3 constants class, and stores the robot's configured hardware. Conflicts between the two show in Problems. Version 2 projects upgrade on load, with a `.v2.bak` copy on desktop.
+- **Physics-bound timing:** path times come from the robot profile, limited by direction of travel, curvature and turn rate, replacing the fixed trapezoid preview.
+
 ## Version 0.2.0
 
-- **Pedro Pathing Visualizer, embedded:** the [Pedro Pathing Visualizer](pedro-visualizer.md) is
+- **Pedro Pathing Visualizer, embedded:** the Pedro Pathing Visualizer (since replaced by [Pathing](pathing.md)) is
   in Paths → Visualizer, themed for Lumière, with its Apache-2.0 license and NOTICE. Drafts apply to
   the selected autonomous program and open Simulate.
 - **Dependencies:** Pedro Pathing 3.0.2, AutoTune 1.0.3 (procedures from Pedro Quickstart

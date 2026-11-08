@@ -74,6 +74,6 @@ test("reports .pp conversion and ignored settings when opening a project", async
   await expect(notice).toContainText("converted to Bezier control points");
   await notice.getByRole("button", { name: "Dismiss" }).click();
   await expect(notice).toHaveCount(0);
-  await page.getByRole("button", { name: "Paths", exact: true }).click();
+  await page.getByRole("button", { name: "Pathing", exact: true }).click();
   await expect(page.getByRole("button", { name: "Control point 1 of path 1" })).toBeVisible();
 });

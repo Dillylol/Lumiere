@@ -1,0 +1,75 @@
+/* Lumière Pathing Visualizer: field, path tools, routine timeline and path properties. */
+.pathing { display: grid; grid-template-columns: minmax(0, 1fr) 300px; height: 100%; min-height: 360px; }
+.pathing-main { display: flex; flex-direction: column; min-width: 0; padding: 12px 16px 14px; overflow: auto; }
+.pathing-toolbar { flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.pathing-toolbar button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+.pathing-toolbar .icon-tool { padding: 6px 8px; }
+.compact-select { flex-direction: row; align-items: center; gap: 6px; margin: 0; font-size: 12px; }
+.compact-select select { width: auto; min-height: 32px; padding: 4px 8px; }
+
+.pathing-title { display: inline-flex; align-items: center; gap: 8px; }
+.pathing-title svg { width: 24px; height: 24px; color: var(--accent); }
+.pathing-credit { color: var(--muted); }
+
+/* The field takes whatever height the toolbar and timeline leave; the drawing stays square inside it. */
+.pathing-stage { display: flex; flex: 1 1 0; justify-content: center; min-height: 220px; }
+.pathing-stage .pathing-canvas { width: 100%; max-width: 640px; height: 100%; margin: 0; aspect-ratio: auto; }
+.pathing-canvas { outline: none; }
+.pathing-canvas .path-line { fill: none; stroke-width: 1.1; stroke-linejoin: round; cursor: pointer; }
+.pathing-canvas .path-line.selected { stroke-width: 1.9; }
+.pathing-canvas .control-polygon { fill: none; stroke: var(--muted); stroke-width: .4; stroke-dasharray: 1 1; pointer-events: none; }
+.pathing-canvas .handle { stroke: var(--background); stroke-width: .7; cursor: grab; }
+.pathing-canvas rect.handle { fill: var(--surface); stroke: var(--accent); }
+.pathing-canvas .handle.selected { stroke: var(--text); stroke-width: 1; }
+.pathing-canvas .handle:focus-visible { outline: none; stroke: var(--accent); stroke-width: 1.3; }
+.pathing-canvas .fixed-point { stroke: var(--background); stroke-width: .7; }
+.pathing-canvas .tile-line line { stroke: var(--border); stroke-width: .5; pointer-events: none; }
+.pathing-canvas .axis-label text { fill: var(--muted); font-size: 4px; }
+.robot rect { fill: var(--accent); fill-opacity: .18; stroke: var(--accent); stroke-width: .7; }
+.robot .robot-heading { stroke: var(--accent); stroke-width: .9; stroke-linecap: round; }
+.robot .robot-front { stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; }
+.robot.ghost rect { fill-opacity: .05; stroke-dasharray: 1.6 1.2; }
+.robot.ghost .robot-heading, .robot.ghost .robot-front { opacity: .6; }
+.pathing-hint { min-height: 16px; margin: 2px 0 6px; color: var(--muted); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.routine-timeline { margin-top: auto; }
+.timeline-steps { position: relative; display: flex; gap: 2px; height: 34px; }
+.timeline-steps .timeline-step { flex: 1 1 0; min-width: 4px; min-height: 0; padding: 0 6px; justify-content: flex-start; overflow: hidden;
+  border: 1px solid var(--border); border-top-width: 3px; border-radius: 4px; background: var(--surface); font-size: 11px; }
+.timeline-step span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-step.wait { background: transparent; border-style: dashed; border-top-style: solid; }
+.timeline-step.state, .timeline-step.together, .timeline-step.race { border-top-color: var(--mint); }
+.playhead { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text); transform: translateX(-1px); pointer-events: none; }
+.timeline-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.timeline-controls button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+.timeline-controls input[type=range] { flex: 1; min-width: 120px; }
+.timeline-time { font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip-warning { color: #e5a54b; border-color: currentColor; }
+
+.pathing-panel h2 { margin: 20px 0 10px; font-size: 15px; }
+.pathing-panel h2:first-child { margin-top: 0; }
+.form-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.control-row { grid-template-columns: 1fr 1fr auto; align-items: end; }
+.control-row > button { margin-bottom: 16px; padding: 8px; }
+.path-list { display: grid; gap: 4px; margin: 0 0 6px; padding: 0; list-style: none; }
+.path-list li { display: flex; gap: 4px; }
+.path-list li > button:not(.path-pick) { padding: 6px; }
+.path-pick { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; }
+.path-pick i { flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; }
+.path-pick span { flex: 1; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.path-pick small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.color-field input[type=color] { height: 36px; padding: 2px 4px; }
+.piecewise fieldset { margin: 0 0 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.piecewise legend { padding: 0 4px; color: var(--muted); font-size: 12px; }
+.pathing-panel > .danger { margin-top: 14px; }
+
+@media (max-width: 1400px) { .pathing { grid-template-columns: minmax(0, 1fr) 270px; } }
+/* Narrow windows stack the properties under the field, which keeps most of the height. */
+@media (max-width: 1050px) {
+  .pathing { display: block; height: auto; }
+  .pathing-stage { flex: none; height: clamp(220px, calc(100cqh - 200px), 640px); }
+  .pathing-panel { border-top: 1px solid var(--border); border-left: 0; }
+}
+@media (max-width: 760px) {
+  .pathing-stage { height: min(calc(100vw - 32px), 640px); }
+}

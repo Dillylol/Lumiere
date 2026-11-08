@@ -115,8 +115,8 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   await expect(page.locator(".flow-step").nth(5)).toContainText("1500 ms");
 
   // Edit a path.
-  await page.getByRole("button", { name: "Paths", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Path editor" })).toBeVisible();
+  await page.getByRole("button", { name: "Pathing", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Pathing Visualizer/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(4);
   await expectFieldVisible(page);
   await page.getByLabel("End X (in)").fill("96");
@@ -126,18 +126,20 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   await expect(page.getByRole("button", { name: /^Control point/ })).toHaveCount(1);
   await page.getByRole("button", { name: "Add path" }).click();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(5);
-  // Drag the new waypoint, then nudge it with the keyboard.
+  // Drag the new waypoint up and to the right, then nudge it with the keyboard.
+  const endX = page.getByLabel("End X (in)");
+  const endY = page.getByLabel("End Y (in)");
+  const [startX, startY] = [Number(await endX.inputValue()), Number(await endY.inputValue())];
   const waypoint = page.getByRole("button", { name: "Waypoint 5" });
+  await waypoint.scrollIntoViewIfNeeded();
   const box = (await waypoint.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 50, box.y + box.height / 2 - 50, { steps: 6 });
   await page.mouse.up();
-  const endX = page.getByLabel("End X (in)");
-  const endY = page.getByLabel("End Y (in)");
   const dragged = Number(await endX.inputValue());
-  expect(dragged).toBeGreaterThan(80);
-  expect(Number(await endY.inputValue())).toBeGreaterThan(80);
+  expect(dragged).toBeGreaterThan(startX + 5);
+  expect(Number(await endY.inputValue())).toBeGreaterThan(startY + 5);
   await waypoint.focus();
   await page.keyboard.press("ArrowRight");
   await expect(endX).toHaveValue(String(dragged + 1));
@@ -192,9 +194,9 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   // The address keeps the open project, so a reload reopens its workspace at Build.
   await expect(page.getByRole("heading", { name: "Program flow" })).toBeVisible();
   await expect(page.locator(".flow-step")).toHaveCount(7);
-  await page.getByRole("button", { name: "Paths", exact: true }).click();
+  await page.getByRole("button", { name: "Pathing", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(5);
-  await page.getByLabel("Selected path").selectOption({ index: 1 });
+  await page.locator(".path-pick").first().click();
   await expect(page.getByLabel("End X (in)")).toHaveValue("96");
   await page.getByRole("button", { name: "All projects" }).click();
   await expect(page.getByRole("heading", { name: "Your projects" })).toBeVisible();

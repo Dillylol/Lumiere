@@ -9,7 +9,7 @@ The production release plan supersedes the earlier prototype roadmap. The curren
 - Real Java simulation on the desktop JVM; a clearly labeled TypeScript kinematic preview on the web.
 - A read-only robot WebSocket stream with stop as its only accepted control. Real OpModes start from the Driver Station.
 - No Python relay, AI integration, account requirement, or analytics.
-- The [bundled Pedro Pathing Visualizer](docs/pedro-visualizer.md) is an explicit vendoring exception. Its name, upstream notices, and field choices are preserved.
+- The [Lumière Pathing Visualizer](docs/pathing.md) is a credited React rebuild of the Pedro Pathing Visualizer on Lumière's project model. Adapted code keeps its Apache 2.0 license and notice in `third_party/pedro-pathing-visualizer`.
 - One product-name source, stable project identifiers, and the .lum project file extension. Legacy .jules import remains supported.
 
 ## Ordered release phases

@@ -31,7 +31,7 @@ export default defineConfig(async () => ({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,svg,ttf}", "pedro-visualizer/**/*"],
+        globPatterns: ["**/*.{js,css,html,svg,ttf}", "licenses/**/*"],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         navigateFallback: "index.html",
       },

@@ -52,6 +52,21 @@ export {
   type TimelineEntry,
 } from "./motion/estimate";
 export { exportVisualizer, importVisualizer, VISUALIZER_VERSION, type ImportedPaths } from "./pp/visualizer";
+export {
+  addPath,
+  deletePath,
+  endPose,
+  insertControlPoint,
+  movePath,
+  movePoint,
+  pointAt,
+  removeControlPoint,
+  setHeading,
+  snapPoint,
+  updatePath,
+  type PointRef,
+} from "./pathing/edit";
+export { MIRROR_AXIS, mirrorAngle, mirrorHeading, mirrorProgram } from "./pathing/mirror";
 
 export { generateJava, GENERATED_PACKAGE, TEAMCODE_JAVA_ROOT, type GeneratedFile, type GenerationResult } from "./codegen/java/generate";
 export { ownershipOf, planWrites, type Ownership, type WritePlanEntry } from "./codegen/java/ownership";
