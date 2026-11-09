@@ -18,10 +18,33 @@ library, so no extra runtime is installed.
 | Lifecycle driver | Makes the same package-private lifecycle calls as `OpModeManagerImpl`: init, start, event-loop iterations, and stop |
 | Simulated hardware | Motors, servos, sensors, and the goBILDA Pinpoint, registered in the hardware map under the team's configured names |
 | Physics | A mecanum drivetrain model stepped at 1 kHz on wall-clock time |
+| Pose | Every Pedro Pathing follower reads the simulated robot's pose through Pedro's own `Localizer` interface |
 | Stream | The same WebSocket protocol the robot uses, so the app shows simulated and real runs the same way |
 
 Simulation runs in real time. Pedro Pathing and Ivy read the system clock, so time is not
 accelerated.
+
+## Any robot Pedro Pathing drives
+
+The simulator takes the robot from the team's Pedro Pathing constants. It doesn't model each kind
+of odometry.
+
+- **Pose:** when the running OpMode creates a Pedro `Follower`, the simulator swaps in a localizer that
+  reports the simulated robot's pose and velocity. It does this whatever localizer the team
+  configured: a Pinpoint, OTOS, OctoQuad, two or three dead wheels, or none.
+  - **Placing the robot:** setting the follower's pose places the simulated robot there, as a team
+    places the robot where its code says it starts. This works the same way it already did for the
+    simulated Pinpoint.
+  - **Finding followers:** they are found in the OpMode's fields and in the team's own objects it
+    holds, a few levels deep.
+- **Motion:** the drivetrain moves the way Pedro's tuners measured the robot. Full power reaches
+  `ForesightConfig.maxAchievableForwardVelocity` and `maxAchievableStrafeVelocity`, and coasting
+  slows at `naturalForwardDeceleration` and `naturalStrafeDeceleration`. Constants that don't set
+  them fall back to the motor model, which is goBILDA 312 RPM motors on 104 mm wheels unless a model
+  JSON says otherwise.
+
+The simulator's `hello` reports both, and the app shows them under Telemetry. When a follower is
+found, each `robot` message names the localizer the simulation stands in for.
 
 ## Spike results (2026-09-13)
 
@@ -71,6 +94,8 @@ The "SDK shim" fallback was not needed.
 - **Time:** simulated time is real time; runs cannot be sped up or single-stepped.
 - **Physics:** the model is an estimate. Traction, battery sag, and collisions are approximations, so
   a path that works in simulation still needs a low-power test on the robot.
+- **Odometry:** the follower's pose is exact in simulation, so pod slip, IMU drift and tuning errors in
+  the localizer itself only show on the robot.
 - **Hardware not simulated:** cameras and vision processors (for example the Limelight and AprilTag
   pipelines) return no detections.
 - **Hardware map:** devices requested through `hardwareMap.get(Class, name)` are created on demand.

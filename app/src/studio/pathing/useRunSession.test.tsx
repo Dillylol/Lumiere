@@ -64,7 +64,7 @@ describe("useRunSession", () => {
     act(() => {
       socket.receive({ type: "lifecycle", opMode: "Main Auto", phase: "running" });
       for (const [elapsed, x] of [[1, 10], [1.1, 10.2], [2, 20]]) {
-        socket.receive({ type: "robot", opMode: "Main Auto", phase: "running", elapsed, pose: { x, y: 10, heading: 0 } });
+        socket.receive({ type: "robot", opMode: "Main Auto", phase: "running", elapsed, pose: { x, y: 10, heading: 0 }, localizer: "ThreeWheelIMULocalizer" });
       }
     });
     expect(result.current.active).toBe("Main Auto");
@@ -72,6 +72,8 @@ describe("useRunSession", () => {
     expect(result.current.pose).toEqual({ x: 20, y: 10, heading: 0 });
     expect(result.current.trail).toEqual([{ x: 10, y: 10 }, { x: 20, y: 10 }]);
     expect(result.current.elapsed).toBe(2000);
+    // The simulator says which of the team's Pedro localizers it stands in for.
+    expect(result.current.localizer).toBe("ThreeWheelIMULocalizer");
 
     // The 30-second match timer presses STOP.
     act(() => socket.receive({ type: "robot", opMode: "Main Auto", phase: "running", elapsed: 30.05, pose: { x: 30, y: 10, heading: 0 } }));

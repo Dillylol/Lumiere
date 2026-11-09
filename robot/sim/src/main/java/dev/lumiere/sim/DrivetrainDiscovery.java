@@ -7,10 +7,11 @@ import java.lang.reflect.Modifier;
 import java.util.function.Supplier;
 
 /**
- * Reads drive motor and localizer names from the team's Pedro Pathing constants, so the simulator
- * uses the same hardware names and wiring the robot code expects. Reflection keeps the simulator
- * independent of the Pedro Pathing version. When no constants are found, the FTC SDK sample names are
- * used.
+ * Reads the drivetrain from the team's Pedro Pathing constants: drive motor names and wiring, and the
+ * speeds and decelerations Pedro's tuners measured. The simulator then uses the same hardware names
+ * the robot code expects and moves the way the robot moves. Reflection keeps the simulator
+ * independent of the Pedro Pathing version. When no constants are found, the FTC SDK sample names and
+ * the simulator's own motor model are used.
  */
 public final class DrivetrainDiscovery {
     public static final String DEFAULT_CONSTANTS_CLASS = "org.firstinspires.ftc.teamcode.pedro.Constants";
@@ -29,6 +30,14 @@ public final class DrivetrainDiscovery {
         public String pinpoint = "pinpoint";
         /** Where the values came from, shown to the user. */
         public String source = "FTC SDK sample names";
+        /**
+         * What Pedro Pathing's tuners measured (ForesightConfig): top speeds at full power, in inches per
+         * second, and coasting decelerations, in inches per second squared. NaN when not set.
+         */
+        public double forwardVelocity = Double.NaN;
+        public double strafeVelocity = Double.NaN;
+        public double forwardDeceleration = Double.NaN;
+        public double strafeDeceleration = Double.NaN;
     }
 
     private DrivetrainDiscovery() {
@@ -67,6 +76,12 @@ public final class DrivetrainDiscovery {
             } else if (typeName.equals("PinpointConfig")) {
                 result.pinpoint = string(config, "name", result.pinpoint);
                 found = true;
+            } else if (typeName.equals("ForesightConfig")) {
+                result.forwardVelocity = magnitude(config, "maxAchievableForwardVelocity");
+                result.strafeVelocity = magnitude(config, "maxAchievableStrafeVelocity");
+                result.forwardDeceleration = magnitude(config, "naturalForwardDeceleration");
+                result.strafeDeceleration = magnitude(config, "naturalStrafeDeceleration");
+                found = true;
             } else if (typeName.endsWith("LocalizerConfig") || typeName.equals("OTOSConfig") || typeName.equals("TwoWheelConfig")
                     || typeName.equals("ThreeWheelConfig") || typeName.equals("ThreeWheelIMUConfig") || typeName.equals("OctoQuadConfig")) {
                 result.pinpoint = null;
@@ -90,6 +105,14 @@ public final class DrivetrainDiscovery {
     private static String string(Object config, String name, String fallback) {
         Object value = configValue(config, name);
         return value instanceof String ? (String) value : fallback;
+    }
+
+    /** A positive, finite measurement, or NaN. Pedro may store decelerations with either sign. */
+    private static double magnitude(Object config, String name) {
+        Object value = configValue(config, name);
+        if (!(value instanceof Number)) return Double.NaN;
+        double magnitude = Math.abs(((Number) value).doubleValue());
+        return magnitude > 0 && !Double.isInfinite(magnitude) ? magnitude : Double.NaN;
     }
 
     private static DcMotorSimple.Direction direction(Object config, String name, DcMotorSimple.Direction fallback) {

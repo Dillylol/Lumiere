@@ -32,7 +32,16 @@ export type ServerMessage =
       protocol: number;
       source: "robot" | "simulator";
       library: string;
-      drivetrain?: { motors: string[]; localizer: string | null; source: string };
+      drivetrain?: {
+        motors: string[];
+        /** The Pinpoint's device name, or null for any other localizer. */
+        localizer: string | null;
+        source: string;
+        /** "pedro": followers read the simulated pose through Pedro Pathing, whatever localizer the robot uses. */
+        pose?: string;
+        /** What Pedro Pathing's tuners measured, as the simulator's drivetrain uses it. */
+        kinematics?: { forwardVelocity?: number; strafeVelocity?: number; forwardDeceleration?: number; strafeDeceleration?: number };
+      };
       robot?: { widthInches: number; lengthInches: number };
     }
   | { type: "manifest"; devices: DeviceInfo[]; opModes: OpModeInfo[] }
@@ -56,6 +65,8 @@ export type ServerMessage =
       velocity: PoseMessage;
       voltage: number;
       devices: Record<string, { type: string; power?: number; position?: number | null }>;
+      /** The team's Pedro Pathing localizer the simulation stands in for, such as ThreeWheelIMULocalizer. */
+      localizer?: string;
     }
   | { type: "telemetry"; lines: string[] }
   | {

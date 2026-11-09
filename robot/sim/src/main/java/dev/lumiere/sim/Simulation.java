@@ -49,6 +49,8 @@ public final class Simulation implements AutoCloseable {
     private final Listener listener;
     private final Thread physicsThread;
     private final Thread eventLoopThread;
+    /** Gives the OpMode's Pedro Pathing followers the simulated pose, whatever localizer they use. */
+    private final PedroLocalization pedro;
 
     private volatile SimulatorOpModeAccess access;
     private volatile String opModeName;
@@ -61,11 +63,12 @@ public final class Simulation implements AutoCloseable {
     private volatile long startedAtMillis;
 
     public Simulation(RobotParameters parameters, DrivetrainDiscovery.Drivetrain drivetrain, double startX, double startY, double startHeading, Listener listener) {
-        this.parameters = parameters.copy();
+        this.parameters = withPedroKinematics(parameters, drivetrain);
         this.drivetrain = drivetrain;
         this.listener = listener != null ? listener : new Listener() { };
-        this.model = new MecanumModel(parameters, startX, startY, startHeading);
+        this.model = new MecanumModel(this.parameters, startX, startY, startHeading);
         this.hardware = new SimHardware(model);
+        this.pedro = new PedroLocalization(model);
         PanelsSupport.prepare();
 
         MotorState frontLeft = hardware.declareMotor(drivetrain.frontLeft);
@@ -87,6 +90,19 @@ public final class Simulation implements AutoCloseable {
         eventLoopThread.start();
     }
 
+    /**
+     * The robot moves as Pedro Pathing's tuners measured it: top speeds at full power and coasting
+     * decelerations from the team's constants, when they set them.
+     */
+    static RobotParameters withPedroKinematics(RobotParameters base, DrivetrainDiscovery.Drivetrain drivetrain) {
+        RobotParameters result = base.copy();
+        if (drivetrain.forwardVelocity > 0) result.forwardVelocity = drivetrain.forwardVelocity;
+        if (drivetrain.strafeVelocity > 0) result.strafeVelocity = drivetrain.strafeVelocity;
+        if (drivetrain.forwardDeceleration > 0) result.coastForwardDeceleration = drivetrain.forwardDeceleration;
+        if (drivetrain.strafeDeceleration > 0) result.coastLateralDeceleration = drivetrain.strafeDeceleration;
+        return result;
+    }
+
     private static int sign(com.qualcomm.robotcore.hardware.DcMotorSimple.Direction direction) {
         return direction == com.qualcomm.robotcore.hardware.DcMotorSimple.Direction.REVERSE ? -1 : 1;
     }
@@ -99,6 +115,7 @@ public final class Simulation implements AutoCloseable {
         stopRequestedByOpMode = false;
         telemetry = Collections.emptyList();
         opModeName = name;
+        pedro.reset();
         SimHardwareMap hardwareMap = new SimHardwareMap(hardware);
         hardwareMap.registerDeclared();
         SimulatorOpModeAccess next = new SimulatorOpModeAccess(opMode);
@@ -187,6 +204,14 @@ public final class Simulation implements AutoCloseable {
         return drivetrain;
     }
 
+    /**
+     * The class name of the Pedro Pathing localizer the simulation stands in for, such as
+     * ThreeWheelIMULocalizer, or null when the OpMode has no follower yet.
+     */
+    public String localization() {
+        return pedro.replaced();
+    }
+
     public RobotParameters parameters() {
         return parameters.copy();
     }
@@ -249,6 +274,7 @@ public final class Simulation implements AutoCloseable {
     private void runEventLoop() {
         Gamepad copy1 = new Gamepad();
         Gamepad copy2 = new Gamepad();
+        long nextSearch = 0;
         while (!closed && !Thread.currentThread().isInterrupted()) {
             SimulatorOpModeAccess current = access;
             if (current != null) {
@@ -260,6 +286,12 @@ public final class Simulation implements AutoCloseable {
                     current.iterate(copy1, copy2);
                 } catch (RuntimeException | LinkageError e) {
                     reportFailure(e);
+                }
+                // OpModes create followers in init, start, or later; look for new ones every 50 ms.
+                long now = System.currentTimeMillis();
+                if (now >= nextSearch) {
+                    nextSearch = now + 50;
+                    pedro.attach(current.opMode());
                 }
                 if ((stopRequestedByOpMode || failure != null) && stopping.compareAndSet(false, true)) {
                     stopRequestedByOpMode = false;

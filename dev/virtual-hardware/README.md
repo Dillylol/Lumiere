@@ -116,7 +116,9 @@ as on a slow hub, and connects one app during that gap.
    complete manifest with OpModes and hardware, without a lifecycle message.
 2. Greets like a Control Hub, without a token: `hello` with source `robot` and no simulator-only fields.
 3. Before any INIT, the manifest lists the project's OpModes and configured hardware, but not the
-   SDK's system OpMode.
+   SDK's system OpMode. The hardware must include the four drive motors. The localizer can be
+   whatever the project's Pedro constants use, because the simulation gives followers their pose
+   through Pedro Pathing.
 4. No lifecycle message before the first OpMode.
 5. The desktop app's origin is accepted (HTTP 101).
 6. Web pages from other origins are refused (HTTP 403).

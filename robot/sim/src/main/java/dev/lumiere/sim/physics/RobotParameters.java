@@ -32,10 +32,32 @@ public final class RobotParameters {
     public double brakeSeconds = 0.06;
     /** Field size in inches. The standard FTC field is 12 ft by 12 ft. */
     public double fieldInches = 144;
+    /**
+     * Measured top speeds at full power, in inches per second, from the team's Pedro Pathing constants.
+     * NaN derives them from the motors and wheels instead.
+     */
+    public double forwardVelocity = Double.NaN;
+    public double strafeVelocity = Double.NaN;
 
     /** Free wheel surface speed at the rated 12 V, in inches per second. */
     public double freeWheelSpeed() {
         return motorFreeRpm / 60.0 * Math.PI * wheelDiameterInches;
+    }
+
+    /**
+     * Forward speed at full power on all four wheels, at a battery voltage. A measured top speed was
+     * reached under full load, so it applies at the sagged voltage; otherwise the free wheel speed
+     * scales with voltage relative to the motors' 12 V rating.
+     */
+    public double forwardSpeed(double volts) {
+        if (forwardVelocity > 0) return forwardVelocity * volts / Math.max(1, batteryVolts - batterySagVolts);
+        return freeWheelSpeed() * volts / 12.0;
+    }
+
+    /** Strafing speed relative to forward speed at the same power: measured when known, else the roller slip estimate. */
+    public double strafeRatio() {
+        if (forwardVelocity > 0 && strafeVelocity > 0) return strafeVelocity / forwardVelocity;
+        return strafeEfficiency;
     }
 
     public double wheelCircumference() {
@@ -64,6 +86,8 @@ public final class RobotParameters {
         copy.coastLateralDeceleration = coastLateralDeceleration;
         copy.brakeSeconds = brakeSeconds;
         copy.fieldInches = fieldInches;
+        copy.forwardVelocity = forwardVelocity;
+        copy.strafeVelocity = strafeVelocity;
         return copy;
     }
 }

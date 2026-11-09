@@ -330,7 +330,7 @@ async function check() {
     const auto = manifest.opModes.find((m) => m.name === "Example Auto");
     expect(auto.flavor === "autonomous", `Example Auto flavor ${auto.flavor}`);
     const devices = manifest.devices.map((d) => `${d.name}:${d.type}`);
-    expect(devices.some((d) => d.endsWith(":motor")) && devices.some((d) => d.endsWith(":pinpoint")), `devices ${devices.join(", ") || "none"}`);
+    expect(devices.filter((d) => d.endsWith(":motor")).length >= 4, `devices ${devices.join(", ") || "none"}`);
     return `${names.length} OpModes, ${devices.length} devices`;
   });
   await attempt("No lifecycle before the first OpMode", async () => {
@@ -363,7 +363,7 @@ async function check() {
     const lifecycle = await app.next((m) => m.type === "lifecycle" && m.phase === "init", 15_000, initAt);
     expect(lifecycle.opMode === "Example Auto", `opMode ${lifecycle.opMode}`);
     const devices = manifest.devices.map((d) => `${d.name}:${d.type}`);
-    expect(devices.some((d) => d.endsWith(":motor")) && devices.some((d) => d.endsWith(":pinpoint")), `devices ${devices.join(", ")}`);
+    expect(devices.filter((d) => d.endsWith(":motor")).length >= 4, `devices ${devices.join(", ")}`);
     return devices.join(", ");
   });
   await sleep(700);

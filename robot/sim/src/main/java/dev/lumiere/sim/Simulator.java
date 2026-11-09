@@ -123,6 +123,14 @@ public final class Simulator {
         drivetrain.put("motors", Arrays.asList(names.frontLeft, names.frontRight, names.backLeft, names.backRight));
         drivetrain.put("localizer", names.pinpoint);
         drivetrain.put("source", names.source);
+        // Followers read the simulated pose through Pedro Pathing, whatever localizer the robot uses.
+        drivetrain.put("pose", "pedro");
+        Map<String, Object> kinematics = Json.object();
+        putMeasured(kinematics, "forwardVelocity", names.forwardVelocity);
+        putMeasured(kinematics, "strafeVelocity", names.strafeVelocity);
+        putMeasured(kinematics, "forwardDeceleration", names.forwardDeceleration);
+        putMeasured(kinematics, "strafeDeceleration", names.strafeDeceleration);
+        if (!kinematics.isEmpty()) drivetrain.put("kinematics", kinematics);
         hello.put("drivetrain", drivetrain);
         Map<String, Object> robot = Json.object();
         robot.put("widthInches", config.robot.widthInches);
@@ -236,6 +244,8 @@ public final class Simulator {
         result.put("velocity", velocity);
         result.put("voltage", round(body.batteryVolts()));
         result.put("devices", simulation.mechanismOutputs());
+        String localization = simulation.localization();
+        if (localization != null) result.put("localizer", localization);
         return result;
     }
 
@@ -255,6 +265,10 @@ public final class Simulator {
         }
         body.put("stack", frames);
         return body;
+    }
+
+    private static void putMeasured(Map<String, Object> target, String key, double value) {
+        if (value > 0 && !Double.isInfinite(value)) target.put(key, round(value));
     }
 
     private static double round(double value) {

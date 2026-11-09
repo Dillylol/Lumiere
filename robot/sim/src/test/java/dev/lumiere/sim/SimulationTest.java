@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import dev.lumiere.sim.hardware.ServoState;
+import dev.lumiere.sim.testbed.DeadWheelConstants;
 import dev.lumiere.sim.testbed.TestConstants;
 import dev.lumiere.sim.testbed.TestOpModes;
 
@@ -30,6 +31,49 @@ public class SimulationTest {
         assertEquals(result.toString(), 36, result.y, 2.0);
         assertEquals(result.toString(), 90, result.headingDegrees, 5.0);
         assertTrue(result.toString(), result.telemetry.get(0).startsWith("x : "));
+    }
+
+    @Test
+    public void aRobotWithDeadWheelsFollowsThePathThroughPedroPathing() throws Exception {
+        // No Pinpoint: the follower's pose comes from the simulation through Pedro's Localizer interface.
+        SimulatorConfig config = new SimulatorConfig();
+        config.constantsClass = DeadWheelConstants.class.getName();
+        HeadlessRun.Result result = HeadlessRun.of(TestOpModes.DeadWheelPathAuto.class).config(config).seconds(10).run();
+        assertNull(String.valueOf(result.failure), result.failure);
+        assertEquals(result.toString(), 96, result.x, 2.0);
+        assertEquals(result.toString(), 36, result.y, 2.0);
+        assertEquals(result.toString(), 90, result.headingDegrees, 5.0);
+    }
+
+    @Test
+    public void theRobotReachesTheSpeedsPedroPathingMeasured() throws Exception {
+        SimulatorConfig config = new SimulatorConfig();
+        try (Simulation simulation = new Simulation(config.robot, DrivetrainDiscovery.discover(DeadWheelConstants.class.getName()), 72, 72, 0, null)) {
+            simulation.init(new TestOpModes.DeadWheelDrive(), "Test Dead Wheel Drive");
+            simulation.start();
+            GamepadState forward = new GamepadState();
+            forward.leftStickY = -1f;
+            simulation.setGamepad(1, forward);
+            Thread.sleep(1000);
+            assertEquals("forward top speed", DeadWheelConstants.FORWARD_VELOCITY, speed(simulation), 2.5);
+            assertTrue("the follower drove from (24, 72): x " + simulation.robot().x(), simulation.robot().x() > 50);
+            assertEquals("ThreeWheelIMULocalizer", simulation.localization());
+
+            GamepadState strafe = new GamepadState();
+            strafe.leftStickX = -1f;  // left
+            simulation.setGamepad(1, strafe);
+            Thread.sleep(1000);
+            assertEquals("strafe top speed", DeadWheelConstants.STRAFE_VELOCITY, speed(simulation), 2.0);
+
+            // Coasting uses Pedro's natural decelerations; MecanumModelTest covers how the model coasts.
+            assertEquals(35, simulation.parameters().coastForwardDeceleration, 1e-9);
+            assertEquals(70, simulation.parameters().coastLateralDeceleration, 1e-9);
+            simulation.stop();
+        }
+    }
+
+    private static double speed(Simulation simulation) {
+        return Math.hypot(simulation.robot().vx(), simulation.robot().vy());
     }
 
     @Test

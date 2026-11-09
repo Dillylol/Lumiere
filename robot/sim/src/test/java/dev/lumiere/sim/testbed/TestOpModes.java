@@ -37,10 +37,14 @@ public final class TestOpModes {
         @Override
         public void init() {
             Scheduler.reset();
-            follower = TestConstants.create(hardwareMap);
+            follower = createFollower();
             follower.setPose(start);
             follower.update();
             session = Session.attach(this).follower(follower);
+        }
+
+        protected Follower createFollower() {
+            return TestConstants.create(hardwareMap);
         }
 
         @Override
@@ -62,6 +66,34 @@ public final class TestOpModes {
         @Override
         public void stop() {
             Scheduler.reset();
+        }
+    }
+
+    /** The same path on a robot with three dead wheels and the IMU instead of a Pinpoint. */
+    @Autonomous(name = "Test Dead Wheel Auto", group = "Tests")
+    public static class DeadWheelPathAuto extends PathAuto {
+        @Override
+        protected Follower createFollower() {
+            return DeadWheelConstants.create(hardwareMap);
+        }
+    }
+
+    /** Drives the dead-wheel robot with gamepad 1, robot-centric, from (24, 72) facing +x. */
+    @TeleOp(name = "Test Dead Wheel Drive", group = "Tests")
+    public static class DeadWheelDrive extends OpMode {
+        private Follower follower;
+
+        @Override
+        public void init() {
+            follower = DeadWheelConstants.create(hardwareMap);
+            follower.setPose(new Pose(24, 72, 0));
+        }
+
+        @Override
+        public void loop() {
+            follower.manual(-gamepad1.left_stick_y, -gamepad1.left_stick_x, -gamepad1.right_stick_x);
+            follower.update();
+            telemetry.addData("x", "%.1f", follower.pose().x());
         }
     }
 

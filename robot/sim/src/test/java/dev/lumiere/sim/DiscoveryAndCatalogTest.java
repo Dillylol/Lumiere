@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
+import dev.lumiere.sim.testbed.DeadWheelConstants;
 import dev.lumiere.sim.testbed.TestConstants;
 import dev.lumiere.sim.testbed.TestOpModes;
 
@@ -30,6 +31,20 @@ public class DiscoveryAndCatalogTest {
     }
 
     @Test
+    public void readsTheKinematicsPedroPathingMeasured() {
+        DrivetrainDiscovery.Drivetrain drivetrain = DrivetrainDiscovery.discover(DeadWheelConstants.class.getName());
+        assertEquals("lf", drivetrain.frontLeft);
+        assertEquals("rr", drivetrain.backRight);
+        // The robot has no Pinpoint; its pose comes from Pedro Pathing all the same.
+        assertNull(drivetrain.pinpoint);
+        assertEquals(45, drivetrain.forwardVelocity, 1e-9);
+        assertEquals(30, drivetrain.strafeVelocity, 1e-9);
+        assertEquals(35, drivetrain.forwardDeceleration, 1e-9);
+        assertEquals(70, drivetrain.strafeDeceleration, 1e-9);
+        assertTrue(Double.isNaN(DrivetrainDiscovery.discover("org.example.Missing").forwardVelocity));
+    }
+
+    @Test
     public void fallsBackToFtcSampleNames() {
         DrivetrainDiscovery.Drivetrain drivetrain = DrivetrainDiscovery.discover("org.example.Missing");
         assertEquals("left_front_drive", drivetrain.frontLeft);
@@ -43,8 +58,8 @@ public class DiscoveryAndCatalogTest {
         List<String> names = new ArrayList<>();
         for (OpModeCatalog.Entry entry : entries) names.add(entry.flavor + "/" + entry.name);
         assertEquals(java.util.Arrays.asList(
-                "autonomous/Test Arm", "autonomous/Test Crash", "autonomous/Test Path Auto", "autonomous/Test Stuck",
-                "teleop/Test Drive"), names);
+                "autonomous/Test Arm", "autonomous/Test Crash", "autonomous/Test Dead Wheel Auto", "autonomous/Test Path Auto",
+                "autonomous/Test Stuck", "teleop/Test Dead Wheel Drive", "teleop/Test Drive"), names);
         OpModeCatalog.Entry drive = OpModeCatalog.find(entries, "Test Drive");
         assertNotNull(drive);
         assertEquals(TestOpModes.Drive.class, drive.type);

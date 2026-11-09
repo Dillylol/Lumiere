@@ -8,6 +8,15 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
 - **Lumière Pathing Visualizer:** [Pathing](pathing.md) replaces Paths and the embedded Visualizer. It is a credited React rebuild of the Pedro Pathing Visualizer that edits programs directly: drags are single undo steps, all heading rules are editable, mirroring works on the data, and the routine is timed on a timeline with playback. `.pp` import and export remain.
 - **Robot profile:** project format 3 reads drive motors, the localizer, speeds and decelerations from the linked project's Pedro 3 constants class, and stores the robot's configured hardware. Conflicts between the two show in Problems. Version 2 projects upgrade on load, with a `.v2.bak` copy on desktop.
 - **Physics-bound timing:** path times come from the robot profile, limited by direction of travel, curvature and turn rate, replacing the fixed trapezoid preview.
+- **The simulator works from Pedro Pathing alone:**
+  - **Pose:** followers read the simulated pose through Pedro's `Localizer` interface, so any robot
+    simulates: a Pinpoint, OTOS, OctoQuad, two or three dead wheels, or none.
+  - **Motion:** the drivetrain reaches the top speeds and coasting decelerations from the team's
+    `ForesightConfig`.
+  - **Tested** on a modernized team robot with three dead wheels and an IMU. Its autonomous ran end
+    to end with the follower's pose matching the simulated robot. The virtual hub passes 18/18 on
+    that robot and on the quickstart.
+  - **Release:** needs a robot-library release before teams get it.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 
 ## Version 0.2.0

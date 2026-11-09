@@ -32,6 +32,24 @@ const FOLLOWER = new Map([["follow", "Following a path"], ["hold", "Holding posi
 const show = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value) ?? String(value));
 const degrees = (radians: number) => (((radians * 180) / Math.PI) % 360 + 360) % 360;
 
+type Drivetrain = NonNullable<NonNullable<RunSession["hello"]>["drivetrain"]>;
+
+/** Where the follower's pose comes from: through Pedro Pathing in the simulator, whatever the robot's localizer. */
+function poseSource(drivetrain: Drivetrain, localizer?: string) {
+  if (drivetrain.pose === "pedro") return `Pose through Pedro Pathing${localizer ? `, standing in for ${localizer}` : ""}`;
+  return drivetrain.localizer ?? "No localizer reported";
+}
+
+/** The measured speeds and decelerations the simulator drives with, from the robot's Pedro constants. */
+function kinematicsLine(kinematics: Drivetrain["kinematics"]) {
+  if (!kinematics) return "";
+  const pair = (a?: number, b?: number) => [a, b].map((value) => (value === undefined ? "—" : value.toFixed(1))).join(" / ");
+  const speeds = kinematics.forwardVelocity !== undefined || kinematics.strafeVelocity !== undefined ? `${pair(kinematics.forwardVelocity, kinematics.strafeVelocity)} in/s` : "";
+  const coasting = kinematics.forwardDeceleration !== undefined || kinematics.strafeDeceleration !== undefined ? `coasting ${pair(kinematics.forwardDeceleration, kinematics.strafeDeceleration)} in/s²` : "";
+  const parts = [speeds, coasting].filter(Boolean);
+  return parts.length ? `From your Pedro constants: ${parts.join(", ")}` : "";
+}
+
 function Status({ session }: { session: RunSession }) {
   const state = session.connected ? "on" : session.linked ? "waiting" : "off";
   return <p className="pv-status" role="status"><i className={`pv-status-dot ${state}`} aria-hidden="true"/>{session.status}</p>;
@@ -180,7 +198,8 @@ export function TelemetryPanel({ session, project, program, estimated, offPath, 
       </Section>}
       {session && <Section title="Telemetry">
         {session.hello
-          ? <p className="pv-note">{session.hello.source} · library {session.hello.library}{session.hello.drivetrain && <><br/>{session.hello.drivetrain.localizer ?? "No localizer reported"}</>}</p>
+          ? <p className="pv-note">{session.hello.source} · library {session.hello.library}{session.hello.drivetrain && <><br/>{poseSource(session.hello.drivetrain, session.localizer)}</>}
+            {kinematicsLine(session.hello.drivetrain?.kinematics) && <><br/>{kinematicsLine(session.hello.drivetrain?.kinematics)}</>}</p>
           : <p className="pv-note">{session.source === "robot" ? "Connect to the robot to see what it reports." : "Launch the simulator to see what your OpMode reports."}</p>}
         {session.source === "simulator" && <pre className="pv-telemetry-lines">{session.telemetry.length ? session.telemetry.join("\n") : "Waiting for telemetry…"}</pre>}
       </Section>}

@@ -11,8 +11,9 @@ import dev.lumiere.sim.hardware.SimHardware;
  *
  * <p>Wheel powers set a target body velocity through standard mecanum kinematics. The body approaches
  * it with a first-order response limited by traction, coasts or brakes according to the motors'
- * zero-power behavior, and stops at the field walls. The model is deliberately simple: it is meant to
- * exercise real OpMode code, not to predict a specific robot's behavior.
+ * zero-power behavior, and stops at the field walls. When the team's Pedro Pathing constants give
+ * measured top speeds and coasting decelerations, full power reaches those speeds and coasting slows
+ * at those rates; otherwise the motors and wheels set them.
  */
 public final class MecanumModel implements SimHardware.Body {
     private static final double ZERO_POWER = 0.005;
@@ -83,9 +84,9 @@ public final class MecanumModel implements SimHardware.Body {
                 angularVelocity = towardZero(angularVelocity, parameters.coastForwardDeceleration / lever * seconds);
             }
         } else {
-            double speed = parameters.freeWheelSpeed() * volts / 12.0;
+            double speed = parameters.forwardSpeed(volts);
             double targetForward = speed * (power[0] + power[1] + power[2] + power[3]) / 4.0;
-            double targetLeft = speed * (-power[0] + power[1] + power[2] - power[3]) / 4.0 * parameters.strafeEfficiency;
+            double targetLeft = speed * (-power[0] + power[1] + power[2] - power[3]) / 4.0 * parameters.strafeRatio();
             double targetAngular = speed * (-power[0] + power[1] - power[2] + power[3]) / (4.0 * lever);
 
             double blend = 1 - Math.exp(-seconds / parameters.responseSeconds);
@@ -139,7 +140,7 @@ public final class MecanumModel implements SimHardware.Body {
     }
 
     private void updateEncoders(MotorState[] motors, double seconds, double lever) {
-        double lateral = leftVelocity / parameters.strafeEfficiency;
+        double lateral = leftVelocity / parameters.strafeRatio();
         double rotation = angularVelocity * lever;
         double[] wheelSpeed = {
                 forwardVelocity - lateral - rotation,

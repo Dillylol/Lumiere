@@ -23,7 +23,11 @@ public class MecanumModelTest {
 
     @Before
     public void setUp() {
-        model = new MecanumModel(new RobotParameters(), 72, 72, 0);
+        build(new RobotParameters());
+    }
+
+    private void build(RobotParameters parameters) {
+        model = new MecanumModel(parameters, 72, 72, 0);
         SimHardware hardware = new SimHardware(model);
         fl = (DcMotorEx) hardware.getOrCreate(DcMotorEx.class, "fl");
         fr = (DcMotorEx) hardware.getOrCreate(DcMotorEx.class, "fr");
@@ -69,6 +73,32 @@ public class MecanumModelTest {
         assertTrue("left is +y at heading 0", model.vy() > 0);
         double forwardSpeed = new RobotParameters().freeWheelSpeed() * model.batteryVolts() / 12.0;
         assertEquals(forwardSpeed * new RobotParameters().strafeEfficiency, model.vy(), 1.0);
+    }
+
+    @Test
+    public void measuredSpeedsAndDecelerationsFromPedroPathingSetTheMotion() {
+        RobotParameters measured = new RobotParameters();
+        measured.forwardVelocity = 50;
+        measured.strafeVelocity = 30;
+        measured.coastForwardDeceleration = 45;
+        measured.coastLateralDeceleration = 80;
+        build(measured);
+        for (DcMotorEx motor : new DcMotorEx[]{fl, fr, bl, br}) motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        drive(1, 0, 0);
+        run(1.0);
+        assertEquals("full power reaches the measured forward speed", 50, model.vx(), 1.0);
+        drive(0, 0, 0);
+        run(0.2);
+        assertEquals("coasting slows at the measured forward deceleration", 50 - 45 * 0.2, model.vx(), 1.0);
+
+        run(2.0);
+        drive(0, 1, 0);
+        run(1.0);
+        assertEquals("full power reaches the measured strafe speed", 30, model.vy(), 1.0);
+        drive(0, 0, 0);
+        run(0.2);
+        assertEquals("coasting slows at the measured strafe deceleration", 30 - 80 * 0.2, model.vy(), 1.0);
     }
 
     @Test

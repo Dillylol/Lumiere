@@ -60,6 +60,8 @@ export interface RunSession {
   active: string | null;
   /** The simulator's true pose, or the robot follower's estimate. */
   pose?: PoseMessage;
+  /** The team's Pedro Pathing localizer the simulator stands in for, such as ThreeWheelIMULocalizer. */
+  localizer?: string;
   /** The follower's target pose and the path it reports following. */
   target?: PoseMessage;
   route?: [number, number][];
@@ -108,6 +110,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const [modes, setModes] = useState<OpModeInfo[]>([]);
   const [mode, setMode] = useState("");
   const [pose, setPose] = useState<PoseMessage>();
+  const [localizer, setLocalizer] = useState<string>();
   const [target, setTarget] = useState<PoseMessage>();
   const [route, setRoute] = useState<[number, number][]>();
   const [trail, setTrail] = useState<Point[]>([]);
@@ -168,7 +171,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   }, []);
 
   /** What one OpMode run reported; cleared at INIT. */
-  const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setLoopMs(undefined); setFollower(undefined); resetTrail(); };
+  const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail(); };
   const clearStream = () => {
     runStart.current = null;
     setHello(undefined); setModes([]); setMode(""); setActive(null); setPhase("idle");
@@ -213,6 +216,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       const next = finite(message.pose);
       if (next) showPose(next);
       if (Number.isFinite(message.elapsed)) setElapsed(message.elapsed * 1000);
+      if (typeof message.localizer === "string") setLocalizer(message.localizer.slice(0, 80));
     } else if (message.type === "state") {
       const next = finite(message.pose);
       if (next && streamSource.current === "robot") showPose(next);
@@ -340,7 +344,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     source,
     status: !linked ? "Disconnected" : connection === "open" ? "Connected" : opened ? "Reconnecting…" : "Connecting…",
     linked, connected: connection === "open", finding, hello, modes, mode, setMode, phase, active,
-    pose, target, route, trail, telemetry, data, loopMs, follower, elapsed, limit, setLimit,
+    pose, localizer, target, route, trail, telemetry, data, loopMs, follower, elapsed, limit, setLimit,
     keyboard,
     setKeyboard: (on) => { keys.current.clear(); setKeyboardState(on); },
     press: (button, down) => { screen.current = { ...screen.current, [button]: down }; },

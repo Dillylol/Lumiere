@@ -45,7 +45,13 @@ Sent once after connecting, or after `auth` on the simulator.
 
 The simulator also sends:
 
-- `drivetrain`: `{ "motors": [fl, fr, bl, br], "localizer": "pinpoint" | null, "source": "<constants class or FTC SDK sample names>" }`
+- `drivetrain`: `{ "motors": [fl, fr, bl, br], "localizer": "pinpoint" | null, "source": "<constants class or FTC SDK sample names>", "pose": "pedro", "kinematics": { … } }`
+  - `localizer`: the Pinpoint's device name, or null for any other localizer.
+  - `pose`: `"pedro"` means followers read the simulated pose through Pedro Pathing, whatever localizer
+    the robot uses.
+  - `kinematics`: the measurements from `ForesightConfig` that the simulated drivetrain uses, when
+    the constants set them: `forwardVelocity` and `strafeVelocity` in inches per second, and
+    `forwardDeceleration` and `strafeDeceleration` in inches per second squared.
 - `robot`: `{ "widthInches": 18, "lengthInches": 18 }`
 
 ### `manifest`
@@ -130,6 +136,8 @@ The simulated robot's true state, about 30 times per second.
 
 - **Velocity:** field frame, in inches per second; `heading` is in radians per second.
 - **Unset servos:** a servo that has not been commanded has `position: null`.
+- **`localizer`:** once the OpMode has a Pedro Pathing follower, the class name of the localizer the
+  simulation stands in for, such as `ThreeWheelIMULocalizer`.
 
 ### `telemetry` (simulator only)
 
