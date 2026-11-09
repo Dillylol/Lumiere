@@ -8,6 +8,18 @@ import {
 export type Tool = "select" | "pen" | "coordinate";
 export type Selection = { pathId?: string; point?: PointRef };
 export interface Overlay { id: string; name: string; color: string; paths: ResolvedPath[] }
+/** What a simulator or robot run shows over the plan. */
+export interface RunOverlay {
+  /** Where the estimate puts the robot at this point of the run, drawn as a ghost. */
+  planned?: Pose;
+  /** The robot's reported pose. */
+  actual?: Pose;
+  /** Where the robot has driven since START. */
+  trail?: Point[];
+  /** The path the follower reports following, and its target pose. */
+  route?: Point[];
+  target?: Pose;
+}
 
 const F = FIELD_FLOOR_INCHES;
 const LINE = 0.57;
@@ -15,6 +27,7 @@ const POINT = 1;
 const sameRef = (a: PointRef | undefined, b: PointRef) => !!a && a.kind === b.kind
   && (a.kind === "start" || (b.kind !== "start" && a.pathId === b.pathId && (a.kind === "end" || (b.kind === "control" && a.index === b.index))));
 const polyline = (points: Point[]) => points.map((point) => `${point.x},${point.y}`).join(" ");
+const listed = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
 
 /** An angle: the protractor's icon. */
 function AngleIcon() {
@@ -48,11 +61,14 @@ export function RobotSprite({ pose, length, width, ghost = false, arrow = true }
 
 interface FieldViewProps {
   project: Project;
-  program: AutonomousProgram;
+  /** The autonomous program to draw; a TeleOp has none. */
+  program?: AutonomousProgram;
   paths: ResolvedPath[];
   overlays: Overlay[];
   selection: Selection;
   tool: Tool;
+  /** Develop edits the paths; Simulate and Robot only show them. */
+  editable?: boolean;
   grid: number;
   snap: boolean;
   ruler: boolean;
@@ -61,15 +77,17 @@ interface FieldViewProps {
   fieldImage: string | null;
   /** Where playback has the robot; the start pose when playback is at the beginning. */
   robotPose?: Pose;
+  /** A simulator or robot run, drawn over the plan. */
+  run?: RunOverlay;
   onTool(tool: Tool): void;
   onCycleGrid(): void;
   onSnap(): void;
   onRuler(): void;
   onProtractor(): void;
   onProtractorLock(): void;
-  onSelect(selection: Selection): void;
-  onCommit(program: AutonomousProgram, select?: Selection): void;
-  onAddPath(): void;
+  onSelect?(selection: Selection): void;
+  onCommit?(program: AutonomousProgram, select?: Selection): void;
+  onAddPath?(): void;
   onNotice(text: string): void;
 }
 
@@ -84,7 +102,10 @@ type Drag =
  * A drag previews its edit here and commits once, so each drag is one undo step.
  */
 export function FieldView(props: FieldViewProps) {
-  const { project, program, paths, overlays, selection, tool, grid, snap, ruler, protractor, protractorLocked, fieldImage, robotPose } = props;
+  const { project, program, paths, overlays, selection, grid, snap, ruler, protractor, protractorLocked, fieldImage, robotPose, run } = props;
+  const editable = props.editable !== false && !!program;
+  // The pen and adding paths are editing tools, so only Develop offers them.
+  const tool: Tool = !editable && props.tool === "pen" ? "select" : props.tool;
   const stage = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<Drag | undefined>(undefined);
@@ -99,9 +120,10 @@ export function FieldView(props: FieldViewProps) {
   const shown = draft ?? program;
   const shownPaths = draft ? resolveProgramPaths(draft).paths : paths;
   const { lengthInches: length, widthInches: width } = project.robot;
-  const startPose: Pose = { x: shown.start.x, y: shown.start.y, heading: (shown.start.headingDeg * Math.PI) / 180 };
-  const robot = robotPose ?? startPose;
-  const center = protractorLocked ? robot : protractorCenter;
+  const startPose: Pose | undefined = shown && { x: shown.start.x, y: shown.start.y, heading: (shown.start.headingDeg * Math.PI) / 180 };
+  // The robot the measuring tools follow: the run's robot, playback's, or the start pose.
+  const robot = run ? run.actual ?? run.planned ?? startPose : robotPose ?? startPose;
+  const center = protractorLocked && robot ? robot : protractorCenter;
   const place = (point: Point) => snapToGrid(point, snap && grid > 0 ? grid : 0);
 
   useEffect(() => {
@@ -133,22 +155,22 @@ export function FieldView(props: FieldViewProps) {
   const grabPoint = (event: ReactPointerEvent, ref: PointRef, pathId?: string) => {
     if (tool !== "select" || event.button !== 0) return;
     begin(event, { kind: "point", ref, moved: false });
-    props.onSelect({ pathId: pathId ?? selection.pathId, point: ref });
+    props.onSelect?.({ pathId: pathId ?? selection.pathId, point: ref });
   };
   const nudge = (event: ReactKeyboardEvent, ref: PointRef, at: Point) => {
     const step = event.shiftKey ? 6 : 1;
     const delta = { ArrowUp: [0, step], ArrowDown: [0, -step], ArrowLeft: [-step, 0], ArrowRight: [step, 0] }[event.key];
-    if (!delta) return;
+    if (!delta || !program) return;
     event.preventDefault();
     event.stopPropagation();
-    props.onCommit(movePoint(program, ref, snapToGrid({ x: at.x + delta[0], y: at.y + delta[1] }, 0)));
+    props.onCommit?.(movePoint(program, ref, snapToGrid({ x: at.x + delta[0], y: at.y + delta[1] }, 0)));
   };
-  const marker = (ref: PointRef, label: string, at: Point, pathId?: string) => ({
+  const marker = (ref: PointRef, label: string, at: Point, pathId?: string) => editable ? {
     role: "button" as const, tabIndex: 0, "aria-label": label,
     className: sameRef(selection.point, ref) ? "pv-handle selected" : "pv-handle",
     onPointerDown: (event: ReactPointerEvent) => grabPoint(event, ref, pathId),
     onKeyDown: (event: ReactKeyboardEvent) => nudge(event, ref, at),
-  });
+  } : { className: "pv-fixed" };
 
   const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
     if (event.button !== 0) return;
@@ -160,7 +182,7 @@ export function FieldView(props: FieldViewProps) {
       const text = `${point.x.toFixed(2)}, ${point.y.toFixed(2)}`;
       void navigator.clipboard?.writeText(text).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); }, () => props.onNotice(`Coordinate: ${text}`));
     } else {
-      props.onSelect({});
+      props.onSelect?.({});
     }
   };
   const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
@@ -168,7 +190,7 @@ export function FieldView(props: FieldViewProps) {
     setHover(point.x >= 0 && point.x <= F && point.y >= 0 && point.y <= F ? point : null);
     const current = drag.current;
     if (!current) return;
-    if (current.kind === "point") {
+    if (current.kind === "point" && program) {
       current.moved = true;
       setDraft(movePoint(draft ?? program, current.ref, place(point)));
     } else if (current.kind === "pen") {
@@ -177,9 +199,9 @@ export function FieldView(props: FieldViewProps) {
     } else if (current.kind === "ruler") {
       const placed = place(point);
       setRulerEnds((ends) => current.end === 0 ? [placed, ends[1]] : [ends[0], placed]);
-    } else if (current.part === "center") {
+    } else if (current.kind === "protractor" && current.part === "center") {
       setProtractorCenter(place(point));
-    } else {
+    } else if (current.kind === "protractor") {
       const deg = (Math.atan2(point.y - center.y, point.x - center.x) * 180) / Math.PI;
       setArmDeg(((Math.round(deg) % 360) + 360) % 360);
     }
@@ -187,10 +209,10 @@ export function FieldView(props: FieldViewProps) {
   const onPointerUp = () => {
     const current = drag.current;
     drag.current = undefined;
-    if (current?.kind === "point" && current.moved && draft) props.onCommit(draft);
-    if (current?.kind === "pen") {
+    if (current?.kind === "point" && current.moved && draft) props.onCommit?.(draft);
+    if (current?.kind === "pen" && program) {
       const added = addPenPath(program, current.points);
-      if (added) props.onCommit(added.program, { pathId: added.pathId });
+      if (added) props.onCommit?.(added.program, { pathId: added.pathId });
       setPen([]);
     }
     setDraft(undefined);
@@ -209,14 +231,23 @@ export function FieldView(props: FieldViewProps) {
   const imageExtent = `${((F + 2 * FIELD_IMAGE_OVERHANG) / F) * 100}%`;
   const toolButton = (id: Tool, label: string, icon: ReactNode) =>
     <button type="button" className={tool === id ? "pv-icon active" : "pv-icon"} aria-label={label} title={label} aria-pressed={tool === id} onClick={() => props.onTool(id)}>{icon}</button>;
+  const runShows = run ? [
+    run.actual && "the robot's position",
+    run.trail && run.trail.length > 1 && "where it has driven",
+    run.route && run.route.length > 1 && "the path the robot is following",
+    run.target && "the follower's target pose",
+    run.planned && "where the plan has the robot now",
+  ].filter((item): item is string => !!item) : [];
 
   return <div className="pv-stage" ref={stage}>
     <div className="pv-rail pv-rail-left" role="toolbar" aria-label="Tools" aria-orientation="vertical">
       {toolButton("select", "Select (Esc)", <MousePointer2/>)}
-      {toolButton("pen", "Pen: draw a path (P)", <PenTool/>)}
+      {editable && toolButton("pen", "Pen: draw a path (P)", <PenTool/>)}
       {toolButton("coordinate", "Pick a coordinate (C)", <Crosshair/>)}
-      <span className="pv-rail-divider"/>
-      <button type="button" className="pv-icon" aria-label="Add path (W)" title="Add path (W)" onClick={props.onAddPath}><Plus/></button>
+      {editable && <>
+        <span className="pv-rail-divider"/>
+        <button type="button" className="pv-icon" aria-label="Add path (W)" title="Add path (W)" onClick={props.onAddPath}><Plus/></button>
+      </>}
     </div>
     <div className="pv-rail pv-rail-right" role="toolbar" aria-label="Field view" aria-orientation="vertical">
       <button type="button" className={grid ? "pv-icon active" : "pv-icon"} aria-label={grid ? `Grid: ${grid} in (G for the next size)` : "Grid (G)"} title={grid ? `Grid: ${grid} in (G for the next size)` : "Grid (G)"} aria-pressed={grid > 0} onClick={props.onCycleGrid}>
@@ -232,14 +263,14 @@ export function FieldView(props: FieldViewProps) {
       {fieldImage
         ? <img className="pv-field-image" src={fieldImage} alt="Field" draggable={false} style={{ left: imageInset, top: imageInset, width: imageExtent, height: imageExtent }}/>
         : <div className="pv-field-plain" aria-hidden="true"/>}
-      <svg ref={svg} viewBox={`0 0 ${F} ${F}`} className={`pv-scene tool-${tool}${drag.current?.kind === "point" ? " dragging" : ""}`}
+      <svg ref={svg} viewBox={`0 0 ${F} ${F}`} className={`pv-scene tool-${tool}${drag.current?.kind === "point" ? " dragging" : ""}${run ? " running" : ""}`}
         role="group" aria-label={`Field, ${F} inches square`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onLostPointerCapture={onPointerUp}
         onPointerLeave={() => setHover(null)}
         onDoubleClick={(event) => {
-          if (tool !== "select") return;
+          if (tool !== "select" || !editable || !program) return;
           const { program: next, pathId } = addPath(program, place(toField(event)));
-          props.onCommit(next, { pathId });
+          props.onCommit?.(next, { pathId });
         }}>
         <defs>
           <pattern id="pv-hatch" width="1.4" height="1.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -258,28 +289,44 @@ export function FieldView(props: FieldViewProps) {
             {overlay.paths.map((path) => <polyline key={path.doc.id} points={polyline(samplePath(path, 64))} stroke={overlay.color} strokeWidth={LINE}/>)}
           </g>)}
 
-          {shownPaths.map((path) => <g key={path.doc.id} className={path.doc.id === selection.pathId ? "pv-path selected" : "pv-path"}>
-            <polyline points={polyline(samplePath(path, 96))} className="pv-path-hit" strokeWidth={px(12)}
-              onPointerDown={(event) => { if (tool !== "select" || event.button !== 0) return; event.stopPropagation(); props.onSelect({ pathId: path.doc.id }); }}/>
-            <polyline points={polyline(samplePath(path, 96))} stroke={path.doc.color} strokeWidth={path.doc.id === selection.pathId ? LINE * 1.5 : LINE} className="pv-path-line"/>
-          </g>)}
+          <g className={run ? "pv-plan planned" : "pv-plan"}>
+            {shownPaths.map((path) => <g key={path.doc.id} className={editable && path.doc.id === selection.pathId ? "pv-path selected" : "pv-path"}>
+              {editable && <polyline points={polyline(samplePath(path, 96))} className="pv-path-hit" strokeWidth={px(12)}
+                onPointerDown={(event) => { if (tool !== "select" || event.button !== 0) return; event.stopPropagation(); props.onSelect?.({ pathId: path.doc.id }); }}/>}
+              <polyline points={polyline(samplePath(path, 96))} stroke={path.doc.color} strokeWidth={editable && path.doc.id === selection.pathId ? LINE * 1.5 : LINE} className="pv-path-line"/>
+            </g>)}
 
-          {shownPaths.map((path, index) => {
-            if (path.doc.kind !== "atomic" || path.doc.id !== selection.pathId) return null;
-            return <g key={`${path.doc.id}-controls`}>
-              <polyline points={polyline([path.start, ...path.doc.controlPoints, path.end])} className="pv-control-polygon" stroke={path.doc.color}/>
-              {path.doc.controlPoints.map((control, c) => <circle key={c} cx={control.x} cy={control.y} r={Math.max(POINT * 0.85, px(4))} stroke={path.doc.color}
-                {...marker({ kind: "control", pathId: path.doc.id, index: c }, `Control point ${c + 1} of path ${index + 1}`, control, path.doc.id)} data-kind="control"/>)}
-            </g>;
-          })}
+            {editable && shownPaths.map((path, index) => {
+              if (path.doc.kind !== "atomic" || path.doc.id !== selection.pathId) return null;
+              return <g key={`${path.doc.id}-controls`}>
+                <polyline points={polyline([path.start, ...path.doc.controlPoints, path.end])} className="pv-control-polygon" stroke={path.doc.color}/>
+                {path.doc.controlPoints.map((control, c) => <circle key={c} cx={control.x} cy={control.y} r={Math.max(POINT * 0.85, px(4))} stroke={path.doc.color}
+                  {...marker({ kind: "control", pathId: path.doc.id, index: c }, `Control point ${c + 1} of path ${index + 1}`, control, path.doc.id)} data-kind="control"/>)}
+              </g>;
+            })}
 
-          <circle cx={shown.start.x} cy={shown.start.y} r={Math.max(POINT, px(4.5))} fill={shownPaths[0]?.doc.color ?? "var(--accent)"} {...marker({ kind: "start" }, "Start pose", shown.start)}/>
-          {shownPaths.map((path, index) => path.doc.kind === "atomic"
-            ? <circle key={`${path.doc.id}-end`} cx={path.end.x} cy={path.end.y} r={path.doc.id === selection.pathId ? Math.max(POINT * 1.5, px(6)) : Math.max(POINT, px(4.5))} fill={path.doc.color}
-              {...marker({ kind: "end", pathId: path.doc.id }, `Waypoint ${index + 1}`, path.end, path.doc.id)}/>
-            : <circle key={`${path.doc.id}-end`} cx={path.end.x} cy={path.end.y} r={Math.max(POINT, px(4.5))} fill={path.doc.color} className="pv-fixed"/>)}
+            {shown && <circle cx={shown.start.x} cy={shown.start.y} r={Math.max(POINT, px(4.5))} fill={shownPaths[0]?.doc.color ?? "var(--accent)"} {...marker({ kind: "start" }, "Start pose", shown.start)}/>}
+            {shownPaths.map((path, index) => path.doc.kind === "atomic"
+              ? <circle key={`${path.doc.id}-end`} cx={path.end.x} cy={path.end.y} r={editable && path.doc.id === selection.pathId ? Math.max(POINT * 1.5, px(6)) : Math.max(POINT, px(4.5))} fill={path.doc.color}
+                {...marker({ kind: "end", pathId: path.doc.id }, `Waypoint ${index + 1}`, path.end, path.doc.id)}/>
+              : <circle key={`${path.doc.id}-end`} cx={path.end.x} cy={path.end.y} r={Math.max(POINT, px(4.5))} fill={path.doc.color} className="pv-fixed"/>)}
+          </g>
 
-          <RobotSprite pose={robot} length={length} width={width}/>
+          {run ? <g className="pv-run" role="img" aria-label={runShows.length ? `Run view showing ${listed(runShows)}` : "Run view: waiting for the robot's position"}>
+            {run.trail && run.trail.length > 1 && <polyline points={polyline(run.trail)} className="pv-trail" strokeWidth={px(2.5)}/>}
+            {run.route && run.route.length > 1 && <g className="pv-route">
+              <polyline points={polyline(run.route)} strokeWidth={px(1.5)} strokeDasharray={`${px(6)} ${px(4)}`}/>
+              <circle cx={run.route[run.route.length - 1].x} cy={run.route[run.route.length - 1].y} r={px(4)} strokeWidth={px(1.5)}/>
+            </g>}
+            {run.planned && <RobotSprite pose={run.planned} length={length} width={width} ghost/>}
+            {!run.actual && !run.planned && startPose && <RobotSprite pose={startPose} length={length} width={width} ghost/>}
+            {run.actual && <RobotSprite pose={run.actual} length={length} width={width}/>}
+            {run.target && <g className="pv-target" transform={`translate(${run.target.x} ${run.target.y}) rotate(${(run.target.heading * 180) / Math.PI})`}>
+              <circle r={px(9)} strokeWidth={px(1.5)} strokeDasharray={`${px(4)} ${px(3)}`}/>
+              <line x1="0" y1="0" x2={px(16)} y2="0" strokeWidth={px(1.5)}/>
+              <circle r={px(2)} className="pv-target-center"/>
+            </g>}
+          </g> : robot && <RobotSprite pose={robot} length={length} width={width}/>}
 
           {pen.length > 1 && <polyline points={polyline(pen)} className="pv-pen-preview"/>}
 

@@ -22,8 +22,11 @@ test("compares reported routine time with the latest matching simulator result",
   });
 
   const workspace = page.getByRole("navigation", { name: "Workspace" });
-  await workspace.getByRole("button", { name: "Simulate", exact: true }).click();
-  await page.getByRole("group", { name: "Run on" }).getByRole("button", { name: "Robot" }).click();
+  const robotMode = async () => {
+    await workspace.getByRole("button", { name: "Pathing", exact: true }).click();
+    await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
+  };
+  await robotMode();
   await page.getByRole("button", { name: "Connect robot" }).click();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible();
   const comparison = page.getByRole("region", { name: "Run comparison" });
@@ -49,7 +52,7 @@ test("compares reported routine time with the latest matching simulator result",
   await expect(comparison).toContainText("Robot ran 0.6 s longer");
 
   await page.reload();
-  await workspace.getByRole("button", { name: "Simulate", exact: true }).click();
+  await robotMode();
   await expect(comparison).toContainText("Robot ran 0.6 s longer");
 
   // Robot setup lists the same runs side by side.

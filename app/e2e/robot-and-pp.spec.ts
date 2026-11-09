@@ -11,10 +11,12 @@ test("follows the robot stream and reconnects without a second client", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "New project" }).click();
   await page.getByRole("button", { name: "Create project" }).click();
-  // The live robot view lives in Simulate, beside the simulator.
-  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Simulate", exact: true }).click();
-  await page.getByRole("group", { name: "Run on" }).getByRole("button", { name: "Robot" }).click();
-  const robot = page.locator(".simulation");
+  // The live robot view is Pathing's Robot mode, and the Simulate tab is gone.
+  const workspace = page.getByRole("navigation", { name: "Workspace" });
+  await expect(workspace.getByRole("button", { name: "Simulate" })).toHaveCount(0);
+  await workspace.getByRole("button", { name: "Pathing", exact: true }).click();
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
+  const robot = page.locator(".pathing");
   await robot.getByRole("button", { name: "Connect robot" }).click();
   await expect(robot.getByText("Connected", { exact: true })).toBeVisible();
 

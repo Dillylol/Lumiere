@@ -16,11 +16,11 @@ test("reads the robot's configured hardware into the robot profile", async ({ pa
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
   const profile = page.getByRole("region", { name: "Robot profile" });
   await expect(profile.getByRole("status")).toHaveText("Not linked to Pedro constants");
-  await expect(profile).toContainText("Connect to the robot from Simulate → Robot");
+  await expect(profile).toContainText("Connect to the robot from Pathing → Robot");
   await expect(profile.getByLabel("Forward speed (in/s)")).toHaveValue("60");
 
-  await workspace.getByRole("button", { name: "Simulate", exact: true }).click();
-  await page.getByRole("group", { name: "Run on" }).getByRole("button", { name: "Robot" }).click();
+  await workspace.getByRole("button", { name: "Pathing", exact: true }).click();
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
   await page.getByRole("button", { name: "Connect robot" }).click();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible();
   stream!.send(JSON.stringify({ type: "manifest", opModes: [], devices: [

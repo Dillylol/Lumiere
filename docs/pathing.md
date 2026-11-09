@@ -1,15 +1,29 @@
 # Lumière Pathing Visualizer
 
-Open **Pathing** to draw and edit an autonomous program's paths on the field. It works directly on the program, so there is nothing to load or apply: every change is the program, and **Undo** reverses it.
+Open **Pathing** to draw an autonomous program's paths on the field, run them in the simulator, and watch the robot drive them. It works directly on the program, so there is nothing to load or apply: every change is the program, and **Undo** reverses it.
 
 The workspace follows the Pedro Pathing Visualizer's layout:
 
-- **Top bar:** the **File** menu (import a `.pp` file, mirror to the other alliance, or add a mirrored copy), the program's name, **Export**, the **Start, field and robot** settings, and **Preview program**, which opens Simulate.
+- **Top bar:** the **File** menu (import a `.pp` file, mirror to the other alliance, or add a mirrored copy), the program's name, the **Develop | Simulate | Robot** modes, **Export**, and the **Start, field and robot** settings.
 - **Layers** (left): the program's **Paths**, **Overlays** of your other autonomous programs, the **Robot**'s position, heading and speed during playback, and the **Routine** with each step's estimated time.
 - **Field** (middle): the season field with your paths and robot. Tools sit on the left rail and view options on the right, with playback underneath.
 - **Inspector** (right): the selected path's properties, or, with nothing selected, the start point, field picture and robot.
 
 Hide either side panel with its panel button to give the field more room. In windows narrower than about 1050 pixels, the field stays on top and the panels sit below it.
+
+## Modes
+
+- **Develop** draws and edits the paths, timed by the estimate.
+- **Simulate** runs the program. The desktop app launches the simulator with your Java: choose the OpMode, press **INIT**, **START** and **STOP** under the field, and drive with a USB gamepad, the keyboard, or the on-screen A/B/X/Y buttons. The match timer presses STOP after 30 seconds, or 2 minutes for TeleOp. The web app can't run Java, so its Simulate plays the estimate.
+- **Robot** watches the robot. Enter the Control Hub's address or use **Find robot**, then **Connect robot**. Start OpModes from the Driver Station; this connection reads telemetry and can request STOP. On the desktop, **Deploy code** and **Deploy APK** are here too.
+
+In Simulate and Robot, the field is read-only. The left panel holds the run controls and the planned routine, and the right panel shows telemetry, the follower's state, `Session.data` values and the run comparison. When the run is this program's own OpMode, the field draws the run against the plan:
+
+- the plan, faded, with a ghost robot where the estimate puts the robot at the run's time
+- the robot where it reports itself, and a trail of where it drove
+- the path the follower reports following, and its target pose, dashed
+
+**Off plan** reads how far the robot is from the planned path, and the planned routine highlights the step the plan has running. A connection stays open while you switch modes, so you can edit in Develop and come back; leaving Pathing or switching programs closes it. TeleOp programs have no paths, so they open in Simulate.
 
 ## Tools
 
@@ -46,7 +60,7 @@ Hide either side panel with its panel button to give the field more room. In win
 
 The robot speeds up at its acceleration and brakes at its coast deceleration. It turns in place first when a path starts facing another way, and each path ends with a 100 ms settle.
 
-**Play** (Space) drives the robot along the routine, and **Loop** repeats it. Dots on the playback track mark where each path ends; click one to jump there. The bar shows the time, the total and the distance driven, and the total turns red when the routine runs past the 30-second autonomous period. The desktop simulator runs the real code; Simulate shows it.
+**Play** (Space) drives the robot along the routine, and **Loop** repeats it. Dots on the playback track mark where each path ends; click one to jump there. The bar shows the time, the total and the distance driven, and the total turns red when the routine runs past the 30-second autonomous period. The desktop simulator runs the real code; Simulate shows it beside the plan.
 
 ## .pp files
 

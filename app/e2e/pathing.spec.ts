@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type WebSocketRoute } from "@playwright/test";
 import sample from "../../fixtures/projects/sample-robot.json" with { type: "json" };
 
 async function openPathing(page: Page) {
@@ -108,6 +108,48 @@ test("offers the Visualizer's grid, measuring tools, pen and panels", async ({ p
   await page.getByRole("button", { name: "Show inspector" }).click();
   await expect(page.getByRole("tree", { name: "Paths" })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("draws a robot's run against the plan in Robot mode", async ({ page }) => {
+  let stream: WebSocketRoute | undefined;
+  await page.routeWebSocket(/\/stream$/, (socket) => {
+    stream = socket;
+    socket.send(JSON.stringify({ type: "hello", protocol: 1, source: "robot", library: "test-hub" }));
+  });
+  await newSquareProject(page);
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
+  await expect(page.getByRole("region", { name: "Field" }).getByRole("button", { name: /^Waypoint/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Connect robot" }).click();
+  await expect(page.getByText("Connected", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot (connected)" })).toBeVisible();
+
+  // The robot runs this program's OpMode two inches off the first path.
+  for (const message of [
+    { type: "lifecycle", opMode: "Main Auto", phase: "init" },
+    { type: "lifecycle", opMode: "Main Auto", phase: "running" },
+    ...[0, 6, 12, 18].map((dx) => ({ type: "state", opMode: "Main Auto", pose: { x: 24 + dx, y: 26, heading: 0 } })),
+  ]) stream!.send(JSON.stringify(message));
+  await expect(page.getByRole("img", { name: /the robot's position, where it has driven .*where the plan has the robot now/ })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Telemetry" }).getByLabel("Robot pose")).toContainText("Off plan2.0in");
+  await expect(page.locator(".pv-step[aria-current=step]")).toHaveCount(1);
+
+  // Develop keeps the connection while the paths are edited.
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Develop" }).click();
+  await expect(page.getByRole("button", { name: /^Waypoint/ })).toHaveCount(4);
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot (connected)" }).click();
+  await expect(page.getByText("Main Auto · RUNNING")).toBeVisible();
+});
+
+test("opens a TeleOp in Simulate, which the desktop app runs", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Field-centric TeleOp/ }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Pathing", exact: true }).click();
+  const modes = page.getByRole("group", { name: "Mode" });
+  await expect(modes.getByRole("button", { name: "Develop" })).toBeDisabled();
+  await expect(modes.getByRole("button", { name: "Simulate" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("TeleOp runs in the desktop app's simulator", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "File", exact: true })).toHaveCount(0);
 });
 
 test("keeps mechanism steps through path edits and asks before a .pp replaces them", async ({ page }, info) => {

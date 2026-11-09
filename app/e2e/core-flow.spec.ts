@@ -160,17 +160,18 @@ test("creates, edits, previews, and reopens an autonomous project", async ({ pag
   await expect(page.locator(".java-mode-list")).toContainText("Main Auto");
   await page.screenshot({ path: testInfo.outputPath("java.png"), fullPage: true });
 
-  // Preview plays and resets.
-  await page.getByRole("button", { name: "Simulate", exact: true }).first().click();
+  // Preview plays and resets: in the web app, Pathing's Simulate plays the estimate.
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Pathing", exact: true }).click();
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Simulate" }).click();
   await expect(page.getByText("Estimate · robot profile")).toBeVisible();
   await expectFieldVisible(page);
-  await page.getByRole("button", { name: "Run preview" }).last().click();
-  await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+  await page.getByRole("button", { name: "Play (Space)" }).click();
+  await expect(page.getByRole("button", { name: "Pause (Space)" })).toBeVisible();
   await page.waitForTimeout(400);
-  await page.getByRole("button", { name: "Pause" }).click();
-  const timeline = page.getByLabel("Preview timeline");
+  await page.getByRole("button", { name: "Pause (Space)" }).click();
+  const timeline = page.getByLabel("Playback position");
   expect(Number(await timeline.inputValue())).toBeGreaterThan(0);
-  await page.getByRole("button", { name: "Reset" }).click();
+  await timeline.fill("0");
   await expect(timeline).toHaveValue("0");
   await page.screenshot({ path: testInfo.outputPath("simulate.png") });
   expect(await seriousViolations(page)).toEqual([]);

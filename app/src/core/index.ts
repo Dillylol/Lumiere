@@ -99,7 +99,7 @@ export { javaCompletions, type CompletionItem, type CompletionKind, type Complet
 export { CLASSES as JAVA_CLASSES, HINTS as JAVA_HINTS, SNIPPETS as JAVA_SNIPPETS, type JavaHint, type JavaSnippet } from "./javaHints/hints";
 
 export * from "./protocol/messages";
-export { findRobot, StreamClient, type ConnectionStatus, type StreamClientOptions } from "./protocol/client";
+export { findRobot, StreamClient, type ConnectionStatus, type SocketFactory, type SocketLike, type StreamClientOptions } from "./protocol/client";
 
 export {
   checkJavaTarget,

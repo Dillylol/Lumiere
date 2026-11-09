@@ -33,6 +33,30 @@ function stepLabel(step: Step, program: AutonomousProgram, project: Project): st
   }
 }
 
+/** The routine's steps in order with their estimated times against the 30-second budget; `activeIds` marks the steps running now. */
+export function RoutineSteps({ project, program, estimate, activeIds, onSelectPath }: {
+  project: Project; program: AutonomousProgram; estimate: RoutineEstimate; activeIds?: string[]; onSelectPath?(pathId: string): void;
+}) {
+  return <>
+    {program.routine.length ? <ol className="pv-routine">
+      {program.routine.map((step) => {
+        const entry = estimate.entries.find((item) => item.stepId === step.id);
+        const path = step.kind === "path" ? program.paths.find((item) => item.id === step.pathId) : undefined;
+        const label = stepLabel(step, program, project);
+        const active = !!activeIds?.includes(step.id);
+        return <li key={step.id} className={`pv-step ${step.kind}${active ? " active" : ""}`} aria-current={active ? "step" : undefined}>
+          <i className="pv-dot" style={{ background: path?.color ?? (step.kind === "wait" ? "transparent" : "var(--mint)") }} aria-hidden="true"/>
+          {path && onSelectPath ? <button type="button" className="pv-row-name" onClick={() => onSelectPath(path.id)}>{label}</button> : <span className="pv-row-name static">{label}</span>}
+          <small>{entry ? seconds(entry.endMs - entry.startMs) : "—"}</small>
+        </li>;
+      })}
+    </ol> : <p className="pv-empty">Paths you add are driven in order. Add mechanisms and waits in Build.</p>}
+    <p className={estimate.durationMs > AUTONOMOUS_PERIOD_MS ? "pv-total over" : "pv-total"}>
+      Total {seconds(estimate.durationMs)}{estimate.durationMs > AUTONOMOUS_PERIOD_MS ? ` · ${seconds(estimate.durationMs - AUTONOMOUS_PERIOD_MS)} over 30 s` : " of 30 s"}
+    </p>
+  </>;
+}
+
 export interface LayersPanelProps {
   project: Project;
   program: AutonomousProgram;
@@ -41,6 +65,8 @@ export interface LayersPanelProps {
   overlayIds: string[];
   robotPose: Pose;
   speed: number;
+  /** Routine steps running at playback's time. */
+  activeIds?: string[];
   onSelectPath(pathId: string): void;
   onAddPath(): void;
   onMovePath(pathId: string, by: number): void;
@@ -49,7 +75,7 @@ export interface LayersPanelProps {
 }
 
 /** Paths, overlays of other programs, the robot's pose and the routine: the Visualizer's Layers panel. */
-export function LayersPanel({ project, program, estimate, selectedPathId, overlayIds, robotPose, speed, onSelectPath, onAddPath, onMovePath, onToggleOverlay, onHide }: LayersPanelProps) {
+export function LayersPanel({ project, program, estimate, selectedPathId, overlayIds, robotPose, speed, activeIds, onSelectPath, onAddPath, onMovePath, onToggleOverlay, onHide }: LayersPanelProps) {
   const others = project.programs.filter((item): item is AutonomousProgram => item.kind === "autonomous" && item.id !== program.id);
   const readouts = [
     { label: "X", value: robotPose.x.toFixed(1), unit: "in" },
@@ -99,21 +125,7 @@ export function LayersPanel({ project, program, estimate, selectedPathId, overla
       </Section>
 
       <Section title="Routine" count={program.routine.length}>
-        {program.routine.length ? <ol className="pv-routine">
-          {program.routine.map((step) => {
-            const entry = estimate.entries.find((item) => item.stepId === step.id);
-            const path = step.kind === "path" ? program.paths.find((item) => item.id === step.pathId) : undefined;
-            const label = stepLabel(step, program, project);
-            return <li key={step.id} className={`pv-step ${step.kind}`}>
-              <i className="pv-dot" style={{ background: path?.color ?? (step.kind === "wait" ? "transparent" : "var(--mint)") }} aria-hidden="true"/>
-              {path ? <button type="button" className="pv-row-name" onClick={() => onSelectPath(path.id)}>{label}</button> : <span className="pv-row-name static">{label}</span>}
-              <small>{entry ? seconds(entry.endMs - entry.startMs) : "—"}</small>
-            </li>;
-          })}
-        </ol> : <p className="pv-empty">Paths you add are driven in order. Add mechanisms and waits in Build.</p>}
-        <p className={estimate.durationMs > AUTONOMOUS_PERIOD_MS ? "pv-total over" : "pv-total"}>
-          Total {seconds(estimate.durationMs)}{estimate.durationMs > AUTONOMOUS_PERIOD_MS ? ` · ${seconds(estimate.durationMs - AUTONOMOUS_PERIOD_MS)} over 30 s` : " of 30 s"}
-        </p>
+        <RoutineSteps project={project} program={program} estimate={estimate} activeIds={activeIds} onSelectPath={onSelectPath}/>
       </Section>
     </div>
   </aside>;

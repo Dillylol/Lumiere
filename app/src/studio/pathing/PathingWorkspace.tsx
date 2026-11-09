@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { ChevronDown, Download, Flame, PanelLeft, PanelRight, Play, Settings } from "lucide-react";
+import { ChevronDown, Download, Flame, PanelLeft, PanelRight, Settings } from "lucide-react";
 import { BRAND } from "../../brand";
 import {
   addPath, AUTONOMOUS_PERIOD_MS, deletePath, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
-  mirrorProgram, movePath, newId, removeControlPoint, resolveProgramPaths, snapToGrid,
-  type AutonomousProgram, type Project,
+  mirrorProgram, movePath, newId, removeControlPoint, resolveProgramPaths, samplePath, snapToGrid,
+  type AutonomousProgram, type Pose, type Program, type Project,
 } from "../../core";
 import { confirmAction, download } from "../store";
-import { FieldView, PlaybackBar, type Overlay, type Selection, type Tool } from "./FieldView";
+import { FieldView, PlaybackBar, type Overlay, type RunOverlay, type Selection, type Tool } from "./FieldView";
 import { Inspector } from "./Inspector";
-import { LayersPanel } from "./LayersPanel";
+import { LayersPanel, RoutineSteps, Section } from "./LayersPanel";
+import { RunBar, RunPanel, TelemetryPanel, type RunEnvironment } from "./RunPanels";
 import { DEFAULT_FIELD, fieldImageSource, isFieldId, type FieldId } from "./fields";
+import { useRunSession } from "./useRunSession";
 import "./pathing.css";
+
+export type PathingMode = "develop" | "simulate" | "robot";
 
 const storageKey = (projectId: string, name: string) => `lumiere-pathing-${name}:${projectId}`;
 function readSetting(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
@@ -48,24 +52,33 @@ function Menu({ label, icon, align = "start", items }: { label: string; icon?: R
 
 export interface PathingWorkspaceProps {
   project: Project;
-  program: AutonomousProgram;
-  onChange(program: AutonomousProgram): void;
+  program: Program;
+  /** Develop draws paths; Simulate runs them in the simulator (or plays the estimate on the web); Robot watches the robot. */
+  mode: PathingMode;
+  onMode(mode: PathingMode): void;
+  onChange(program: Program): void;
   /** Adds a program to the project and selects it. */
-  onAddProgram(program: AutonomousProgram): void;
+  onAddProgram(program: Program): void;
   onNotice(text: string): void;
-  /** Opens Simulate. */
-  onPreview(): void;
   /** Opens the Robot page. */
   onOpenRobot(): void;
+  /** The desktop simulator, the robot's address and deploys. */
+  env: RunEnvironment;
 }
 
 /**
  * Lumière Pathing Visualizer: a rebuild of the Pedro Pathing Visualizer's workspace that edits the
- * program directly. Layers on the left, the field with its tool rails and playback in the middle, and
- * the inspector on the right. See third_party/pedro-pathing-visualizer for the credit.
+ * program directly, then runs it in the simulator and on the robot against the plan. See
+ * third_party/pedro-pathing-visualizer for the credit.
  */
-export function PathingWorkspace({ project, program, onChange, onAddProgram, onNotice, onPreview, onOpenRobot }: PathingWorkspaceProps) {
-  const [selection, setSelection] = useState<Selection>(() => ({ pathId: program.paths[0]?.id }));
+export function PathingWorkspace({ project, program, mode, onMode, onChange, onAddProgram, onNotice, onOpenRobot, env }: PathingWorkspaceProps) {
+  const auto = program.kind === "autonomous" ? program : undefined;
+  // A TeleOp has no paths to draw, so it opens in Simulate.
+  const shownMode: PathingMode = !auto && mode === "develop" ? "simulate" : mode;
+  const develop = shownMode === "develop";
+  // The web app can't run Java, so its Simulate plays the estimate.
+  const preview = shownMode === "simulate" && !env.desktop;
+  const [selection, setSelection] = useState<Selection>(() => ({ pathId: auto?.paths[0]?.id }));
   const [tool, setTool] = useState<Tool>("select");
   const [grid, setGrid] = useState(() => { const saved = Number(readSetting(storageKey(project.id, "grid"))); return GRID_SIZES.includes(saved as typeof GRID_SIZES[number]) ? saved : 0; });
   const [snap, setSnap] = useState(() => readSetting(storageKey(project.id, "snap")) !== "off");
@@ -83,13 +96,20 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
   const [loop, setLoop] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const imageInput = useRef<HTMLInputElement>(null);
-  const { paths } = useMemo(() => resolveProgramPaths(program), [program]);
-  const estimate = useMemo(() => estimateRoutine(program, project), [program, project.robot, project.subsystems]);
+  const paths = useMemo(() => (auto ? resolveProgramPaths(auto).paths : []), [auto]);
+  const estimate = useMemo(() => (auto ? estimateRoutine(auto, project) : undefined), [auto, project.robot, project.subsystems]);
   const overlays: Overlay[] = useMemo(() => overlayIds.flatMap((id) => {
     const other = project.programs.find((item) => item.id === id);
     if (other?.kind !== "autonomous") return [];
     try { return [{ id, name: other.name, color: other.paths[0]?.color ?? "#9a9a9a", paths: resolveProgramPaths(other).paths }]; } catch { return []; }
   }), [overlayIds, project.programs]);
+
+  // Both connections belong to the workspace, so switching modes keeps them; leaving Pathing or the program closes them.
+  const simulator = useRunSession({ source: "simulator", projectId: project.id, programName: program.name, onLog: env.onLog,
+    launch: env.launch, cancel: env.cancel, canLaunch: env.canLaunch });
+  const robot = useRunSession({ source: "robot", projectId: project.id, programName: program.name, onLog: env.onLog,
+    host: env.host, onHost: env.onHost, onScan: env.onScan });
+  const session = shownMode === "robot" ? robot : shownMode === "simulate" && env.desktop ? simulator : undefined;
 
   // The BIOBUZZ field has light and dark pictures; follow the app's theme when it changes.
   useEffect(() => {
@@ -99,6 +119,13 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
   }, []);
   const fieldImage = useMemo(() => fieldImageSource(fieldId, customImage), [fieldId, customImage, theme]);
 
+  const changeMode = (next: PathingMode) => {
+    // The keyboard drives the simulator only while Simulate is in view, so Develop's shortcuts stay shortcuts.
+    if (next !== "simulate") simulator.setKeyboard(false);
+    setTool("select");
+    setPlaying(false);
+    onMode(next);
+  };
   const commit = (next: AutonomousProgram, select?: Selection) => { onChange(next); if (select) setSelection(select); };
   const setField = (id: FieldId, ask = true) => {
     setFieldIdState(id);
@@ -114,17 +141,19 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
   };
   const toggleSnap = () => { writeSetting(storageKey(project.id, "snap"), snap ? "off" : "on"); setSnap(!snap); };
   const addFromTool = () => {
-    const { point } = endPose(program);
+    if (!auto) return;
+    const { point } = endPose(auto);
     const target = snapToGrid({ x: point.x + (point.x < 106 ? 24 : -24), y: point.y + (point.y < 106 ? 12 : -12) }, snap ? grid : 0);
-    const { program: next, pathId } = addPath(program, target);
+    const { program: next, pathId } = addPath(auto, target);
     commit(next, { pathId });
     setTool("select");
   };
+  const duration = estimate?.durationMs ?? 0;
   const play = () => {
-    if (!playing && elapsed >= estimate.durationMs) setElapsed(0);
+    if (!playing && elapsed >= duration) setElapsed(0);
     setPlaying(!playing);
   };
-  const seek = (ms: number) => { setPlaying(false); setElapsed(Math.max(0, Math.min(ms, estimate.durationMs))); };
+  const seek = (ms: number) => { setPlaying(false); setElapsed(Math.max(0, Math.min(ms, duration))); };
 
   useEffect(() => {
     if (!playing) return;
@@ -135,53 +164,75 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
       last = now;
       setElapsed((time) => {
         const next = time + delta;
-        if (next < estimate.durationMs) return next;
+        if (next < duration) return next;
         if (loop) return 0;
         setPlaying(false);
-        return estimate.durationMs;
+        return duration;
       });
     }, 30);
     return () => window.clearInterval(timer);
-  }, [playing, loop, estimate.durationMs]);
+  }, [playing, loop, duration]);
 
   const atStart = !playing && elapsed === 0;
-  const robotPose = atStart || estimate.durationMs === 0 ? undefined : estimate.poseAt(Math.min(elapsed, estimate.durationMs));
-  const shownPose = robotPose ?? { x: program.start.x, y: program.start.y, heading: (program.start.headingDeg * Math.PI) / 180 };
+  const robotPose = atStart || !estimate || duration === 0 ? undefined : estimate.poseAt(Math.min(elapsed, duration));
+  const startPose: Pose | undefined = auto && { x: auto.start.x, y: auto.start.y, heading: (auto.start.headingDeg * Math.PI) / 180 };
+  const shownPose = robotPose ?? startPose ?? { x: 0, y: 0, heading: 0 };
   const speed = useMemo(() => {
-    if (atStart || estimate.durationMs === 0) return 0;
+    if (atStart || !estimate || duration === 0) return 0;
     const before = estimate.poseAt(Math.max(0, elapsed - 25));
-    const after = estimate.poseAt(Math.min(estimate.durationMs, elapsed + 25));
+    const after = estimate.poseAt(Math.min(duration, elapsed + 25));
     return Math.hypot(after.x - before.x, after.y - before.y) / 0.05;
-  }, [atStart, elapsed, estimate]);
-  const markers = program.routine.flatMap((step) => {
+  }, [atStart, elapsed, estimate, duration]);
+  /** Where the plan has each path end, from the estimate. */
+  const pathEnds = (label: (name: string) => string) => (auto && estimate ? auto.routine.flatMap((step) => {
     if (step.kind !== "path") return [];
     const entry = estimate.entries.find((item) => item.stepId === step.id);
-    const index = program.paths.findIndex((item) => item.id === step.pathId);
-    const path = program.paths[index];
-    return entry && path ? [{ ms: entry.endMs, color: path.color, name: `Jump to the end of ${path.name || `Path ${index + 1}`}` }] : [];
-  });
+    const index = auto.paths.findIndex((item) => item.id === step.pathId);
+    const path = auto.paths[index];
+    return entry && path ? [{ ms: entry.endMs, color: path.color, name: label(path.name || `Path ${index + 1}`) }] : [];
+  }) : []);
   const distance = paths.reduce((sum, path) => sum + path.curve.length, 0);
 
+  // Planned against actual: when the run is this program's own OpMode, the estimate's pose at the run's
+  // time is drawn as a ghost, and the panel reports how far the robot is from the planned path.
+  const ownOpMode = !!session && !!auto && session.active === program.name;
+  const started = ownOpMode && (session.phase === "running" || session.phase === "stopped");
+  const plannedPoints = useMemo(() => paths.flatMap((path) => samplePath(path, 64)), [paths]);
+  const actual = session?.pose;
+  const offPath = ownOpMode && actual && plannedPoints.length ? Math.min(...plannedPoints.map((point) => Math.hypot(point.x - actual.x, point.y - actual.y))) : undefined;
+  // The routine steps the plan has running now: at playback's time, or at the run's time for this program's own run.
+  const activeIds = estimate && (session ? started && estimate.activeStepIds(session.elapsed) : !atStart && estimate.activeStepIds(elapsed)) || undefined;
+  const run: RunOverlay | undefined = session && {
+    actual,
+    target: session.target,
+    trail: session.trail,
+    route: session.route?.map(([x, y]) => ({ x, y })),
+    planned: started && estimate && duration > 0 ? estimate.poseAt(Math.min(session.elapsed, duration)) : undefined,
+  };
+
   const importFile = async (file: File) => {
+    if (!auto) return;
     try {
       const imported = importVisualizer(await file.text(), { robot: project.robot });
-      const keeps = program.routine.some((step) => step.kind !== "path" && step.kind !== "wait");
+      const keeps = auto.routine.some((step) => step.kind !== "path" && step.kind !== "wait");
       if (keeps && !(await confirmAction(`Opening ${file.name} replaces this program's paths and routine, including its mechanism steps. You can undo it. Continue?`))) return;
-      commit({ ...program, start: imported.start, paths: imported.paths, routine: imported.routine }, { pathId: imported.paths[0]?.id });
+      commit({ ...auto, start: imported.start, paths: imported.paths, routine: imported.routine }, { pathId: imported.paths[0]?.id });
       if (imported.warnings.length) onNotice(imported.warnings.join("\n"));
     } catch (error) {
       onNotice(error instanceof Error ? error.message : `Lumière could not read ${file.name}.`);
     }
   };
   const exportFile = () => {
-    const result = exportVisualizer(program, { robot: project.robot });
-    download(`${program.name.trim().replace(/[<>:"/\\|?*]/g, "-") || "program"}.pp`, result.text);
+    if (!auto) return;
+    const result = exportVisualizer(auto, { robot: project.robot });
+    download(`${auto.name.trim().replace(/[<>:"/\\|?*]/g, "-") || "program"}.pp`, result.text);
     if (result.warnings.length) onNotice(result.warnings.join("\n"));
   };
   const copyPoses = () => {
+    if (!auto) return;
     const pose = (x: number, y: number, radians: number) => `new Pose(${number(x)}, ${number(y)}, Math.toRadians(${number((((radians * 180) / Math.PI) % 360 + 360) % 360)}))`;
     const lines = [
-      `${pose(program.start.x, program.start.y, (program.start.headingDeg * Math.PI) / 180)} // start`,
+      `${pose(auto.start.x, auto.start.y, (auto.start.headingDeg * Math.PI) / 180)} // start`,
       ...paths.map((path, index) => { const end = path.poseAt(1); return `${pose(end.x, end.y, end.heading)} // end of ${path.doc.name || `Path ${index + 1}`}`; }),
     ].join("\n");
     navigator.clipboard?.writeText(lines).then(() => onNotice("Copied the start and end poses as Pedro Pose code."), () => onNotice(lines));
@@ -191,44 +242,57 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
     const target = event.target as HTMLElement;
     if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable || event.ctrlKey || event.metaKey || event.altKey) return;
     const key = event.key.toLowerCase();
-    const path = program.paths.find((item) => item.id === selection.pathId);
+    const path = auto?.paths.find((item) => item.id === selection.pathId);
+    // View keys work in every mode; editing keys only in Develop.
     if (key === "escape") { setTool("select"); setSelection({}); }
-    else if (key === "p") setTool("pen");
     else if (key === "c") setTool("coordinate");
-    else if (key === "w") addFromTool();
     else if (key === "g") cycleGrid();
     else if (key === "r") setRuler(!ruler);
-    else if (key === "a" && path?.kind === "atomic") commit(insertControlPoint(program, path.id), { pathId: path.id });
-    else if (key === " " && target.tagName !== "BUTTON") play();
+    else if (key === " " && target.tagName !== "BUTTON" && (develop || preview) && auto) play();
+    else if (!develop || !auto) return;
+    else if (key === "p") setTool("pen");
+    else if (key === "w") addFromTool();
+    else if (key === "a" && path?.kind === "atomic") commit(insertControlPoint(auto, path.id), { pathId: path.id });
     else if ((key === "delete" || key === "backspace") && path) {
-      if (selection.point?.kind === "control") commit(removeControlPoint(program, path.id, selection.point.index), { pathId: path.id });
-      else commit(deletePath(program, path.id), {});
+      if (selection.point?.kind === "control") commit(removeControlPoint(auto, path.id, selection.point.index), { pathId: path.id });
+      else commit(deletePath(auto, path.id), {});
     } else return;
     event.preventDefault();
   };
 
+  const modes: { id: PathingMode; label: string; hint: string; live?: boolean }[] = [
+    { id: "develop", label: "Develop", hint: auto ? "Draw and edit the paths, timed by the estimate" : "TeleOp programs have no paths to draw" },
+    { id: "simulate", label: "Simulate", hint: env.desktop ? "Run your Java in the simulator" : "Play the estimate on the field", live: simulator.linked },
+    { id: "robot", label: "Robot", hint: "Watch the robot run against the plan", live: robot.linked },
+  ];
+  const leftLabel = develop ? "layers" : "controls";
+  const rightLabel = develop ? "inspector" : "telemetry";
   return <div className="pathing" tabIndex={-1} onKeyDown={onKeyDown}>
     <header className="pv-topbar">
       <div className="pv-brand">
         <span className="pv-mark" aria-hidden="true"><Flame/></span>
         <div className="pv-title"><h1>{BRAND.name} Pathing Visualizer</h1><small>Based on the Pedro Pathing Visualizer</small></div>
       </div>
-      <Menu label="File" items={[
+      {auto && <Menu label="File" items={[
         { label: "Import a .pp file…", run: () => fileInput.current?.click() },
         "separator",
-        { label: "Mirror to the other alliance", run: () => commit(mirrorProgram(program)) },
-        { label: "Mirrored copy as a new program", run: () => onAddProgram({ ...mirrorProgram(program), id: newId("auto"), name: `${program.name} (mirrored)` }) },
-      ]}/>
-      <span className="pv-program" title="The autonomous program you are editing. Rename it in the sidebar.">{program.name || "Unnamed program"}</span>
+        { label: "Mirror to the other alliance", run: () => commit(mirrorProgram(auto)) },
+        { label: "Mirrored copy as a new program", run: () => onAddProgram({ ...mirrorProgram(auto), id: newId("auto"), name: `${auto.name} (mirrored)` }) },
+      ]}/>}
+      <span className="pv-program" title={`The ${auto ? "autonomous" : "TeleOp"} program in view. Rename it in the sidebar.`}>{program.name || "Unnamed program"}</span>
+      <div className="pv-modes" role="group" aria-label="Mode">
+        {modes.map((item) => <button key={item.id} type="button" aria-pressed={shownMode === item.id} title={item.hint}
+          disabled={item.id === "develop" && !auto} onClick={() => changeMode(item.id)}>
+          {item.label}{item.live && <><i className="pv-live" aria-hidden="true"/><span className="pv-sr"> (connected)</span></>}
+        </button>)}
+      </div>
       <div className="pv-topbar-actions">
-        <Menu label="Export" icon={<Download/>} align="end" items={[
+        {auto && <Menu label="Export" icon={<Download/>} align="end" items={[
           { label: "Pedro Pathing file (.pp)", run: exportFile },
           { label: "Copy poses as Pedro code", run: copyPoses },
-        ]}/>
-        <button type="button" className="pv-icon" aria-label="Start, field and robot" title="Start, field and robot"
-          onClick={() => { setSelection({}); setRightHidden(false); }}><Settings/></button>
-        <span className="pv-topbar-divider" aria-hidden="true"/>
-        <button type="button" className="primary pv-preview" onClick={onPreview}><Play/>Preview<span className="pv-narrow-sr"> program</span></button>
+        ]}/>}
+        {develop && <button type="button" className="pv-icon" aria-label="Start, field and robot" title="Start, field and robot"
+          onClick={() => { setSelection({}); setRightHidden(false); }}><Settings/></button>}
       </div>
       <input aria-label="Open a Pedro Pathing .pp file" ref={fileInput} type="file" accept=".pp,.json" hidden onChange={(event) => {
         const file = event.currentTarget.files?.[0];
@@ -247,28 +311,37 @@ export function PathingWorkspace({ project, program, onChange, onAddProgram, onN
     </header>
     <div className={`pv-layout${leftHidden ? " left-hidden" : ""}${rightHidden ? " right-hidden" : ""}`}>
       {leftHidden
-        ? <button type="button" className="pv-restore" aria-label="Show layers" title="Show layers" onClick={() => setLeftHidden(false)}><PanelLeft/></button>
-        : <LayersPanel project={project} program={program} estimate={estimate} selectedPathId={selection.pathId} overlayIds={overlayIds}
-          robotPose={shownPose} speed={speed}
-          onSelectPath={(pathId) => setSelection({ pathId })} onAddPath={addFromTool}
-          onMovePath={(pathId, by) => commit(movePath(program, pathId, by))}
-          onToggleOverlay={(id) => setOverlayIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id].slice(-4)))}
-          onHide={() => setLeftHidden(true)}/>}
+        ? <button type="button" className="pv-restore" aria-label={`Show ${leftLabel}`} title={`Show ${leftLabel}`} onClick={() => setLeftHidden(false)}><PanelLeft/></button>
+        : develop && auto && estimate
+          ? <LayersPanel project={project} program={auto} estimate={estimate} selectedPathId={selection.pathId} overlayIds={overlayIds}
+            robotPose={shownPose} speed={speed} activeIds={activeIds}
+            onSelectPath={(pathId) => setSelection({ pathId })} onAddPath={addFromTool}
+            onMovePath={(pathId, by) => commit(movePath(auto, pathId, by))}
+            onToggleOverlay={(id) => setOverlayIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id].slice(-4)))}
+            onHide={() => setLeftHidden(true)}/>
+          : <RunPanel mode={shownMode === "robot" ? "robot" : "simulate"} session={session} project={project} program={program} env={env} onHide={() => setLeftHidden(true)}
+            routine={auto && estimate && <Section title="Plan" count={auto.routine.length}><RoutineSteps project={project} program={auto} estimate={estimate} activeIds={activeIds}/></Section>}/>}
       <section className="pv-panel pv-field-panel" aria-label="Field">
-        <FieldView project={project} program={program} paths={paths} overlays={overlays} selection={selection} tool={tool}
+        <FieldView project={project} program={auto} paths={paths} overlays={develop ? overlays : []} selection={selection} tool={tool} editable={develop}
           grid={grid} snap={snap} ruler={ruler} protractor={protractor} protractorLocked={protractorLocked}
-          fieldImage={fieldImage} robotPose={robotPose}
+          fieldImage={fieldImage} robotPose={develop || preview ? robotPose : undefined} run={run}
           onTool={setTool} onCycleGrid={cycleGrid} onSnap={toggleSnap} onRuler={() => setRuler(!ruler)} onProtractor={() => setProtractor(!protractor)}
           onProtractorLock={() => setProtractorLocked(!protractorLocked)} onSelect={setSelection} onCommit={commit} onAddPath={addFromTool} onNotice={onNotice}/>
-        <PlaybackBar elapsed={elapsed} duration={estimate.durationMs} playing={playing} loop={loop} markers={markers} distance={distance}
-          overBy={estimate.durationMs - AUTONOMOUS_PERIOD_MS} onPlay={play} onLoop={() => setLoop(!loop)} onSeek={seek}/>
-        {estimate.error && <p className="pv-error" role="alert">{estimate.error}</p>}
+        {session
+          ? <RunBar session={session} limitMs={session.source === "simulator" ? session.limit * 1000 : auto ? AUTONOMOUS_PERIOD_MS : 120_000}
+            markers={pathEnds((name) => `Planned end of ${name}`)}/>
+          : auto && estimate && <PlaybackBar elapsed={elapsed} duration={duration} playing={playing} loop={loop} markers={pathEnds((name) => `Jump to the end of ${name}`)}
+            distance={distance} overBy={duration - AUTONOMOUS_PERIOD_MS} onPlay={play} onLoop={() => setLoop(!loop)} onSeek={seek}/>}
+        {!session && estimate?.error && <p className="pv-error" role="alert">{estimate.error}</p>}
       </section>
       {rightHidden
-        ? <button type="button" className="pv-restore" aria-label="Show inspector" title="Show inspector" onClick={() => setRightHidden(false)}><PanelRight/></button>
-        : <Inspector project={project} program={program} selection={selection} profiles={estimate.profiles} fieldId={fieldId} customImage={customImage}
-          onField={setField} onCustomImage={() => imageInput.current?.click()} onCommit={commit} onSelect={setSelection} onOpenRobot={onOpenRobot}
-          onHide={() => setRightHidden(true)}/>}
+        ? <button type="button" className="pv-restore" aria-label={`Show ${rightLabel}`} title={`Show ${rightLabel}`} onClick={() => setRightHidden(false)}><PanelRight/></button>
+        : develop && auto && estimate
+          ? <Inspector project={project} program={auto} selection={selection} profiles={estimate.profiles} fieldId={fieldId} customImage={customImage}
+            onField={setField} onCustomImage={() => imageInput.current?.click()} onCommit={commit} onSelect={setSelection} onOpenRobot={onOpenRobot}
+            onHide={() => setRightHidden(true)}/>
+          : <TelemetryPanel session={session} project={project} program={program} estimated={preview && auto ? { pose: shownPose, speed } : undefined}
+            offPath={offPath} onHide={() => setRightHidden(true)}/>}
     </div>
   </div>;
 }

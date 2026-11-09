@@ -8,17 +8,12 @@
 .modal-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px}.modal-card{width:min(580px,100%)}.modal-card__header{display:flex;justify-content:space-between;gap:20px;padding:22px;border-bottom:1px solid var(--border)}.modal-card__header h2{margin:0 0 6px}.modal-card__header p{margin:0;font-size:13px}.modal-card__body{padding:22px}.modal-card__footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 22px;border-top:1px solid var(--border)}.icon-button{padding:7px;align-self:flex-start}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
-/* Keep the whole field visible: size it from the workspace's own height, so it grows when the
-   Problems panel closes, and never wider than its column. 124 px and 194 px are the toolbars,
-   captions and playback controls that share the column with the field. */
-@media(min-width:761px){.workbench-surface{container-type:size}
-.field-main .studio-field{width:min(100%,clamp(240px,calc(100cqh - 124px),640px))}
-.simulation-field .studio-field{width:min(100%,clamp(220px,calc(100cqh - 194px),640px))}}
+/* The workspace is a size container, so Pathing can size its field from the height left over,
+   which grows when the Problems panel closes. */
+@media(min-width:761px){.workbench-surface{container-type:size}}
 @media(min-width:761px) and (max-height:700px){
 .output-body{height:67px;padding:8px 18px}
-.workbench-heading{padding-top:14px;padding-bottom:10px}
-.field-main .studio-field{width:min(100%,clamp(220px,calc(100cqh - 124px),640px))}
-.simulation-field .studio-field{width:min(100%,clamp(200px,calc(100cqh - 194px),640px))}}
+.workbench-heading{padding-top:14px;padding-bottom:10px}}
 
 /* FTC SDK project connection */
 .sdk-connection{border:1px solid var(--border);background:var(--surface);padding:20px 22px;margin-bottom:30px;display:grid;gap:12px}
@@ -131,13 +126,10 @@ button.brand-mark:hover:not(:disabled) {
 .update-notice span{flex:1}
 
 /* Live robot and simulator values: the active OpMode in robot mode, and what a stream reports. */
-.active-opmode{display:flex;flex-direction:column;gap:8px;margin:14px 0 16px;font-size:13px;line-height:1.5}
-.active-opmode strong{color:var(--text);font-size:14px;font-weight:600;overflow-wrap:anywhere}
 .stream-values{display:grid;gap:7px;margin:0 0 18px;font-size:13px}
 .stream-values div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
 .stream-values dt{color:var(--muted);overflow-wrap:anywhere;min-width:0}
 .stream-values dd{margin:0;color:var(--text);font:12px/1.6 Consolas,monospace;text-align:right;overflow-wrap:anywhere;min-width:0}
-.simulation .properties h3{font-size:14px;margin:22px 0 10px}
 
 .simulator-setup {
   display: grid;

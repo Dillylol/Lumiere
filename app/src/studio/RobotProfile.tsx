@@ -111,6 +111,6 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
         </tr>)}</tbody>
       </table>
       <p className="profile-note">Read from the robot's configuration {when(scan.scannedAt)}.</p>
-    </> : <p className="profile-note">Connect to the robot from Simulate → Robot to read its configured hardware and check it against this project.</p>}
+    </> : <p className="profile-note">Connect to the robot from Pathing → Robot to read its configured hardware and check it against this project.</p>}
   </section>;
 }

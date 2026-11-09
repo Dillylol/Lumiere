@@ -34,9 +34,6 @@ div.pathing:focus, div.pathing:focus-visible { outline: none; }
 .pv-title small { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .pv-program { min-width: 0; overflow: hidden; padding: 4px 8px; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .pv-topbar-actions { display: flex; flex-shrink: 0; align-items: center; gap: 4px; margin-left: auto; }
-.pv-topbar-divider { width: 1px; height: 20px; margin: 0 6px; background: var(--border); }
-button.pv-preview { min-height: 32px; padding: 5px 12px; font-size: 13px; }
-.pv-preview svg { width: 15px; height: 15px; }
 
 .pv-menu { position: relative; flex-shrink: 0; }
 .pv-menu-button { gap: 5px; min-height: 30px; padding: 4px 8px; border: 0; border-radius: 6px; font-size: 13px; }
@@ -228,6 +225,65 @@ button.pv-ghost-button:hover:not(:disabled) { background: var(--pv-selected); }
 .pv-group h3 { margin: 0; font-size: 13px; font-weight: 600; }
 .pv-credit { margin: 0; font-size: 11px; line-height: 1.5; }
 
+/* Modes: Develop, Simulate and Robot, beside the program's name. */
+.pv-modes { display: inline-grid; flex-shrink: 0; grid-auto-flow: column; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; background: var(--background); }
+.pv-modes button { position: relative; min-height: 28px; padding: 3px 12px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; font-size: 13px; }
+.pv-modes button:hover:not(:disabled) { color: var(--text); background: var(--pv-hover); }
+.pv-modes button[aria-pressed=true], .pv-modes button[aria-pressed=true]:hover:not(:disabled) { color: var(--accent); background: var(--pv-selected); }
+.pv-live { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--mint); }
+.pv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Simulate and Robot: run controls on the left, telemetry on the right. */
+.pv-status { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--text); font-size: 13px; }
+.pv-status-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pv-status-dot.on { background: var(--mint); }
+.pv-status-dot.waiting { background: var(--accent); }
+.pv-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.pv-actions button { min-height: 32px; padding: 5px 10px; font-size: 13px; }
+.pv-actions svg { width: 15px; height: 15px; }
+.pv-note { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.pv-chip-line { margin: 0 0 6px; }
+.pv-chip.wide { height: auto; padding: 4px 8px; border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--accent); font-family: inherit; font-size: 12px; line-height: 1.4; }
+.pv-step.active { color: var(--text); background: var(--pv-selected); }
+.pv-active { margin: 0 0 6px; font-size: 13px; }
+.pv-active strong { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.pv-run-panel .pv-field-label, .pv-run-panel .pv-check { margin-bottom: 10px; }
+.pv-run-panel .simulator-setup { margin: 4px 0 0; font-size: 12px; }
+.pv-run-panel .simulator-setup p { font-size: 12px; }
+.pv-pad { display: flex; gap: 6px; margin: 0 0 4px; }
+.pv-pad button { min-width: 40px; min-height: 32px; padding: 4px 8px; font-weight: 600; }
+.pv-pairs { display: grid; gap: 6px; margin: 0; padding: 0 4px; font-size: 12px; }
+.pv-pairs > div { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.pv-pairs dt { min-width: 0; color: var(--muted); overflow-wrap: anywhere; }
+.pv-pairs dd { min-width: 0; margin: 0; color: var(--text); font-family: var(--pv-mono); font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
+.pv-telemetry-lines { max-height: 220px; margin: 8px 0 0; padding: 8px 10px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; color: var(--muted);
+  background: var(--pv-well); font: 12px/1.6 var(--pv-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pv-telemetry .run-comparison { margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--pv-well); }
+.pv-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 8px 4px 0; padding: 0; color: var(--muted); font-size: 11px; list-style: none; }
+.pv-legend li { display: flex; align-items: center; gap: 6px; }
+.pv-legend i { width: 14px; height: 0; border-top: 2px solid; }
+.pv-legend .planned { border-color: var(--accent); border-top-style: dotted; opacity: .7; }
+.pv-legend .driven { border-color: var(--mint); }
+.pv-legend .follower { border-color: var(--text); border-top-style: dashed; }
+
+/* The run bar: INIT, START and STOP, the run's clock against the match, and where the plan has each path end. */
+.pv-runbar { gap: 8px; }
+button.pv-run-button { min-height: 30px; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 650; letter-spacing: .04em; }
+button.pv-run-button.go:not(:disabled) { border-color: var(--mint); color: #141614; background: var(--mint); }
+button.pv-run-button.stop { border-color: color-mix(in srgb, var(--danger) 60%, var(--border)); color: var(--danger); }
+button.pv-run-button.stop:not(:disabled) { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.pv-run-button svg { width: 14px; height: 14px; }
+.pv-runbar .pv-track { margin-left: 4px; }
+.pv-marker.planned { position: absolute; top: 50%; z-index: 2; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 2px var(--background); transform: translate(-50%, -50%); pointer-events: none; }
+
+/* Planned against actual: the plan fades, the trail shows where the robot drove, the follower's path is dashed. */
+.pv-plan.planned { opacity: .5; }
+.pv-run { pointer-events: none; }
+.pv-run .pv-robot.ghost .pv-robot-body { stroke-dasharray: 1 .7; }
+.pv-trail { fill: none; stroke: var(--mint); stroke-linecap: round; stroke-linejoin: round; }
+.pv-route polyline, .pv-route circle, .pv-target circle, .pv-target line { fill: none; stroke: var(--text); }
+.pv-target .pv-target-center { fill: var(--text); stroke: none; }
+
 /* Narrow windows: the field on top at the height the window allows, layers and inspector side by side below. */
 @media (max-width: 1050px) {
   .pathing { height: auto; min-height: 100%; }
@@ -240,7 +296,7 @@ button.pv-ghost-button:hover:not(:disabled) { background: var(--pv-selected); }
   /* Room for the name and credit: the program shows in the sidebar, and these keep their names for screen readers. */
   .pv-program { display: none; }
   .pv-narrow-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .pv-preview { gap: 6px; }
+  .pv-modes button { padding: 3px 8px; font-size: 12px; }
 }
 @media (max-width: 760px) {
   .pv-layout { grid-template-columns: minmax(0, 1fr); }
