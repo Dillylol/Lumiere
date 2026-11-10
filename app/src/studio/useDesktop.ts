@@ -10,6 +10,7 @@ import {
   type DeployPlan,
   type FtcProjectInspection,
   type JavaTarget,
+  type LiveTarget,
   type Program,
   type Project,
 } from "../core";
@@ -50,7 +51,10 @@ export function autoDeployBlocker(inspection: FtcProjectInspection | undefined, 
   return null;
 }
 
-export function useDesktop(project: Project, onLog: (line: string) => void) {
+/**
+ * @param live Live runs on this computer: deploys also write the Lumière Live OpMode, paired with it.
+ */
+export function useDesktop(project: Project, onLog: (line: string) => void, live?: LiveTarget) {
   const [sdk, setSdkState] = useState<SdkLink | null>(() => loadSdkLink(project));
   const [inspection, setInspection] = useState<FtcProjectInspection>();
   const [deployState, setDeployState] = useState<DeployState>({ state: "idle", message: "" });
@@ -66,15 +70,15 @@ export function useDesktop(project: Project, onLog: (line: string) => void) {
   const deploying = useRef(false);
   const current = useRef(files);
   current.current = files;
-  const latest = useRef({ project, sdk, inspection });
-  latest.current = { project, sdk, inspection };
+  const latest = useRef({ project, sdk, inspection, live });
+  latest.current = { project, sdk, inspection, live };
 
   const setSdk = (link: SdkLink | null) => {
     saveSdkLink(project.id, link);
     latest.current = { ...latest.current, sdk: link };
     setSdkState(link);
   };
-  const target: JavaTarget | undefined = sdk ? { javaPackage: sdk.javaPackage, constantsClass: sdk.constantsClass } : undefined;
+  const target: JavaTarget | undefined = sdk ? { javaPackage: sdk.javaPackage, constantsClass: sdk.constantsClass, ...(live ? { live } : {}) } : undefined;
 
   const report = (event: RunEvent) => {
     if (event.event === "stdout" || event.event === "stderr") onLog(event.line);
@@ -196,7 +200,8 @@ export function useDesktop(project: Project, onLog: (line: string) => void) {
       }
       if (!checked.isFtcProject) throw new Error(checked.problems.join(" "));
 
-      const result = planDeploy(latest.current.project, link, existing, link.deployedPaths, overwrite, checked);
+      const settings = latest.current.live ? { ...link, live: latest.current.live } : link;
+      const result = planDeploy(latest.current.project, settings, existing, link.deployedPaths, overwrite, checked);
       if (!result.ok) {
         const count = result.diagnostics.filter((item) => item.severity === "error").length;
         const target = result.diagnostics.find((item) => item.code === "target.invalid");
@@ -240,7 +245,7 @@ export function useDesktop(project: Project, onLog: (line: string) => void) {
   };
 
   // Automatic deploys: shortly after the project or the deploy settings change.
-  const settingsKey = sdk ? JSON.stringify([sdk.folder, sdk.mode, sdk.javaPackage, sdk.constantsClass, sdk.programIds, sdk.removeOutdated]) : "";
+  const settingsKey = sdk ? JSON.stringify([sdk.folder, sdk.mode, sdk.javaPackage, sdk.constantsClass, sdk.programIds, sdk.removeOutdated, live?.pairingHash ?? null]) : "";
   const blocker = useMemo(() => (sdk ? autoDeployBlocker(inspection, sdk) : null), [inspection, sdk]);
   useEffect(() => {
     if (!sdk || sdk.mode !== "auto" || !isDesktop()) return;

@@ -40,6 +40,8 @@ describe("validateProject", () => {
     expect(codes(project)).toContain("error:program.name.duplicate");
     project.programs[1].name = "Example Auto";
     expect(codes(project)).toContain("warning:program.name.reserved");
+    project.programs[1].name = "Lumière Live";
+    expect(codes(project)).toContain("error:program.name.live");
   });
 
   it("reports geometry problems", () => {

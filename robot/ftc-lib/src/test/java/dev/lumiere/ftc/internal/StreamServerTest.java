@@ -172,6 +172,59 @@ public class StreamServerTest {
     }
 
     @Test
+    public void handlersKnowWhichClientSentAMessageAndWhenItLeaves() throws Exception {
+        int robotPort;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            robotPort = socket.getLocalPort();
+        }
+        BlockingQueue<StreamServer.Peer> senders = new LinkedBlockingQueue<>();
+        BlockingQueue<StreamServer.Peer> left = new LinkedBlockingQueue<>();
+        StreamServer robot = new StreamServer("127.0.0.1", robotPort, null, null, new StreamServer.PeerHandler() {
+            @Override
+            public String onMessage(StreamServer.Peer peer, Map<String, Object> message) {
+                senders.add(peer);
+                peer.send(Stream.encode("pong", Json.object()));
+                return null;
+            }
+
+            @Override
+            public void onDisconnect(StreamServer.Peer peer) {
+                left.add(peer);
+            }
+        });
+        robot.begin();
+        try {
+            Recorder first = new Recorder();
+            Recorder second = new Recorder();
+            WebSocket one = http.newWebSocket(new Request.Builder().url("ws://127.0.0.1:" + robotPort + Stream.PATH).build(), first);
+            WebSocket two = http.newWebSocket(new Request.Builder().url("ws://127.0.0.1:" + robotPort + Stream.PATH).build(), second);
+            assertTrue(first.opened.await(5, TimeUnit.SECONDS) && second.opened.await(5, TimeUnit.SECONDS));
+            one.send("{\"type\":\"auth\",\"token\":\"x\"}");
+            StreamServer.Peer firstPeer = senders.poll(5, TimeUnit.SECONDS);
+            two.send("{\"type\":\"program\"}");
+            StreamServer.Peer secondPeer = senders.poll(5, TimeUnit.SECONDS);
+            assertNotNull(firstPeer);
+            assertTrue("two connections are two peers", firstPeer != secondPeer);
+            // Each peer gets the one reply sent to it, and nothing sent to the other.
+            assertEquals("pong", type(first.messages.poll(5, TimeUnit.SECONDS)));
+            assertEquals("pong", type(second.messages.poll(5, TimeUnit.SECONDS)));
+            assertNull(first.messages.poll(300, TimeUnit.MILLISECONDS));
+            assertNull(second.messages.poll(300, TimeUnit.MILLISECONDS));
+
+            one.close(1000, "done");
+            assertTrue("the handler hears that the first client left", left.poll(5, TimeUnit.SECONDS) == firstPeer);
+            // A message too large to be a program is refused unread.
+            StringBuilder huge = new StringBuilder("{\"type\":\"program\",\"pad\":\"");
+            while (huge.length() <= StreamServer.MAX_MESSAGE_CHARS) huge.append("0123456789");
+            two.send(huge.append("\"}").toString());
+            assertTrue(second.messages.poll(5, TimeUnit.SECONDS).contains("Message too large"));
+            two.close(1000, "done");
+        } finally {
+            robot.end();
+        }
+    }
+
+    @Test
     public void browserPagesFromOtherOriginsAreRefused() throws Exception {
         Recorder recorder = new Recorder();
         connect(recorder, "https://example.com");

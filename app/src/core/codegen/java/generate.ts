@@ -17,6 +17,8 @@ import type {
   TeleOpProgram,
 } from "../../ir/types";
 import { checksum, withHeader } from "./ownership";
+import { LIVE_DEFAULT_POWER_CAP, LIVE_OPMODE_NAME } from "../../live/program";
+import { isPairingHash } from "../../live/pairing";
 import { camelCase, commentText, constantCase, isQualifiedName, javaNumber, javaString, NameScope, packageSegment, pascalCase } from "./names";
 
 /** Root package for generated code inside a robot project. */
@@ -31,7 +33,19 @@ export interface JavaTarget {
   javaPackage?: string;
   /** Fully qualified class with `static Follower create(HardwareMap)`. Defaults to `DEFAULT_CONSTANTS_CLASS`. */
   constantsClass?: string;
+  /** Live runs: also generate the Lumière Live OpMode, paired with the computer that holds this hash's secret. */
+  live?: LiveTarget;
 }
+
+export interface LiveTarget {
+  /** SHA-256 of this computer's pairing secret, as 64 lowercase hexadecimal digits. */
+  pairingHash: string;
+  /** The highest power Lumière Live gives a mechanism. Defaults to `LIVE_DEFAULT_POWER_CAP`. */
+  powerCap?: number;
+}
+
+/** The generated Lumière Live OpMode's class. */
+export const LIVE_CLASS = "LumiereLive";
 
 export function defaultJavaPackage(project: Pick<Project, "name">): string {
   return `${GENERATED_PACKAGE}.${packageSegment(project.name, "robot")}`;
@@ -52,6 +66,11 @@ export function checkJavaTarget(target: JavaTarget): string | null {
     if (parts.length < 2 || !isQualifiedName(target.constantsClass) || !/^[A-Z]/.test(parts[parts.length - 1])) {
       return `"${target.constantsClass}" is not a fully qualified class name, such as ${DEFAULT_CONSTANTS_CLASS}.`;
     }
+  }
+  if (target.live) {
+    if (!isPairingHash(target.live.pairingHash)) return "This computer's Lumière Live pairing is damaged. Turn Live runs off and on again on the Robot page.";
+    const cap = target.live.powerCap;
+    if (cap !== undefined && !(cap > 0 && cap <= 1)) return "Lumière Live's power limit must be above 0 and at most 1.";
   }
   return null;
 }
@@ -108,7 +127,8 @@ export function generateJava(project: Project, target: JavaTarget = {}): Generat
   const packageName = target.javaPackage ?? defaultJavaPackage(project);
   const constantsName = target.constantsClass ?? DEFAULT_CONSTANTS_CLASS;
   const constants: Constants = { qualifiedName: constantsName, simpleName: constantsName.slice(constantsName.lastIndexOf(".") + 1) };
-  const classes = new NameScope([...IMPORTED_NAMES, constants.simpleName]);
+  // Lumière Live's class name is kept free, so a program can't take it while Live runs are on.
+  const classes = new NameScope([...IMPORTED_NAMES, constants.simpleName, ...(target.live ? [LIVE_CLASS] : [])]);
   const subsystems = new Map<string, SubsystemNames>();
   for (const subsystem of project.subsystems) {
     const className = classes.claim(pascalCase(subsystem.name, "Mechanism"));
@@ -131,6 +151,7 @@ export function generateJava(project: Project, target: JavaTarget = {}): Generat
     if (program.kind === "autonomous") emit(className, autonomousSource(packageName, className, program, project, subsystems, constants));
     else emit(className, teleOpSource(packageName, className, program, project, subsystems, constants));
   }
+  if (target.live) emit(LIVE_CLASS, liveSource(packageName, constants, target.live));
   files.sort((a, b) => a.path.localeCompare(b.path));
   return { ok: true, files, packageName, diagnostics };
 }
@@ -172,6 +193,41 @@ function imports(writer: Writer, statics: string[], regular: string[]) {
     group.forEach((item) => writer.line(item));
     writer.line();
   }
+}
+
+/** Lumière Live, paired with the computer whose pairing hash it carries. Its behavior lives in the robot library. */
+function liveSource(packageName: string, constants: Constants, live: LiveTarget): string {
+  const w = new Writer();
+  w.line(`package ${packageName};`).line();
+  imports(w, [], [
+    "com.pedropathing.follower.Follower",
+    "com.qualcomm.robotcore.eventloop.opmode.Autonomous",
+    "com.qualcomm.robotcore.hardware.HardwareMap",
+    constants.qualifiedName,
+    `${BRAND.java.package}.live.LiveRunner`,
+  ]);
+  w.line("/**");
+  w.line(` * ${LIVE_OPMODE_NAME}, paired with the computer that deployed this code. That computer sends it`);
+  w.line(` * autonomous programs from ${BRAND.name}, and it checks each one against this robot's hardware.`);
+  w.line(" * In this version it is a dry run: nothing moves.");
+  w.line(" *");
+  w.line(` * <p>Turn off Live runs in ${BRAND.name} and deploy to remove it. Remove it before competitions.`);
+  w.line(" */");
+  w.line(`@Autonomous(name = ${javaString(LIVE_OPMODE_NAME)}, group = ${javaString(BRAND.name)})`);
+  w.block(`public class ${LIVE_CLASS} extends LiveRunner`, () => {
+    w.line("@Override");
+    w.block("protected String pairingHash()", () => w.line(`return ${javaString(live.pairingHash)};`));
+    w.line();
+    w.line("@Override");
+    w.block("protected Class<?> pedroConstants()", () => w.line(`return ${constants.simpleName}.class;`));
+    w.line();
+    w.line("@Override");
+    w.block("protected Follower createFollower(HardwareMap hardwareMap)", () => w.line(`return ${constants.simpleName}.create(hardwareMap);`));
+    w.line();
+    w.line("@Override");
+    w.block("protected double powerCap()", () => w.line(`return ${javaNumber(live.powerCap ?? LIVE_DEFAULT_POWER_CAP)};`));
+  });
+  return w.toString();
 }
 
 function robotPoseSource(packageName: string): string {

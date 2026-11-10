@@ -107,8 +107,25 @@ export {
   DEFAULT_CONSTANTS_CLASS,
   defaultJavaPackage,
   javaPackageDirectory,
+  LIVE_CLASS,
   type JavaTarget,
+  type LiveTarget,
 } from "./codegen/java/generate";
+export {
+  buildLiveProgram,
+  LIVE_DEFAULT_POWER_CAP,
+  LIVE_FORMAT,
+  LIVE_OPMODE_NAME,
+  readLiveReport,
+  type LiveMechanism,
+  type LivePath,
+  type LivePose,
+  type LiveProgram,
+  type LiveReport,
+  type LiveSegment,
+  type LiveStep,
+} from "./live/program";
+export { isPairingHash, newPairingSecret, pairingHash } from "./live/pairing";
 export {
   EXPECTED_SDK_VERSION,
   INSPECTED_FILES,

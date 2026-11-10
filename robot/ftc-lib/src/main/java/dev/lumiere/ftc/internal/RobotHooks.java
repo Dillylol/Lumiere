@@ -17,6 +17,7 @@ import org.firstinspires.ftc.robotcore.internal.opmode.RegisteredOpModes;
 
 import dev.lumiere.ftc.Manifest;
 import dev.lumiere.ftc.Stream;
+import dev.lumiere.ftc.live.LiveLink;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,9 +29,11 @@ import java.util.Map;
  * Starts the stream server when the Robot Controller's event loop is created. The FTC SDK finds
  * these methods through their annotations; teams do not call them.
  *
- * <p>The only command the server accepts is {@code stop}, which asks the SDK to stop the active
- * OpMode exactly as the Driver Station's stop button does. Nothing received over the network can
- * start an OpMode or move a mechanism.
+ * <p>The server accepts {@code stop}, which asks the SDK to stop the active OpMode exactly as the
+ * Driver Station's stop button does. While the Driver Station has Lumière Live initialized, a
+ * computer paired with it may also pair ({@code auth}) and send a {@code program} for Lumière Live to
+ * check. Nothing received over the network can start an OpMode, and in this version nothing received
+ * over the network moves a mechanism.
  */
 public final class RobotHooks {
     private static final String TAG = "RobotStream";
@@ -51,7 +54,17 @@ public final class RobotHooks {
             manager = eventLoop.getOpModeManager();
             lifecycle = new Lifecycle();
             manager.registerListener(lifecycle);
-            server = new StreamServer(null, Stream.ROBOT_PORT, null, RobotHooks::greeting, RobotHooks::onMessage);
+            server = new StreamServer(null, Stream.ROBOT_PORT, null, RobotHooks::greeting, new StreamServer.PeerHandler() {
+                @Override
+                public String onMessage(StreamServer.Peer peer, Map<String, Object> message) {
+                    return RobotHooks.onMessage(peer, message);
+                }
+
+                @Override
+                public void onDisconnect(StreamServer.Peer peer) {
+                    LiveLink.disconnected(peer);
+                }
+            });
             try {
                 server.begin();
                 Stream.install(server);
@@ -91,11 +104,15 @@ public final class RobotHooks {
         messages.add(manifest != null ? manifest : Stream.encode("manifest", Manifest.build(null, registeredOpModes())));
         String state = Stream.lastLifecycle();
         if (state != null) messages.add(state);
+        String live = Stream.lastLive();
+        if (live != null) messages.add(live);
         return messages;
     }
 
-    private static String onMessage(Map<String, Object> message) {
-        if (!"stop".equals(message.get("type"))) return null;
+    private static String onMessage(StreamServer.Peer peer, Map<String, Object> message) {
+        Object type = message.get("type");
+        if ("auth".equals(type) || "program".equals(type)) return LiveLink.handle(peer, message);
+        if (!"stop".equals(type)) return null;
         OpModeManagerImpl current;
         synchronized (LOCK) {
             current = manager;

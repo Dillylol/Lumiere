@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.NanoWSD;
@@ -23,6 +24,24 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
     public interface MessageHandler {
         String onMessage(Map<String, Object> message);
     }
+
+    /** A connected client, so a handler can tell clients apart and answer or close one of them. */
+    public interface Peer {
+        void send(String message);
+
+        void close();
+    }
+
+    /** Handles a text message knowing which client sent it, and hears when a client leaves. */
+    public interface PeerHandler {
+        /** Return a reply message for the sender, or null for none. */
+        String onMessage(Peer peer, Map<String, Object> message);
+
+        void onDisconnect(Peer peer);
+    }
+
+    /** Larger text messages are refused unread; a program from the app is far smaller. */
+    static final int MAX_MESSAGE_CHARS = 1_000_000;
 
     /** Supplies messages sent to each client when it connects. */
     public interface Greeting {
@@ -43,7 +62,7 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
     private final List<Client> pending = new CopyOnWriteArrayList<>();
     private final String token;
     private final Greeting greeting;
-    private final MessageHandler handler;
+    private final PeerHandler handler;
     private volatile Thread watchdog;
 
     /**
@@ -51,6 +70,23 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
      * @param token    token required in the client's first message, or null when not required
      */
     public StreamServer(String hostname, int port, String token, Greeting greeting, MessageHandler handler) {
+        this(hostname, port, token, greeting, handler == null ? null : new PeerHandler() {
+            @Override
+            public String onMessage(Peer peer, Map<String, Object> message) {
+                return handler.onMessage(message);
+            }
+
+            @Override
+            public void onDisconnect(Peer peer) {
+            }
+        });
+    }
+
+    /**
+     * @param hostname address to bind, or null for all interfaces
+     * @param token    token required in the client's first message, or null when not required
+     */
+    public StreamServer(String hostname, int port, String token, Greeting greeting, PeerHandler handler) {
         super(hostname, port);
         this.token = token;
         this.greeting = greeting;
@@ -148,11 +184,35 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
         }
     }
 
-    private final class Client extends WebSocket {
+    private final class Client extends WebSocket implements Peer {
         volatile long lastHeard = System.currentTimeMillis();
+        private final AtomicBoolean gone = new AtomicBoolean();
 
         Client(IHTTPSession handshake) {
             super(handshake);
+        }
+
+        @Override
+        public void send(String message) {
+            sendQuietly(message);
+        }
+
+        @Override
+        public void close() {
+            closeQuietly();
+        }
+
+        /** Tells the handler once that this client has left, however it left. */
+        private void left() {
+            clients.remove(this);
+            pending.remove(this);
+            if (handler != null && gone.compareAndSet(false, true)) {
+                try {
+                    handler.onDisconnect(this);
+                } catch (RuntimeException ignored) {
+                    // A handler failure must not stop the server from dropping the client.
+                }
+            }
         }
 
         @Override
@@ -172,14 +232,20 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
 
         @Override
         protected void onClose(WebSocketFrame.CloseCode code, String reason, boolean initiatedByRemote) {
-            clients.remove(this);
-            pending.remove(this);
+            left();
         }
 
         @Override
         protected void onMessage(WebSocketFrame message) {
             lastHeard = System.currentTimeMillis();
-            Map<String, Object> parsed = Json.parseObject(message.getTextPayload());
+            String text = message.getTextPayload();
+            if (text != null && text.length() > MAX_MESSAGE_CHARS) {
+                Map<String, Object> error = Json.object();
+                error.put("message", "Message too large.");
+                if (clients.contains(this)) sendQuietly(Stream.encode("error", error));
+                return;
+            }
+            Map<String, Object> parsed = Json.parseObject(text);
             if (!clients.contains(this)) {
                 boolean valid = parsed != null
                         && "auth".equals(parsed.get("type"))
@@ -197,7 +263,7 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
             }
             if (handler == null) return;
             try {
-                String reply = handler.onMessage(parsed);
+                String reply = handler.onMessage(this, parsed);
                 if (reply != null) sendQuietly(reply);
             } catch (RuntimeException e) {
                 Map<String, Object> error = Json.object();
@@ -213,21 +279,19 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
 
         @Override
         protected void onException(IOException exception) {
-            clients.remove(this);
-            pending.remove(this);
+            left();
         }
 
         void sendQuietly(String text) {
             try {
-                send(text);
+                super.send(text);
             } catch (IOException | RuntimeException e) {
-                clients.remove(this);
+                left();
             }
         }
 
         void closeQuietly() {
-            clients.remove(this);
-            pending.remove(this);
+            left();
             try {
                 close(WebSocketFrame.CloseCode.GoingAway, "Closed", false);
             } catch (IOException | RuntimeException ignored) {

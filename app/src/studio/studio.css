@@ -203,3 +203,8 @@ button.brand-mark:hover:not(:disabled) {
 .profile-note { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .chip-muted { color: var(--muted); }
 .live-view-link { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 4px 0 26px; font-size: 13px; }
+
+/* Lumière Live on the Robot page */
+.live-runs { margin: 6px 0 28px; }
+.live-runs .live-steps { margin: 8px 0 0; padding-left: 20px; }
+.live-runs .live-steps li + li { margin-top: 4px; }

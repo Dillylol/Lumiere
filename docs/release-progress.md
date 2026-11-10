@@ -30,6 +30,17 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
     are listed, but Lumière does nothing with them yet. The simulator and virtual hub can list
     analog, camera and custom-driver devices without simulating them.
   - **Release:** the manifest part needs a robot-library release.
+- **Lumière Live, dry run (step 2 of Live runs):**
+  - **Pairing:** turning on Live runs on the Robot page pairs this computer with a random secret kept on this computer only. Deploys, and the Code page, then add a generated `LumiereLive.java` carrying the secret's SHA-256, the team's Pedro constants class and a 0.6 power cap.
+    - Turning Live runs off and deploying removes the file, even when outdated files are kept.
+    - "Lumière Live" is reserved as an OpMode name.
+  - **The run:** when the Driver Station initializes Lumière Live, Robot mode pairs and sends the open autonomous, and sends it again when it changes before START.
+    - The program carries exactly the numbers the generated Java uses: the same poses and heading rules, rounded the way the generator writes them.
+    - The robot library's `LiveRunner` checks the program's shape, then its mechanisms against the configuration and Pedro Pathing's devices: missing or mistyped devices, Pedro's drive motors, and encoder targets on dead-wheel ports.
+    - It reports to the app and the Driver Station, and moves nothing, before or after START.
+  - **Refused:** programs while Lumière Live isn't running, a wrong secret (the fifth wrong attempt closes the connection), programs from unpaired connections, and programs after START.
+  - **Tested:** robot library 45 tests, app unit and end-to-end tests, and 22/22 virtual hub checks on the quickstart and on the modernized team robot. That robot's real autonomous passed the check through the app, with notes for six mechanism powers above the cap.
+  - **Release:** needs a robot-library release.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 
 ## Version 0.2.0

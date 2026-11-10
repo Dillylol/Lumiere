@@ -1,4 +1,5 @@
 /** Types for stream protocol version 1. See docs/protocol.md. */
+import type { LiveProgram, LiveReport } from "../live/program";
 
 export const PROTOCOL_VERSION = 1;
 export const ROBOT_PORT = 58080;
@@ -81,7 +82,9 @@ export type ServerMessage =
       opMode?: string | null;
       stack?: { class: string; method: string; file: string | null; line: number }[];
     }
-  | { type: "pong"; t: unknown };
+  | { type: "pong"; t: unknown }
+  /** Lumière Live's report on the robot: pairing, the program it received, and what its check found. */
+  | ({ type: "live" } & LiveReport);
 
 export type ServerMessageType = ServerMessage["type"];
 
@@ -111,7 +114,10 @@ export interface GamepadStateMessage {
 }
 
 export type ClientMessage =
+  /** The simulator's token, or the robot's Lumière Live pairing secret. */
   | { type: "auth"; token: string }
+  /** A program for Lumière Live to check, from the paired computer. */
+  | { type: "program"; program: LiveProgram }
   | { type: "ping"; t: number }
   | { type: "stop" }
   | { type: "init"; opMode: string }
@@ -120,7 +126,7 @@ export type ClientMessage =
   | { type: "place"; x: number; y: number; heading: number }
   | { type: "shutdown" };
 
-const TYPES = new Set<string>(["hello", "manifest", "lifecycle", "state", "path", "robot", "telemetry", "error", "pong"]);
+const TYPES = new Set<string>(["hello", "manifest", "lifecycle", "state", "path", "robot", "telemetry", "error", "pong", "live"]);
 
 /** Parses a frame, returning null for anything that is not a known server message. */
 export function parseServerMessage(data: unknown): ServerMessage | null {

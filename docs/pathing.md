@@ -16,6 +16,9 @@ Hide either side panel with its panel button to give the field more room. In win
 - **Develop** draws and edits the paths, timed by the estimate.
 - **Simulate** runs the program. The desktop app launches the simulator with your Java: choose the OpMode, press **INIT**, **START** and **STOP** under the field, and drive with a USB gamepad, the keyboard, or the on-screen A/B/X/Y buttons. The match timer presses STOP after 30 seconds, or 2 minutes for TeleOp. The web app can't run Java, so its Simulate plays the estimate.
 - **Robot** watches the robot. Enter the Control Hub's address or use **Find robot**, then **Connect robot**. Start OpModes from the Driver Station; this connection reads telemetry and can request STOP. On the desktop, **Deploy code** and **Deploy APK** are here too.
+  - **Lumière Live:** with Live runs on for this computer (Robot page), initializing Lumière Live on the Driver Station makes this connection pair and send the open autonomous.
+  - **What the robot finds:** the panel shows whether the program passed the check against the robot's hardware and Pedro Pathing's devices, with any problems and notes.
+  - **Dry run:** this version only checks the program, and nothing moves.
 
 In Simulate and Robot, the field is read-only. The left panel holds the run controls and the planned routine, and the right panel shows telemetry, the follower's state, `Session.data` values and the run comparison. When the run is this program's own OpMode, the field draws the run against the plan:
 

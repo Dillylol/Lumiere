@@ -46,6 +46,8 @@ if (!existsSync(resolve(project, "TeamCode"))) {
 // Launch through the robot project's unit-test task, with the harness added by the init script.
 
 const token = randomBytes(24).toString("hex");
+// The check pairs with a Lumière Live listed for it; the secret is new for every run.
+const liveSecret = randomBytes(32).toString("hex");
 const testClass = mode === "probe" ? "dev.lumiere.devtools.virtualhub.PedroHeadingProbe" : "dev.lumiere.devtools.virtualhub.RunVirtualHub";
 const gradleArgs = [":TeamCode:testDebugUnitTest", "--tests", testClass, "--init-script", resolve(here, "virtual-hub.init.gradle"), "--console=plain"];
 if (flag("--offline")) gradleArgs.push("--offline");
@@ -56,7 +58,7 @@ const env = {
   VH_TOKEN: token,
   ...(mode === "probe" ? { VH_PROBE: "true" } : { VH_DS_PORT: "0" }),
   // The contract check connects while the robot is still starting, as an app reconnecting after a restart would.
-  ...(mode === "check" ? { VH_BOOT_DELAY_MS: "3000" } : {}),
+  ...(mode === "check" ? { VH_BOOT_DELAY_MS: "3000", VH_LIVE: "true", VH_LIVE_SECRET: liveSecret } : {}),
   ...(mode === "shakedown" ? { VH_FAULTS: "true" } : {}),
   ...(value("--config") ? { VH_CONFIG: resolve(value("--config")) } : {}),
   ...(value("--pedro") ? { VH_PEDRO: value("--pedro") } : {}),
@@ -439,6 +441,86 @@ async function check() {
     const seconds = await idle;
     expect(seconds >= 9 && seconds <= 15, `closed after ${seconds.toFixed(1)} s${seconds < 9 ? " (NanoHTTPD's socket read timeout, 5 s, fires before StreamServer's 10 s watchdog)" : ""}`);
     return `closed after ${seconds.toFixed(1)} s`;
+  });
+  // Lumière Live: pairing, the program check against the robot, and a dry run that moves nothing.
+  const LIVE = "Lumière Live (virtual hub)";
+  const liveProgram = (name, mechanisms = []) => ({
+    format: 1, name, revision: `check-${name.length}`, start: { x: 72, y: 72, headingDeg: 90 }, mechanisms,
+    paths: [{ id: "p1", name: "Forward", kind: "atomic", heading: null, segments: [{
+      start: { x: 72, y: 72, headingDeg: 90 }, controls: [], end: { x: 72, y: 96, headingDeg: 90 }, heading: { type: "constant", degrees: 90 },
+    }] }],
+    routine: [{ kind: "path", path: "p1" }, { kind: "wait", ms: 500 }],
+  });
+  await attempt("Lumière Live refuses pairing and programs while it is not running", async () => {
+    const from = app.log.length;
+    app.send({ type: "auth", token: liveSecret });
+    const refused = await app.next((m) => m.type === "error", 5_000, from);
+    expect(/not running/.test(refused.message), refused.message);
+    app.send({ type: "program", program: liveProgram("Too early") });
+    const again = await app.next((m) => m.type === "error", 5_000, app.log.indexOf(refused) + 1);
+    expect(/not running/.test(again.message), again.message);
+    return refused.message;
+  });
+  await attempt("Driver Station INIT opens Lumière Live, which refuses a wrong secret and an unpaired computer", async () => {
+    const from = app.log.length;
+    dsSend({ type: "init", opMode: LIVE });
+    const waiting = await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, from);
+    expect(waiting.paired === false && waiting.dryRun === true, JSON.stringify(waiting));
+    const stranger = await appClient(ports.robot);
+    await stranger.next((m) => m.type === "live");
+    stranger.send({ type: "program", program: liveProgram("Unpaired") });
+    const unpaired = await stranger.next((m) => m.type === "error");
+    expect(/Pair with Lumière Live/.test(unpaired.message), unpaired.message);
+    stranger.send({ type: "auth", token: "0".repeat(64) });
+    const wrong = await stranger.next((m) => m.type === "error", 5_000, stranger.log.indexOf(unpaired) + 1);
+    expect(/not paired/.test(wrong.message), wrong.message);
+    stranger.close();
+    return "a late client got the report; a wrong secret and an unpaired program were refused";
+  });
+  await attempt("A paired computer's program is checked against the robot's configuration and Pedro Pathing's devices", async () => {
+    const manifest = [...app.log].reverse().find((m) => m.type === "manifest");
+    const pedroNames = new Set((manifest?.pedro?.devices ?? []).map((d) => d.name));
+    const drive = manifest?.pedro?.devices.find((d) => d.role === "frontLeft")?.name;
+    const other = manifest?.devices.find((d) => !["motor", "servo", "crservo"].includes(d.type) && !pedroNames.has(d.name));
+    expect(drive && other, "the manifest has no Pedro drive motor, or no device that is neither drivable nor Pedro's");
+    const from = app.log.length;
+    app.send({ type: "auth", token: liveSecret });
+    await app.next((m) => m.type === "live" && m.paired, 5_000, from);
+    // Wrong on purpose: Pedro's drive motor, a device used as something it is not, and one the robot lacks.
+    app.send({ type: "program", program: liveProgram("Wrong devices", [{ id: "m", name: "Misused", initialState: null,
+      devices: [{ id: "d", name: drive, kind: "motor", reversed: false }, { id: "s", name: other.name, kind: "servo", reversed: false },
+        { id: "x", name: "lumiere-missing-motor", kind: "motor", reversed: false }],
+      states: [{ id: "on", name: "On", outputs: { d: { kind: "power", value: 0.3 }, s: { kind: "position", value: 0.5 }, x: { kind: "power", value: 0.3 } } }] }]) });
+    const rejected = await app.next((m) => m.type === "live" && (m.state === "rejected" || m.state === "accepted"), 10_000, from);
+    const problems = rejected.problems.join(" | ");
+    expect(rejected.state === "rejected" && rejected.problems.length === 3, `${rejected.state}: ${problems}`);
+    expect(problems.includes(`"${drive}" in Misused is Pedro Pathing's front left drive motor`), problems);
+    expect(problems.includes(`"${other.name}" in Misused is configured as ${other.type}`), problems);
+    expect(problems.includes(`"lumiere-missing-motor" in Misused is not in the robot's configuration`), problems);
+    app.send({ type: "program", program: liveProgram("Live check") });
+    const passed = await app.next((m) => m.type === "live" && m.state === "accepted", 10_000, app.log.indexOf(rejected) + 1);
+    expect(passed.program?.name === "Live check" && passed.program.steps === 2, JSON.stringify(passed.program));
+    await sleep(600);
+    const lines = dsState.telemetry.join(" | ");
+    // The Driver Station writes captions as "Program : value".
+    expect(/Program\s*:\s*Live check/.test(lines) && /Check\s*:\s*passed/.test(lines), `Driver Station telemetry: ${lines}`);
+    return `rejected with ${rejected.problems.length} problems, then accepted (${passed.program.steps} steps); the Driver Station shows it`;
+  });
+  await attempt("START in the dry run moves nothing, and STOP closes Lumière Live", async () => {
+    const before = dsState.truth?.pose;
+    const from = app.log.length;
+    dsSend({ type: "start" });
+    await app.next((m) => m.type === "live" && m.started, 10_000, from);
+    await sleep(1500);
+    const after = dsState.truth?.pose;
+    const moved = before && after ? Math.hypot(after.x - before.x, after.y - before.y) : NaN;
+    expect(Number.isFinite(moved) && moved < 0.05, `moved ${moved} in`);
+    app.send({ type: "program", program: liveProgram("After start") });
+    const late = await app.next((m) => m.type === "error", 5_000, from);
+    expect(/already started/.test(late.message), late.message);
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "live" && m.state === "closed", 10_000, from);
+    return `moved ${moved.toFixed(3)} in after START`;
   });
   await attempt("No OpMode errors on the Driver Station", async () => {
     expect(dsState.errors.length === 0, dsState.errors.map((e) => e.message).join("; "));

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { PanelLeft, PanelRight, Plug, Square } from "lucide-react";
-import type { Pose, Program, Project, ScannedDevice, ScannedPedro } from "../../core";
+import { LIVE_OPMODE_NAME, type LiveProgram, type Pose, type Program, type Project, type ScannedDevice, type ScannedPedro } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunComparison } from "../RunComparison";
 import { isRunTimingKey } from "../runTimings";
@@ -26,6 +26,8 @@ export interface RunEnvironment {
   deployCode?(): void;
   deployApk?(): void;
   onRobotSetup(): void;
+  /** Lumière Live: this computer's pairing secret, when Live runs are on. */
+  live?: { secret: string };
 }
 
 const FOLLOWER = new Map([["follow", "Following a path"], ["hold", "Holding position"], ["manual", "Manual drive"], ["idle", "Idle"]]);
@@ -70,11 +72,55 @@ export interface RunPanelProps {
   env: RunEnvironment;
   /** The planned routine, shown under the controls. */
   routine?: ReactNode;
+  /** What this computer sends Lumière Live, or null when it can't send this program. */
+  liveProgram?: LiveProgram | null;
   onHide(): void;
 }
 
+/** Lumière Live in Robot mode: whether this computer is paired, and what the robot found in the program it sent. */
+function LiveSection({ session, program, env, liveProgram }: { session: RunSession; program: Program; env: RunEnvironment; liveProgram?: LiveProgram | null }) {
+  const report = session.live;
+  if (!env.live && !report) return null;
+  const count = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+  let body: ReactNode;
+  if (!env.live) {
+    body = <p className="pv-note">{LIVE_OPMODE_NAME} is initialized on the robot. Turn on Live runs on the Robot page to send programs from this computer.</p>;
+  } else if (program.kind !== "autonomous") {
+    body = <p className="pv-note">{LIVE_OPMODE_NAME} runs autonomous programs. Open one to send it.</p>;
+  } else if (!liveProgram) {
+    body = <p className="pv-note">Fix the problems listed under Problems first. {LIVE_OPMODE_NAME} gets the same program a deploy would.</p>;
+  } else if (!report) {
+    body = <p className="pv-note">On the Driver Station, choose {LIVE_OPMODE_NAME} and press INIT. This computer then sends "{program.name}" for the robot to check.</p>;
+  } else {
+    const summary = report.program;
+    const stale = summary && summary.revision !== liveProgram.revision;
+    body = <>
+      <p className="pv-chip-line">
+        <span className={`pv-chip${report.paired ? "" : " muted"}`}>{report.paired ? "Paired" : "Pairing…"}</span>
+        {report.dryRun && <span className="pv-chip">Dry run: nothing moves</span>}
+      </p>
+      {!summary
+        ? <p className="pv-note">{report.paired ? "Sending the program…" : "Pairing with the robot…"}</p>
+        : report.state === "checking"
+          ? <p className="pv-note">Checking "{summary.name}" against the robot's hardware…</p>
+          : report.state === "accepted"
+            ? <p className="pv-live-result ok" role="status">"{summary.name}" passed: {count(summary.steps, "step")}, {count(summary.paths, "path")}, {count(summary.mechanisms, "mechanism")}. {report.started ? "START ran the dry run; nothing moved." : "Press START on the Driver Station for a dry run."}</p>
+            : <div className="pv-live-result bad" role="status">
+              <p>"{summary.name}" can't run on this robot: {count(report.problems.length, "problem")}.</p>
+              <ul>{report.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
+            </div>}
+      {report.notes.length > 0 && <ul className="pv-note pv-live-notes">{report.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
+      {stale && report.started && <p className="pv-note">The robot has an older version of this program. Stop {LIVE_OPMODE_NAME} and INIT it again to send this one.</p>}
+    </>;
+  }
+  return <Section title={LIVE_OPMODE_NAME}>
+    {body}
+    {session.liveError && <p className="pv-live-result bad" role="alert">{session.liveError}</p>}
+  </Section>;
+}
+
 /** The left panel in Simulate and Robot: how to start the simulator or reach the robot, and what to run. */
-export function RunPanel({ mode, session, project, program, env, routine, onHide }: RunPanelProps) {
+export function RunPanel({ mode, session, project, program, env, routine, liveProgram, onHide }: RunPanelProps) {
   const title = mode === "robot" ? "Robot" : session ? "Simulator" : "Preview";
   return <aside className="pv-panel pv-run-panel" aria-label={`${title} controls`}>
     <div className="pv-panel-head">
@@ -138,6 +184,7 @@ export function RunPanel({ mode, session, project, program, env, routine, onHide
           <p className="pv-active" role="status"><strong>{session.active ? `${session.active} · ${session.phase.toUpperCase()}` : "None reported"}</strong></p>
           <p className="pv-note">Start robot OpModes from the Driver Station. This connection reads telemetry and can request STOP.</p>
         </Section>
+        <LiveSection session={session} program={program} env={env} liveProgram={liveProgram}/>
         {env.desktop && <Section title="Deploy">
           <div className="pv-actions">
             <button type="button" disabled={!env.deployCode || !!env.busy} onClick={env.deployCode}>Deploy code</button>

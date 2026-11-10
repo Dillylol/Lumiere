@@ -65,6 +65,9 @@ public final class VirtualControlHub implements AutoCloseable {
     /** Set to list the deliberately faulty OpModes in {@code dev.lumiere.devtools.virtualhub.faults}. */
     public static final String FAULTS_PROPERTY = "vh.faults";
     private static final String FAULTS_PACKAGE = "dev.lumiere.devtools.virtualhub.faults";
+    /** Set to list a Lumière Live OpMode paired with the secret in VH_LIVE_SECRET (contract checks). */
+    public static final String LIVE_PROPERTY = "vh.live";
+    private static final String LIVE_PACKAGE = "dev.lumiere.devtools.virtualhub.live";
 
     private final SimulatorConfig config;
     private final List<OpModeCatalog.Entry> opModes;
@@ -81,6 +84,7 @@ public final class VirtualControlHub implements AutoCloseable {
         this.config = config;
         List<OpModeCatalog.Entry> found = new ArrayList<>(OpModeCatalog.scan(config.packagePrefix));
         if (System.getProperty(FAULTS_PROPERTY) != null) found.addAll(OpModeCatalog.scan(FAULTS_PACKAGE));
+        if (System.getProperty(LIVE_PROPERTY) != null) found.addAll(OpModeCatalog.scan(LIVE_PACKAGE));
         this.opModes = Collections.unmodifiableList(found);
         this.manager = VirtualOpModeManager.create(this::stopRequestedByRobotLibrary);
         DrivetrainDiscovery.Drivetrain drivetrain = DrivetrainDiscovery.discover(config.constantsClass);

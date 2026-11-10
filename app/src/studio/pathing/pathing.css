@@ -304,3 +304,12 @@ button.pv-run-button.stop:not(:disabled) { background: color-mix(in srgb, var(--
   .pv-stage { height: min(calc(100vw - 40px), 560px); }
   .pv-topbar { gap: 6px; padding: 0 8px; }
 }
+
+/* Lumière Live in Robot mode: pairing, and what the robot found in the program this computer sent. */
+.pv-chip-line .pv-chip { padding: 0 8px; margin: 0 6px 4px 0; }
+.pv-chip.muted { opacity: 0.7; }
+.pv-live-result { margin: 6px 0 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; line-height: 1.5; }
+.pv-live-result.ok { border-color: color-mix(in srgb, var(--mint) 60%, var(--border)); }
+.pv-live-result.bad { border-color: color-mix(in srgb, var(--danger) 65%, var(--border)); }
+.pv-live-result p { margin: 0; }
+.pv-live-result ul, .pv-live-notes { margin: 4px 0 0; padding-left: 18px; }

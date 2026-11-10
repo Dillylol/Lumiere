@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient,
   type ConnectionStatus, type GamepadStateMessage, type OpModeInfo, type Phase, type Point, type PoseMessage,
-  type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
+  readLiveReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
 } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
@@ -49,6 +49,11 @@ export interface RunSessionOptions {
   onHost?(host: string): void;
   /** Robot: the hardware its configuration lists, from the manifest, and what Pedro Pathing drives. */
   onScan?(devices: ScannedDevice[], pedro?: ScannedPedro): void;
+  /**
+   * Robot: this computer's Lumière Live pairing, and the program to send. When the robot reports
+   * Lumière Live initialized, the session pairs and sends the program, and sends it again when it changes.
+   */
+  live?: { secret: string; program: LiveProgram | null };
   /** Tests replace the WebSocket. */
   socketFactory?: SocketFactory;
 }
@@ -73,6 +78,10 @@ export interface RunSession {
   pose?: PoseMessage;
   /** The team's Pedro Pathing localizer the simulator stands in for, such as ThreeWheelIMULocalizer. */
   localizer?: string;
+  /** Robot: Lumière Live's latest report while it is initialized or running. */
+  live?: LiveReport;
+  /** Robot: why the robot refused this computer's pairing or program. */
+  liveError?: string;
   /** The follower's target pose and the path it reports following. */
   target?: PoseMessage;
   route?: [number, number][];
@@ -126,6 +135,10 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const [route, setRoute] = useState<[number, number][]>();
   const [trail, setTrail] = useState<Point[]>([]);
   const [telemetry, setTelemetry] = useState<string[]>([]);
+  const [live, setLive] = useState<LiveReport>();
+  const [liveError, setLiveError] = useState<string>();
+  const liveReport = useRef<LiveReport | undefined>(undefined);
+  const liveSent = useRef({ auth: false, failed: false, revision: null as string | null });
   const [data, setData] = useState<Record<string, unknown>>({});
   const [loopMs, setLoopMs] = useState<number>();
   const [follower, setFollower] = useState<string>();
@@ -183,7 +196,30 @@ export function useRunSession(options: RunSessionOptions): RunSession {
 
   /** What one OpMode run reported; cleared at INIT. */
   const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail(); };
+  const clearLive = () => {
+    liveSent.current = { auth: false, failed: false, revision: null };
+    liveReport.current = undefined;
+    setLive(undefined);
+    setLiveError(undefined);
+  };
+  /**
+   * Pairs with Lumière Live, then sends the program once the robot reports this connection paired.
+   * Nothing is sent once it has started, and a refused pairing is not retried on this connection.
+   */
+  const sendLive = () => {
+    const live = latest.current.live;
+    const report = liveReport.current;
+    const stream = client.current;
+    if (!robot || !live || !stream || !report || report.state === "closed" || report.started) return;
+    if (!liveSent.current.auth) {
+      liveSent.current.auth = stream.send({ type: "auth", token: live.secret });
+      return;
+    }
+    if (liveSent.current.failed || !report.paired || !live.program || liveSent.current.revision === live.program.revision) return;
+    if (stream.send({ type: "program", program: live.program })) liveSent.current.revision = live.program.revision;
+  };
   const clearStream = () => {
+    clearLive();
     runStart.current = null;
     setHello(undefined); setModes([]); setMode(""); setActive(null); setPhase("idle");
     setElapsed(0); setPose(undefined); setTelemetry([]); clearRun();
@@ -240,8 +276,21 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       setRoute(Array.isArray(message.points) ? message.points.filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])) : undefined);
     } else if (message.type === "telemetry") {
       setTelemetry(Array.isArray(message.lines) ? message.lines.map(String) : []);
+    } else if (message.type === "live") {
+      const report = robot ? readLiveReport(message) : null;
+      if (!report) return;
+      if (report.state === "closed") { clearLive(); return; }
+      liveReport.current = report;
+      setLive(report);
+      if (report.paired) setLiveError(undefined);
+      sendLive();
     } else if (message.type === "error") {
       latest.current.onLog(message.message);
+      // On a hub, errors without an OpMode answer this computer's Lumière Live pairing or program.
+      if (robot && !message.opMode && !message.stack) {
+        setLiveError(message.message);
+        if (liveSent.current.auth && liveSent.current.revision === null) liveSent.current.failed = true;
+      }
     }
   };
   /** Replaces any existing client, so one view never holds two connections. Events from a replaced client are ignored. */
@@ -351,6 +400,11 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     };
   }, [robot, connection, keyboard]);
 
+  // A new program, or Live runs turned on while Lumière Live waits, is sent without waiting for another report.
+  const liveRevision = options.live?.program?.revision;
+  const liveSecret = options.live?.secret;
+  useEffect(() => { sendLive(); }, [liveRevision, liveSecret]);
+
   return {
     source,
     status: !linked ? "Disconnected" : connection === "open" ? "Connected" : opened ? "Reconnecting…" : "Connecting…",
@@ -362,6 +416,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     open: () => void open(),
     find: () => void find(),
     disconnect,
+    live, liveError,
     init: () => { if (mode) client.current?.initOpMode(mode); },
     start: () => { client.current?.start(); },
     stop: () => { client.current?.stop(); },

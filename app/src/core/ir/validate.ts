@@ -1,5 +1,6 @@
 import { resolvePath } from "../geometry/paths";
 import { DRIVE_ROLES, ENCODER_ROLES, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType } from "./pedro";
+import { LIVE_OPMODE_NAME } from "../live/program";
 import {
   DRIVE_MOTOR_POSITIONS,
   FIELD_INCHES,
@@ -65,7 +66,9 @@ export function validateProject(project: Project): Diagnostic[] {
       add("error", "program.name.duplicate", `Two OpModes are named "${name}". Driver Station names must be unique.`, { programId: program.id });
     }
     names.set(key, program.id);
-    if (RESERVED_OPMODE_NAMES.some((reserved) => reserved.toLowerCase() === key)) {
+    if (key === LIVE_OPMODE_NAME.toLowerCase()) {
+      add("error", "program.name.live", `"${name}" is the name of ${LIVE_OPMODE_NAME}, the OpMode that runs programs sent from this computer. Choose another name.`, { programId: program.id });
+    } else if (RESERVED_OPMODE_NAMES.some((reserved) => reserved.toLowerCase() === key)) {
       add("warning", "program.name.reserved", `"${name}" is also the name of an example in the robot project. Choose another name.`, { programId: program.id });
     }
   }

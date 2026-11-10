@@ -137,6 +137,31 @@ describe("Java generation", () => {
     expect(result.diagnostics.map((item) => item.code)).toContain("target.invalid");
   });
 
+  it("adds Lumière Live, paired by its hash, only when Live runs are on", () => {
+    const project = structuredClone(projects[0][1]);
+    const hash = "a".repeat(64);
+    const off = generateJava(project);
+    if (!off.ok) throw new Error(JSON.stringify(off.diagnostics));
+    expect(off.files.some((file) => file.path.endsWith("/LumiereLive.java"))).toBe(false);
+    // A program whose class would be LumiereLive gets another name.
+    project.programs[0].name = "Lumiere Live";
+    const result = generateJava(project, { constantsClass: "org.firstinspires.ftc.teamcode.pedro.Constants", live: { pairingHash: hash } });
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+    const live = result.files.find((file) => file.path.endsWith("/LumiereLive.java"))!.content;
+    expect(live).toContain(`@Autonomous(name = "Lumière Live", group = "Lumière")`);
+    expect(live).toContain("public class LumiereLive extends LiveRunner");
+    expect(live).toContain(`return "${hash}";`);
+    expect(live).toContain("return Constants.class;");
+    expect(live).toContain("return Constants.create(hardwareMap);");
+    expect(live).toContain("return 0.6;");
+    expect(live).toContain("import dev.lumiere.ftc.live.LiveRunner;");
+    expect(ownershipOf(live)).toBe("generated");
+    expect(result.files.some((file) => file.path.endsWith("/LumiereLive2.java"))).toBe(true);
+
+    expect(checkJavaTarget({ live: { pairingHash: "not a hash" } })).toMatch(/pairing is damaged/);
+    expect(checkJavaTarget({ live: { pairingHash: hash, powerCap: 1.5 } })).toMatch(/power limit/);
+  });
+
   it("keeps generated class names from shadowing the constants class", () => {
     const project = structuredClone(projects[0][1]);
     project.subsystems[0].name = "Robot Constants";

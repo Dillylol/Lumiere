@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { ChevronDown, Download, Flame, PanelLeft, PanelRight, Settings } from "lucide-react";
 import { BRAND } from "../../brand";
 import {
-  addPath, AUTONOMOUS_PERIOD_MS, deletePath, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
+  addPath, AUTONOMOUS_PERIOD_MS, buildLiveProgram, deletePath, hasErrors, validateProject, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
   mirrorProgram, movePath, newId, removeControlPoint, resolveProgramPaths, samplePath, snapToGrid,
   type AutonomousProgram, type Pose, type Program, type Project,
 } from "../../core";
@@ -107,8 +107,13 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
   // Both connections belong to the workspace, so switching modes keeps them; leaving Pathing or the program closes them.
   const simulator = useRunSession({ source: "simulator", projectId: project.id, programName: program.name, onLog: env.onLog,
     launch: env.launch, cancel: env.cancel, canLaunch: env.canLaunch });
+  // Lumière Live gets the program a deploy would generate, so it waits until the project has no errors.
+  const liveProgram = useMemo(() => {
+    if (!env.live || program.kind !== "autonomous" || hasErrors(validateProject(project))) return null;
+    try { return buildLiveProgram(project, program); } catch { return null; }
+  }, [env.live, project, program]);
   const robot = useRunSession({ source: "robot", projectId: project.id, programName: program.name, onLog: env.onLog,
-    host: env.host, onHost: env.onHost, onScan: env.onScan });
+    host: env.host, onHost: env.onHost, onScan: env.onScan, live: env.live ? { secret: env.live.secret, program: liveProgram } : undefined });
   const session = shownMode === "robot" ? robot : shownMode === "simulate" && env.desktop ? simulator : undefined;
 
   // The BIOBUZZ field has light and dark pictures; follow the app's theme when it changes.
@@ -319,7 +324,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
             onMovePath={(pathId, by) => commit(movePath(auto, pathId, by))}
             onToggleOverlay={(id) => setOverlayIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id].slice(-4)))}
             onHide={() => setLeftHidden(true)}/>
-          : <RunPanel mode={shownMode === "robot" ? "robot" : "simulate"} session={session} project={project} program={program} env={env} onHide={() => setLeftHidden(true)}
+          : <RunPanel mode={shownMode === "robot" ? "robot" : "simulate"} session={session} project={project} program={program} env={env} liveProgram={liveProgram} onHide={() => setLeftHidden(true)}
             routine={auto && estimate && <Section title="Plan" count={auto.routine.length}><RoutineSteps project={project} program={auto} estimate={estimate} activeIds={activeIds}/></Section>}/>}
       <section className="pv-panel pv-field-panel" aria-label="Field">
         <FieldView project={project} program={auto} paths={paths} overlays={develop ? overlays : []} selection={selection} tool={tool} editable={develop}

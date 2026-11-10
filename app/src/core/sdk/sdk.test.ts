@@ -109,6 +109,19 @@ describe("planDeploy", () => {
     return next;
   };
 
+  it("removes Lumière Live when Live runs are turned off, even when outdated files are kept", () => {
+    const live = { pairingHash: "b".repeat(64) };
+    const on = expectPlan(planDeploy(project(), settings({ live }), new Map()));
+    const path = `${JAVA}/generated/samplerobot/LumiereLive.java`;
+    expect(on.writes.find((entry) => entry.path === path)?.action).toBe("create");
+    const disk = apply(on, new Map());
+    const off = expectPlan(planDeploy(project(), settings({ removeOutdated: false }), disk, on.generatedPaths));
+    expect(off.removals).toEqual([{ path, reason: "Live runs are off on this computer." }]);
+    // Edited by hand, it stays like any edited generated file.
+    const edited = new Map(disk).set(path, disk.get(path)!.replace("0.6", "0.5"));
+    expect(expectPlan(planDeploy(project(), settings(), edited, on.generatedPaths)).removals).toEqual([]);
+  });
+
   it("creates every file on the first deploy and changes nothing on the second", () => {
     const first = expectPlan(planDeploy(project(), settings(), new Map()));
     expect(first.writes.every((entry) => entry.action === "create")).toBe(true);

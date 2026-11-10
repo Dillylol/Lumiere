@@ -134,7 +134,16 @@ as on a slow hub, and connects one app during that gap.
 15. STOP from the app also works during INIT.
 16. Driver Station telemetry and the true pose stay off the robot stream.
 17. Silent clients are disconnected after 10 s, as `docs/protocol.md` says.
-18. No OpMode errors.
+18. Lumière Live refuses pairing and programs while it is not running.
+19. Driver Station INIT opens Lumière Live. A late client gets its report, and it refuses a wrong
+    pairing secret and a program from an unpaired connection. The check lists its own Lumière Live
+    (`harness/java/.../live/VirtualLive.java`), paired with a secret that is new for every run.
+20. A paired computer's program is checked against the configuration and Pedro Pathing's devices.
+    A program that uses Pedro's front-left drive motor, misuses a device, and names a missing one
+    is rejected with those three reasons. A valid one is accepted, and the Driver Station shows it.
+21. START in the dry run moves nothing, a program sent after START is refused, and STOP closes
+    Lumière Live.
+22. No OpMode errors.
 
 ## What `--shakedown` covers
 

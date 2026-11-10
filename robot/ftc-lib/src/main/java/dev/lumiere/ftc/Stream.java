@@ -29,6 +29,7 @@ public final class Stream {
     private static volatile Transport transport;
     private static volatile String lastManifest;
     private static volatile String lastLifecycle;
+    private static volatile String lastLive;
 
     private Stream() {
     }
@@ -52,6 +53,7 @@ public final class Stream {
         String message = encode(type, body);
         if ("manifest".equals(type)) lastManifest = message;
         if ("lifecycle".equals(type)) lastLifecycle = message;
+        if ("live".equals(type)) lastLive = message;
         if (current == null || !current.hasClients()) return;
         try {
             current.broadcast(message);
@@ -68,6 +70,16 @@ public final class Stream {
     /** The most recent lifecycle message, replayed to clients that connect later. */
     public static String lastLifecycle() {
         return lastLifecycle;
+    }
+
+    /** The most recent Lumière Live report while Lumière Live is open, replayed to clients that connect later. */
+    public static String lastLive() {
+        return lastLive;
+    }
+
+    /** Forgets the Lumière Live report once Lumière Live has stopped, so late clients don't see a stale one. */
+    public static void clearLive() {
+        lastLive = null;
     }
 
     public static String encode(String type, Map<String, Object> body) {

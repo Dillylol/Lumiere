@@ -142,4 +142,51 @@ describe("useRunSession", () => {
     expect(result.current.status).toBe("Disconnected");
     expect(result.current.hello).toBeUndefined();
   });
+  it("pairs with Lumière Live, sends the open program, and sends it again when it changes", () => {
+    const program = (revision: string) => ({ format: 1 as const, name: "Main Auto", revision, start: { x: 9, y: 72, headingDeg: 0 }, mechanisms: [], paths: [], routine: [] });
+    const report = (fields: object) => ({ type: "live", opMode: "Lumière Live", state: "waiting", started: false, paired: false, dryRun: true, powerCap: 0.6, program: null, problems: [], notes: [], ...fields });
+    let live = { secret: "s".repeat(64), program: program("r1") };
+    const { result, sockets, rerender } = setup({ source: "robot", host: "10.0.0.5", get live() { return live; } });
+    act(() => result.current.open());
+    const socket = sockets[0];
+    act(() => socket.open());
+    act(() => socket.receive({ type: "hello", protocol: 1, source: "robot", library: "hub" }));
+    expect(socket.commands()).toEqual([]);
+
+    // The Driver Station initializes Lumière Live: pair first, then send the program once paired.
+    act(() => socket.receive(report({})));
+    expect(last(socket.sent)).toEqual({ type: "auth", token: "s".repeat(64) });
+    act(() => socket.receive(report({ paired: true })));
+    expect(last(socket.sent)).toEqual({ type: "program", program: program("r1") });
+    act(() => socket.receive(report({ paired: true, state: "rejected", program: { name: "Main Auto", revision: "r1", steps: 0, paths: 0, mechanisms: 0 }, problems: ["\"lift\" in Lift is not in the robot's configuration."] })));
+    expect(result.current.live?.problems).toEqual(["\"lift\" in Lift is not in the robot's configuration."]);
+
+    // An edit is sent without waiting for another report; the same revision is not sent twice.
+    live = { ...live, program: program("r2") };
+    rerender();
+    expect(last(socket.sent)).toEqual({ type: "program", program: program("r2") });
+    act(() => socket.receive(report({ paired: true, state: "accepted", started: true })));
+    live = { ...live, program: program("r3") };
+    rerender();
+    expect(socket.commands().filter((type) => type === "program")).toHaveLength(2);
+
+    // Lumière Live stopped: the report clears, and the next INIT pairs again.
+    act(() => socket.receive(report({ state: "closed" })));
+    expect(result.current.live).toBeUndefined();
+    act(() => socket.receive(report({})));
+    expect(socket.commands().filter((type) => type === "auth")).toHaveLength(2);
+  });
+
+  it("stops after the robot refuses this computer's pairing", () => {
+    const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "x".repeat(64), program: null } });
+    act(() => result.current.open());
+    const socket = sockets[0];
+    act(() => socket.open());
+    act(() => socket.receive({ type: "live", state: "waiting", started: false, paired: false, dryRun: true, problems: [], notes: [] }));
+    act(() => socket.receive({ type: "error", message: "This computer is not paired with Lumière Live on this robot." }));
+    expect(result.current.liveError).toMatch(/not paired/);
+    // Another computer pairs; this one does not send a program after its own pairing failed.
+    act(() => socket.receive({ type: "live", state: "waiting", started: false, paired: true, dryRun: true, problems: [], notes: [] }));
+    expect(socket.commands()).toEqual(["auth"]);
+  });
 });

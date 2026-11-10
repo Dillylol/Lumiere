@@ -8,6 +8,7 @@
 //   VH_PROBE     set to run the Pedro heading probe
 //   VH_BOOT_DELAY_MS  delay between the robot stream starting and OpModes being ready (a slow hub)
 //   VH_FAULTS    set to also list the deliberately faulty OpModes (shakedown)
+//   VH_LIVE      set to also list a Lumière Live OpMode paired with VH_LIVE_SECRET (check; the secret is read by the harness)
 //   VH_PEDRO     resolve Pedro Pathing core and revhub at this version instead of the project's
 //   VH_TOKEN     Driver Station token (read by the harness, not here)
 
@@ -25,7 +26,7 @@ if (gradle.parent == null) {
                 project.android.sourceSets.test.java.srcDir(harness)
                 project.tasks.withType(Test).configureEach { Test task ->
                     [VH_DS_PORT: 'vh.dsPort', VH_CONFIG: 'vh.config', VH_PROBE: 'vh.probe',
-                     VH_BOOT_DELAY_MS: 'vh.bootDelayMs', VH_FAULTS: 'vh.faults'].each { name, property ->
+                     VH_BOOT_DELAY_MS: 'vh.bootDelayMs', VH_FAULTS: 'vh.faults', VH_LIVE: 'vh.live'].each { name, property ->
                         if (env[name]) task.systemProperty(property, env[name])
                     }
                     task.outputs.upToDateWhen { false }
