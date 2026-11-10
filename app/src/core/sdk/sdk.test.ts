@@ -4,7 +4,7 @@ import sources from "../../../../quickstart/sources.json";
 import { BRAND } from "../../brand";
 import { generateJava } from "../codegen/java/generate";
 import { parseProject } from "../ir/schema";
-import { defaultDeploySettings, describeDeploy, planDeploy, type DeployPlan, type DeploySettings } from "./deploy";
+import { defaultDeploySettings, describeDeploy, LIVE_MIN_LIBRARY, olderLibrary, planDeploy, type DeployPlan, type DeploySettings } from "./deploy";
 import { inspectFtcProject } from "./ftcProject";
 
 type NodeFs = { readFileSync(path: string, encoding: "utf8"): string };
@@ -108,6 +108,21 @@ describe("planDeploy", () => {
     for (const removal of plan.removals) next.delete(removal.path);
     return next;
   };
+
+  it("warns when Live runs are on but TeamCode's robot library predates Lumière Live", () => {
+    expect(olderLibrary("v0.2.0", "0.3.0")).toBe(true);
+    expect(olderLibrary("0.2.9", "0.3.0")).toBe(true);
+    expect(olderLibrary("v0.3.0", "0.3.0")).toBe(false);
+    expect(olderLibrary("v1.0.0", "0.3.0")).toBe(false);
+    expect(olderLibrary("0.0.0-local", "0.3.0")).toBe(false);
+    expect(olderLibrary("a1b2c3d", "0.3.0")).toBe(false);
+    const inspection = inspectFtcProject({ files: quickstartProject() });
+    const old = { ...inspection, libraries: inspection.libraries.map((library) => (library.artifact.endsWith("ftc-lib") ? { ...library, found: "v0.2.0" } : library)) };
+    const live = { pairingHash: "c".repeat(64) };
+    const warned = expectPlan(planDeploy(project(), settings({ live }), new Map(), [], [], old));
+    expect(warned.warnings.join(" ")).toContain(`Lumière Live needs robot library ${LIVE_MIN_LIBRARY} or newer, but TeamCode uses v0.2.0.`);
+    expect(expectPlan(planDeploy(project(), settings(), new Map(), [], [], old)).warnings.join(" ")).not.toContain("Lumière Live");
+  });
 
   it("removes Lumière Live when Live runs are turned off, even when outdated files are kept", () => {
     const live = { pairingHash: "b".repeat(64) };

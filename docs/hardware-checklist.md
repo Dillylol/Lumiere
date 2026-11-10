@@ -15,6 +15,7 @@ the drivetrain, the odometry pods, or library versions.
 | Loop timing on the Control Hub | Desktop loops run faster and more evenly | 6 |
 | Panels, AutoTune, and live data on robot Wi-Fi | Their servers only run on the Robot Controller | 2, 5, 7 |
 | Deploying with adb over Wi-Fi | Needs a Control Hub | 2 |
+| Lumière Live's stops over real robot Wi-Fi | The virtual hub's network never drops: the app and robot share one computer | 9 |
 
 ## Before powering on
 
@@ -60,6 +61,18 @@ the drivetrain, the odometry pods, or library versions.
    1. Check that driving starts field-centric and that **A** switches to robot-centric.
    2. Check that **back** resets the heading.
    3. Check that **right bumper** slows the robot.
+9. **[Lumière Live](live.md)** (optional). Turn on Live runs on the Robot page and set the power limit to 0.3. Deploy and install, then confirm the Driver Station lists **Lumière Live**.
+   1. **Check.** With Pathing → Robot connected, INIT Lumière Live.
+      - The panel and the Driver Station show the program as passed.
+      - Rename one mechanism device to a name the robot doesn't have: the app sends the program again, and the robot rejects it, naming the device.
+      - Change it back.
+   2. **Run** (robot on the stand). START. Mechanisms move at no more than 0.3 power, and the wheels turn as the paths command.
+   3. **Silence.** During a run, turn off the laptop's Wi-Fi. The robot stops within about a second, the OpMode ends, and the Driver Station shows why.
+   4. **Disconnect.** During a run, disconnect in Pathing → Robot. The robot stops at once.
+   5. **Driver Station STOP.** During a run, press STOP. The robot stops at once.
+   6. **Travel.** Give a motor that takes encoder targets a travel range narrower than its targets: the check rejects it. Then drive it past a narrow range with a power state: the run stops, naming the motor.
+   7. **On the floor.** Raise the power limit as far as you trust the program, place the robot at the start pose, and run the full autonomous. Compare its time with the deployed OpMode's in the Run comparison.
+   8. **Before events,** turn Live runs off and deploy, then confirm the Driver Station no longer lists Lumière Live.
 
 ## Record the results
 

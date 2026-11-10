@@ -40,9 +40,12 @@ Sent once after connecting, or after `auth` on the simulator.
   "type": "hello",
   "protocol": 1,
   "source": "robot",
-  "library": "1.0.0"
+  "library": "1.0.0",
+  "capabilities": { "live": 1 }
 }
 ```
+
+- **`capabilities`** (robot only): what the robot library can do beyond the stream. `live` is the [Lumière Live](#lumière-live-programs) program format it reads. Robot libraries older than Lumière Live leave it out.
 
 The simulator also sends:
 
@@ -202,7 +205,7 @@ Lumière Live's report, sent to every client whenever it changes while Lumière 
 - **`paired`:** whether a computer is paired with this run of Lumière Live.
 - **`dryRun`:** true from robot libraries whose Lumière Live only checked programs and never moved. It is false since programs run.
 - **`silenceMs`:** how long Lumière Live waits to hear from the paired computer before it stops a run.
-- **`run`:** after START. `phase` is `running`, `finished` (the routine is done, and the follower holds its last pose), `stopped` with a `reason`, or `not run` with a `reason`, such as no program that passed or no paired computer. `elapsedMs` is the routine's time once it finishes.
+- **`run`:** after START. `phase` is `running`, `finished` (the routine is done, and the follower holds its last pose), `stopped` with a `reason`, or `not run` with a `reason`, such as no program that passed or no paired computer. `elapsedMs` is the routine's time once it finishes. The `closed` report keeps the run's last phase, so it says how the run ended; Driver Station STOP during a run makes it `stopped`. The app shows that report until the next INIT.
 - **`problems`:** why the program can't run on this robot: a device that is missing or configured as another type, a device Pedro Pathing drives, an encoder target on a dead wheel's port, an encoder target without a travel range or outside it, or a malformed program. **`notes`:** what doesn't stop it, such as a power above `powerCap`.
 
 ## Lumière Live programs
@@ -211,7 +214,7 @@ Lumière generates `LumiereLive.java` (`@Autonomous` "Lumière Live") when Live 
 
 - **INIT:** a program that passes the check is set up as a generated OpMode's `init()` sets it up. The follower is placed at the start pose, and each mechanism's devices are configured and its starting state applied.
 - **START:** the routine runs with the Pedro Pathing paths and Ivy commands the generated Java would use. Mechanism powers are capped at the power cap.
-- **Stopping:** a run stops when the paired computer is silent for more than `silenceMs` (the app pings every 250 ms while paired), when it disconnects, when a motor with encoder targets leaves its travel range, or on any error. Stopping sets mechanism motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
+- **Stopping:** a run stops when the paired computer is silent for more than `silenceMs` (the app pings every 250 ms while paired, and on a received message whenever its timer runs late, as browsers make it for a hidden page), when it disconnects, when a motor with encoder targets leaves its travel range, or on any error. Stopping sets mechanism motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
 - **The Driver Station stays in charge:** only it can INIT and START Lumière Live, and its STOP always works.
 
 When Lumière Live is initialized, the paired app sends `auth`, then `program`, and a new `program` whenever the open program changes before START. A program (format 1):

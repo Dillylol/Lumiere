@@ -202,6 +202,54 @@ describe("useRunSession", () => {
     }
   });
 
+  it("files a Lumière Live run's time under the program it ran", () => {
+    const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "s".repeat(64), program: null } });
+    act(() => result.current.open());
+    const socket = sockets[0];
+    act(() => socket.open());
+    act(() => {
+      socket.receive({ type: "hello", protocol: 1, source: "robot", library: "hub", capabilities: { live: 1 } });
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "init" });
+      socket.receive({ type: "live", state: "accepted", started: false, paired: true, dryRun: false, problems: [], notes: [],
+        program: { name: "Main Auto", revision: "r1", steps: 3, paths: 2, mechanisms: 1 } });
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "running" });
+      socket.receive({ type: "state", opMode: "Lumière Live", data: { "lumiere.routineElapsedMs": 23560, "lumiere.routineRevision": "r1" } });
+    });
+    const stored = JSON.parse(localStorage.getItem("lumiere-run-timings:project") ?? "[]");
+    expect(stored).toEqual([{ source: "robot", opMode: "Main Auto", elapsedMs: 23560, metric: "routine", revision: "r1" }]);
+  });
+
+  it("keeps how a Lumière Live run ended until the next INIT", () => {
+    const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "s".repeat(64), program: null } });
+    act(() => result.current.open());
+    const socket = sockets[0];
+    act(() => socket.open());
+    const program = { name: "Main Auto", revision: "r1", steps: 3, paths: 2, mechanisms: 1 };
+    const report = { type: "live", paired: true, dryRun: false, problems: [], notes: [], program };
+    act(() => {
+      socket.receive({ type: "hello", protocol: 1, source: "robot", library: "hub", capabilities: { live: 1 } });
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "init" });
+      socket.receive({ ...report, state: "accepted", started: false });
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "running" });
+      socket.receive({ ...report, state: "accepted", started: true, run: { phase: "stopped", reason: "Lumière Live stopped: the paired computer was silent for more than 1.0 s." } });
+      // The robot ends the OpMode straight after stopping a run.
+      socket.receive({ ...report, state: "closed", started: true, paired: false, run: { phase: "stopped", reason: "Lumière Live stopped: the paired computer was silent for more than 1.0 s." } });
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "stopped" });
+    });
+    expect(result.current.live?.state).toBe("closed");
+    expect(result.current.live?.run?.reason).toMatch(/silent/);
+    expect(result.current.live?.program?.revision).toBe("r1");
+    act(() => socket.receive({ type: "lifecycle", opMode: "Example Auto", phase: "init" }));
+    expect(result.current.live).toBeUndefined();
+    // An OpMode stopped before START leaves nothing to show.
+    act(() => {
+      socket.receive({ type: "lifecycle", opMode: "Lumière Live", phase: "init" });
+      socket.receive({ ...report, state: "accepted", started: false });
+      socket.receive({ ...report, state: "closed", started: false, paired: false });
+    });
+    expect(result.current.live).toBeUndefined();
+  });
+
   it("stops after the robot refuses this computer's pairing", () => {
     const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "x".repeat(64), program: null } });
     act(() => result.current.open());

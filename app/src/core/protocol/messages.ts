@@ -33,6 +33,8 @@ export type ServerMessage =
       protocol: number;
       source: "robot" | "simulator";
       library: string;
+      /** What the robot library can do beyond the stream: `live` is the Lumière Live program format it reads. */
+      capabilities?: { live?: number };
       drivetrain?: {
         motors: string[];
         /** The Pinpoint's device name, or null for any other localizer. */

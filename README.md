@@ -17,7 +17,7 @@ Version 0.1.1 is released. The workspace, robot library, desktop simulator, quic
 | `quickstart/` | Pinned upstream sources and the overlay layered onto the official FTC SDK to create a robot project |
 | `fixtures/` | Shared test fixtures: sample projects, golden Java, parity cases, build output |
 | `scripts/` | Quickstart generator, simulator smoke test, branding and rename tools |
-| `docs/` | Protocol, compatibility, simulator, [connecting an FTC SDK project](docs/connect-ftc-sdk.md), and hardware checklist |
+| `docs/` | Protocol, compatibility, simulator, [connecting an FTC SDK project](docs/connect-ftc-sdk.md), [Lumière Live](docs/live.md), and hardware checklist |
 
 ## Development
 

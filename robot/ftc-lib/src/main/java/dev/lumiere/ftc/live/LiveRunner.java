@@ -212,6 +212,11 @@ public abstract class LiveRunner extends OpMode {
         if (session != null) session.close();
         LiveLink.close(this);
         synchronized (this) {
+            // The app keeps showing how a run ended after the OpMode closes, so a STOP mid-run says so.
+            if ("running".equals(runPhase)) {
+                runPhase = "stopped";
+                runReason = NAME + " stopped: STOP was pressed on the Driver Station.";
+            }
             closed = true;
             state = "closed";
             peer = null;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { ChevronDown, Download, Flame, PanelLeft, PanelRight, Settings } from "lucide-react";
 import { BRAND } from "../../brand";
 import {
-  addPath, AUTONOMOUS_PERIOD_MS, buildLiveProgram, deletePath, hasErrors, validateProject, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
+  addPath, AUTONOMOUS_PERIOD_MS, buildLiveProgram, deletePath, hasErrors, LIVE_OPMODE_NAME, validateProject, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
   mirrorProgram, movePath, newId, removeControlPoint, resolveProgramPaths, samplePath, snapToGrid,
   type AutonomousProgram, type Pose, type Program, type Project,
 } from "../../core";
@@ -200,7 +200,10 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
 
   // Planned against actual: when the run is this program's own OpMode, the estimate's pose at the run's
   // time is drawn as a ghost, and the panel reports how far the robot is from the planned path.
-  const ownOpMode = !!session && !!auto && session.active === program.name;
+  // A Lumière Live run of the program this computer sent counts as this program's own run.
+  const liveRun = !!session && session.source === "robot" && session.active === LIVE_OPMODE_NAME
+    && !!liveProgram && session.live?.program?.revision === liveProgram.revision;
+  const ownOpMode = !!session && !!auto && (session.active === program.name || liveRun);
   const started = ownOpMode && (session.phase === "running" || session.phase === "stopped");
   const plannedPoints = useMemo(() => paths.flatMap((path) => samplePath(path, 64)), [paths]);
   const actual = session?.pose;

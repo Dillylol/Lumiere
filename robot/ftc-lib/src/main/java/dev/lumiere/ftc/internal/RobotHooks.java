@@ -18,6 +18,7 @@ import org.firstinspires.ftc.robotcore.internal.opmode.RegisteredOpModes;
 import dev.lumiere.ftc.Manifest;
 import dev.lumiere.ftc.Stream;
 import dev.lumiere.ftc.live.LiveLink;
+import dev.lumiere.ftc.live.LiveProgram;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,6 +100,10 @@ public final class RobotHooks {
         hello.put("protocol", Stream.PROTOCOL_VERSION);
         hello.put("source", "robot");
         hello.put("library", Stream.libraryVersion());
+        // What this robot library can do beyond the stream: Lumière Live, with the program format it reads.
+        Map<String, Object> capabilities = Json.object();
+        capabilities.put("live", (double) LiveProgram.FORMAT);
+        hello.put("capabilities", capabilities);
         messages.add(Stream.encode("hello", hello));
         String manifest = Stream.lastManifest();
         messages.add(manifest != null ? manifest : Stream.encode("manifest", Manifest.build(null, registeredOpModes())));

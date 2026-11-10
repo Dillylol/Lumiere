@@ -64,6 +64,34 @@ describe("StreamClient", () => {
     expect(messages).toEqual(["hello"]);
   });
 
+  it("pings on received messages while its timer runs late, as in a hidden page", () => {
+    const stream = client({ pingIntervalMs: 250 });
+    stream.connect();
+    const socket = FakeSocket.created[0];
+    socket.open();
+    const pings = () => socket.sent.filter((data) => JSON.parse(data).type === "ping").length;
+    const receive = () => socket.emit("message", JSON.stringify({ type: "telemetry", lines: [] }));
+    receive();
+    expect(pings()).toBe(0);
+    // Timers stall while messages keep arriving.
+    vi.setSystemTime(Date.now() + 299);
+    receive();
+    expect(pings()).toBe(0);
+    vi.setSystemTime(Date.now() + 1);
+    receive();
+    receive();
+    expect(pings()).toBe(1);
+    vi.setSystemTime(Date.now() + 300);
+    receive();
+    expect(pings()).toBe(2);
+    vi.advanceTimersByTime(250);
+    expect(pings()).toBe(3);
+    stream.close();
+    vi.setSystemTime(Date.now() + 1000);
+    receive();
+    expect(pings()).toBe(3);
+  });
+
   it("reconnects with backoff after an unexpected close, but not after close()", () => {
     const stream = client();
     const statuses: string[] = [];

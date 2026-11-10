@@ -31,6 +31,22 @@ export function defaultDeploySettings(project: Project, inspection?: FtcProjectI
   return { javaPackage: defaultJavaPackage(project), constantsClass, programIds: null, removeOutdated: true };
 }
 
+/**
+ * The first robot library release with Lumière Live. The robot library's version follows the app's, and a
+ * local build (`0.0.0-local`) is always current.
+ */
+export const LIVE_MIN_LIBRARY = "0.3.0";
+
+/** True when a robot library version is a release older than `minimum`; unknown forms, such as a commit, are not. */
+export function olderLibrary(version: string, minimum: string): boolean {
+  const parse = (text: string) => /^v?(\d+)\.(\d+)\.(\d+)$/.exec(text.trim())?.slice(1).map(Number);
+  const found = parse(version);
+  const needed = parse(minimum);
+  if (!found || !needed || version.trim() === "0.0.0-local") return false;
+  for (let i = 0; i < 3; i++) if (found[i] !== needed[i]) return found[i] < needed[i];
+  return false;
+}
+
 export interface DeployRemoval {
   path: string;
   reason: string;
@@ -131,6 +147,10 @@ export function planDeploy(
     for (const problem of inspection.incompatible) warnings.push(problem);
     const missing = inspection.libraries.filter((library) => !library.ok).map((library) => library.name);
     if (missing.length) warnings.push(`The robot project is missing ${missing.join(", ")}. Add the libraries before building.`);
+    const library = inspection.libraries.find((item) => item.artifact.endsWith("ftc-lib"));
+    if (settings.live && library?.found && olderLibrary(library.found, LIVE_MIN_LIBRARY)) {
+      warnings.push(`Lumière Live needs robot library ${LIVE_MIN_LIBRARY} or newer, but TeamCode uses ${library.found}. Update the robot library version in TeamCode/libraries.gradle, or LumiereLive.java won't build.`);
+    }
     if (!inspection.constantsClasses.some((item) => item.qualifiedName === settings.constantsClass)) {
       warnings.push(`No class ${settings.constantsClass} with static Follower create(HardwareMap) was found in TeamCode.`);
     }

@@ -34,6 +34,13 @@ export interface StreamClientOptions {
 const OPEN = 1;
 
 /**
+ * How late the ping timer must be, as a multiple of the interval, before a received message sends the
+ * ping instead. Browsers run a hidden page's timers about once a second or less, but still deliver its
+ * messages promptly.
+ */
+const LATE_PING = 1.2;
+
+/**
  * A connection to a robot or simulator stream. It authenticates, keeps the connection alive with pings,
  * and reconnects with backoff. Commands sent while disconnected are dropped rather than queued, so a
  * stale STOP or gamepad state is never delivered late.
@@ -44,6 +51,8 @@ export class StreamClient {
   private closedByUser = false;
   private attempts = 0;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  /** When this connection last pinged, or opened, by `Date.now()`. */
+  private lastPingAt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly messageListeners = new Set<Listener<ServerMessage>>();
   private readonly statusListeners = new Set<Listener<ConnectionStatus>>();
@@ -130,11 +139,13 @@ export class StreamClient {
       if (this.socket !== socket) return;
       if (this.options.token) socket.send(JSON.stringify({ type: "auth", token: this.options.token }));
       this.attempts = 0;
+      this.lastPingAt = Date.now();
       this.setStatus("open");
       this.startPinging(socket);
     });
     socket.addEventListener("message", (event) => {
       if (this.socket !== socket) return;
+      this.pingIfLate(socket);
       const message = parseServerMessage(event.data);
       if (!message) return;
       if (message.type === "pong" && typeof message.t === "number") this.latencyMs = Date.now() - message.t;
@@ -164,8 +175,25 @@ export class StreamClient {
 
   private startPinging(socket: SocketLike) {
     if (this.pingTimer) clearInterval(this.pingTimer);
-    const ping = () => { if (socket.readyState === OPEN) socket.send(JSON.stringify({ type: "ping", t: Date.now() })); };
-    this.pingTimer = setInterval(ping, this.options.pingIntervalMs ?? 2000);
+    this.pingTimer = setInterval(() => this.ping(socket), this.pingInterval());
+  }
+
+  private pingInterval() {
+    return this.options.pingIntervalMs ?? 2000;
+  }
+
+  private ping(socket: SocketLike) {
+    if (socket.readyState !== OPEN) return;
+    this.lastPingAt = Date.now();
+    socket.send(JSON.stringify({ type: "ping", t: this.lastPingAt }));
+  }
+
+  /**
+   * Pings on a received message when the timer is late. A robot streams while an OpMode runs, so the
+   * pings keep the pace Lumière Live needs even while the app is in the background.
+   */
+  private pingIfLate(socket: SocketLike) {
+    if (this.pingTimer && Date.now() - this.lastPingAt >= this.pingInterval() * LATE_PING) this.ping(socket);
   }
 
   private scheduleReconnect() {

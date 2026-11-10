@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient,
   type ConnectionStatus, type GamepadStateMessage, type OpModeInfo, type Phase, type Point, type PoseMessage,
-  readLiveReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
+  LIVE_OPMODE_NAME, readLiveReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
 } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
@@ -266,7 +266,11 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     } else if (message.type === "lifecycle" && PHASES.includes(message.phase)) {
       setActive(typeof message.opMode === "string" ? message.opMode : null);
       if (typeof message.opMode === "string" && message.phase !== "stopped") setMode(message.opMode);
-      if (message.phase === "init") { clearRun(); setTelemetry([]); if (robot) setPose(undefined); }
+      if (message.phase === "init") {
+        clearRun(); setTelemetry([]);
+        if (robot) setPose(undefined);
+        if (!liveReport.current) setLive(undefined);
+      }
       setPhase(message.phase);
       if (robot) time(message.phase);
     } else if (message.type === "robot") {
@@ -291,7 +295,12 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     } else if (message.type === "live") {
       const report = robot ? readLiveReport(message) : null;
       if (!report) return;
-      if (report.state === "closed") { clearLive(); return; }
+      if (report.state === "closed") {
+        clearLive();
+        // How a run ended stays shown, and the run stays drawn against the plan, until the next INIT.
+        if (report.started && report.run) setLive(report);
+        return;
+      }
       liveReport.current = report;
       setLive(report);
       if (report.paired) setLiveError(undefined);
@@ -328,7 +337,9 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     stream.onMessage((message) => {
       if (client.current !== stream) return;
       const timing = recorder.receive(message, performance.now());
-      if (timing) saveRunTiming(latest.current.projectId, timing);
+      // A Lumière Live run is filed under the program it ran, not under Lumière Live.
+      const ran = liveReport.current?.program?.name;
+      if (timing) saveRunTiming(latest.current.projectId, timing.opMode === LIVE_OPMODE_NAME && ran ? { ...timing, opMode: ran } : timing);
       receive(message);
     });
     stream.connect();

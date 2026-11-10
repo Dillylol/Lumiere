@@ -1,6 +1,6 @@
 # Release progress
 
-Updated 2026-11-07. This record separates what has been verified locally from what still waits on hardware,
+Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
 continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.2.0 is tagged from this record.
 
 ## Unreleased
@@ -46,10 +46,18 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
   - **Travel ranges:** motors that take encoder targets get an optional travel range on the Robot page. Lumière Live requires one, and targets outside it are errors in Problems.
   - **Refused:** programs while Lumière Live isn't running, a wrong secret (the fifth wrong attempt closes the connection), programs from unpaired connections, and programs after START.
   - **Simulator:** it now gives Lumière Live's follower the simulated pose, as it does for any OpMode's follower.
+  - **Robot mode** (the Lumière Live panel in Pathing → Robot):
+    - **Before INIT:** it says when the robot library predates Lumière Live (the stream's `hello` now lists `capabilities.live`) or Lumière Live isn't installed yet, and reminds teams to turn Live runs off before competitions.
+    - **The run:** a Live run of the open program is drawn against the plan like the program's own OpMode, and its routine time goes to the program's run comparison.
+    - **After the run:** how it ended (finished with its time, or stopped with the reason) stays in the panel, with the run on the field, until the next INIT. Driver Station STOP during a run now reports the run as stopped.
+    - **In the background:** browsers run a hidden page's timers about once a second, which made runs stop on silence. The connection now also pings when the robot's messages arrive.
+  - **Deploy:** warns when TeamCode's robot library is older than 0.3.0, the first with Lumière Live.
+  - **Docs:** a team guide, [Lumière Live](live.md), and real-hub checks in the [hardware checklist](hardware-checklist.md) (step 9).
   - **Tested:**
-    - **Unit tests:** the robot library's 50 tests cover the run, the cap and every stop path with stand-in hardware.
+    - **Unit tests:** the robot library's 52 tests cover the run, the cap and every stop path with stand-in hardware.
     - **Virtual hub:** 26/26 checks on the quickstart and on the modernized team robot, including the run, the cap, and stops on silence (1.0 s), on disconnect, on a motor leaving its travel, and on Driver Station STOP.
     - **Parity (new `--parity` mode):** on that robot, Lumière Live ran its real autonomous like the deployed OpMode. Routine times were within 0.3%, the routes and end poses within the simulator's own run-to-run variation (about an inch at most), and all 16 mechanism output changes matched.
+    - **In the app:** on the virtual hub with that robot, the app paired, sent the autonomous, and the check passed. START ran it to the finish in 23.5 to 23.6 s, filed under the program in the run comparison. With the app's page hidden, its timers ran once a second but its pings stayed at most 347 ms apart, and the run held until STOP.
   - **Release:** needs a robot-library release.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 

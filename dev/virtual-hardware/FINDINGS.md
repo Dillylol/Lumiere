@@ -44,6 +44,13 @@ through the init script.
   if called before the SDK finishes registering. An app that connects in that window gets an empty
   OpMode list until the next INIT.
 
+**Added 2026-11-10: INIT order on the virtual hub.** The simulator starts the OpMode's thread, which
+runs `init()`, before it announces INIT. So an OpMode's first messages, such as Lumière Live's
+`waiting` report, sometimes arrive before the `init` lifecycle message. Checks that looked for that
+report only after the lifecycle message failed now and then; they now look from before INIT.
+Whether a real Control Hub can send them in that order is unverified, and the app handles either
+order. Matching the SDK's order in the simulator belongs to simulator fidelity (Phase 6).
+
 ## The app's Robot view against a hub
 
 The Robot tab of the web dev server was connected to the virtual hub at `127.0.0.1`. It showed the

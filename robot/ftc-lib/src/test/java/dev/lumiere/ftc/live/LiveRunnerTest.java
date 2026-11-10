@@ -255,6 +255,30 @@ public class LiveRunnerTest {
     }
 
     @Test
+    public void reportsAStopFromTheDriverStationAsHowTheRunEnded() {
+        FakePeer app = accept(program());
+        live.start();
+        app.heard = System.currentTimeMillis();
+        live.loop();
+        live.stop();
+        assertEquals("closed", last().get("state"));
+        assertStopped("STOP was pressed on the Driver Station");
+    }
+
+    @Test
+    public void keepsAFinishedRunFinishedWhenItStops() {
+        FakePeer app = accept(program());
+        live.start();
+        for (int i = 0; i < 20 && !"finished".equals(run().get("phase")); i++) {
+            app.heard = System.currentTimeMillis();
+            live.loop();
+        }
+        live.stop();
+        assertEquals("closed", last().get("state"));
+        assertEquals("finished", run().get("phase"));
+    }
+
+    @Test
     public void forgetsTheReportWhenItStops() {
         live.init();
         assertNotNull(Stream.lastLive());

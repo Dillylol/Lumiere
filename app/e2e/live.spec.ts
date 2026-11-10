@@ -9,7 +9,7 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
       const message = JSON.parse(String(data));
       if (message.type !== "ping") received.push(message);
     });
-    socket.send(JSON.stringify({ type: "hello", protocol: 1, source: "robot", library: "test-hub" }));
+    socket.send(JSON.stringify({ type: "hello", protocol: 1, source: "robot", library: "test-hub", capabilities: { live: 1 } }));
   });
   await page.goto("/");
   await page.getByRole("button", { name: /Square autonomous/ }).click();
@@ -31,6 +31,13 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   await page.getByRole("button", { name: "Connect robot" }).click();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible();
   expect(received).toEqual([]);
+
+  // The robot says whether Lumière Live is installed.
+  stream!.send(JSON.stringify({ type: "manifest", devices: [], opModes: [{ name: "Example Auto", flavor: "autonomous" }] }));
+  await expect(controls).toContainText("Lumière Live isn't installed on this robot yet.");
+  stream!.send(JSON.stringify({ type: "manifest", devices: [], opModes: [{ name: "Lumière Live", group: "Lumière", flavor: "autonomous" }] }));
+  await expect(controls).toContainText("On the Driver Station, choose Lumière Live and press INIT.");
+  await expect(controls).toContainText("Before competitions, turn Live runs off and deploy");
 
   // The Driver Station initializes Lumière Live: the app pairs, then sends the program once paired.
   const report = (fields: object) => JSON.stringify({ type: "live", opMode: "Lumière Live", state: "waiting", started: false, paired: false,
@@ -56,10 +63,25 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   await expect(controls).toContainText("Lumière Live limits mechanisms to 0.6.");
   await expect(controls).toContainText("Mechanism power limit 0.6");
 
-  // START on the Driver Station: the run, then a stop the robot explains.
+  // START on the Driver Station: the run is this program's, so it is drawn against the plan.
   stream!.send(report({ paired: true, state: "accepted", started: true, program: summary, run: { phase: "running", reason: null } }));
+  stream!.send(JSON.stringify({ type: "lifecycle", opMode: "Lumière Live", phase: "running" }));
+  for (const dx of [0, 6, 12, 18]) stream!.send(JSON.stringify({ type: "state", opMode: "Lumière Live", pose: { x: 24 + dx, y: 26, heading: 0 } }));
   await expect(controls).toContainText(`Running "${program.name}" from this computer. Keep this window open`);
+  await expect(page.getByRole("img", { name: /the robot's position, where it has driven .*where the plan has the robot now/ })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Telemetry" }).getByLabel("Robot pose")).toContainText("Off plan2.0in");
   stream!.send(report({ paired: true, state: "accepted", started: true, program: summary,
     run: { phase: "stopped", reason: "Lumière Live stopped: the paired computer was silent for more than 1.0 s." } }));
   await expect(controls.getByRole("alert")).toHaveText("Stopped. Lumière Live stopped: the paired computer was silent for more than 1.0 s.");
+
+  // The robot ends the OpMode straight away; why the run stopped, and the run itself, stay until the next INIT.
+  stream!.send(report({ paired: false, state: "closed", started: true, program: summary,
+    run: { phase: "stopped", reason: "Lumière Live stopped: the paired computer was silent for more than 1.0 s." } }));
+  stream!.send(JSON.stringify({ type: "lifecycle", opMode: "Lumière Live", phase: "stopped" }));
+  await expect(controls).toContainText("Ended");
+  await expect(controls.getByRole("alert")).toHaveText("Stopped. Lumière Live stopped: the paired computer was silent for more than 1.0 s.");
+  await expect(page.getByRole("img", { name: /where the plan has the robot now/ })).toBeVisible();
+  stream!.send(JSON.stringify({ type: "lifecycle", opMode: "Example Auto", phase: "init" }));
+  await expect(controls.getByRole("alert")).toHaveCount(0);
+  await expect(controls).toContainText("On the Driver Station, choose Lumière Live and press INIT.");
 });

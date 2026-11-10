@@ -90,32 +90,39 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
   } else if (!liveProgram) {
     body = <p className="pv-note">Fix the problems listed under Problems first. {LIVE_OPMODE_NAME} gets the same program a deploy would.</p>;
   } else if (!report) {
-    body = <p className="pv-note">On the Driver Station, choose {LIVE_OPMODE_NAME} and press INIT. This computer then sends "{program.name}" for the robot to check.</p>;
+    const robot = session.connected && session.hello?.source === "robot";
+    body = robot && !session.hello?.capabilities?.live
+      ? <p className="pv-note">This robot's robot library predates {LIVE_OPMODE_NAME}. Update the robot library in TeamCode, then deploy and install the robot code.</p>
+      : robot && session.modes.length > 0 && !session.modes.some((item) => item.name === LIVE_OPMODE_NAME)
+        ? <p className="pv-note">{LIVE_OPMODE_NAME} isn't installed on this robot yet. With Live runs on, deploy and install the robot code; the Driver Station then lists it.</p>
+        : <p className="pv-note">On the Driver Station, choose {LIVE_OPMODE_NAME} and press INIT. This computer then sends "{program.name}" for the robot to check, and START runs it.</p>;
   } else {
     const summary = report.program;
     const stale = summary && summary.revision !== liveProgram.revision;
     const run = report.run;
+    // A closed report is how the last run ended; it stays until the next INIT.
+    const ended = report.state === "closed";
     const seconds = (report.silenceMs / 1000).toLocaleString();
     const passed = summary && `"${summary.name}" passed: ${count(summary.steps, "step")}, ${count(summary.paths, "path")}, ${count(summary.mechanisms, "mechanism")}.`;
     body = <>
       <p className="pv-chip-line">
-        <span className={`pv-chip${report.paired ? "" : " muted"}`}>{report.paired ? "Paired" : "Pairing…"}</span>
+        <span className={`pv-chip${report.paired ? "" : " muted"}`}>{ended ? "Ended" : report.paired ? "Paired" : "Pairing…"}</span>
         {report.dryRun
           ? <span className="pv-chip">Dry run: nothing moves</span>
           : <span className="pv-chip">Mechanism power limit {report.powerCap}</span>}
       </p>
-      {!summary
-        ? <p className="pv-note">{report.paired ? "Sending the program…" : "Pairing with the robot…"}</p>
-        : report.state === "checking"
-          ? <p className="pv-note">Checking "{summary.name}" against the robot's hardware…</p>
-          : run?.phase === "running"
-            ? <p className="pv-live-result ok" role="status">Running "{summary.name}" from this computer. Keep this window open: {LIVE_OPMODE_NAME} stops if it doesn't hear from this computer for {seconds} s.</p>
-            : run?.phase === "finished"
-              ? <p className="pv-live-result ok" role="status">"{summary.name}" finished{run.elapsedMs !== undefined ? ` in ${(run.elapsedMs / 1000).toFixed(1)} s` : ""}. The robot holds its last pose until the Driver Station stops it.</p>
-              : run?.phase === "stopped"
-                ? <p className="pv-live-result bad" role="alert">Stopped. {run.reason}</p>
-                : run?.phase === "not run"
-                  ? <p className="pv-live-result bad" role="status">Not run. {run.reason}</p>
+      {run?.phase === "finished"
+        ? <p className="pv-live-result ok" role="status">{summary ? `"${summary.name}"` : "The program"} finished{run.elapsedMs !== undefined ? ` in ${(run.elapsedMs / 1000).toFixed(1)} s` : ""}. {ended ? `To run it again, INIT ${LIVE_OPMODE_NAME} on the Driver Station.` : "The robot holds its last pose until the Driver Station stops it."}</p>
+        : run?.phase === "stopped" || (ended && run?.phase === "running")
+          ? <p className="pv-live-result bad" role="alert">Stopped. {run.phase === "stopped" ? run.reason : `${LIVE_OPMODE_NAME} ended during the run.`}</p>
+          : run?.phase === "not run"
+            ? <p className="pv-live-result bad" role="status">Not run. {run.reason}</p>
+            : !summary
+              ? <p className="pv-note">{report.paired ? "Sending the program…" : "Pairing with the robot…"}</p>
+              : report.state === "checking"
+                ? <p className="pv-note">Checking "{summary.name}" against the robot's hardware…</p>
+                : run?.phase === "running"
+                  ? <p className="pv-live-result ok" role="status">Running "{summary.name}" from this computer. Keep this window open: {LIVE_OPMODE_NAME} stops if it doesn't hear from this computer for {seconds} s.</p>
                   : report.state === "accepted"
                     ? <p className="pv-live-result ok" role="status">{passed} {report.dryRun ? "This robot's Lumière Live is a dry run: START moves nothing." : "Press START on the Driver Station to run it."}</p>
                     : <div className="pv-live-result bad" role="status">
@@ -123,7 +130,7 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
                       <ul>{report.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
                     </div>}
       {report.notes.length > 0 && <ul className="pv-note pv-live-notes">{report.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
-      {stale && report.started && <p className="pv-note">The robot has an older version of this program. Stop {LIVE_OPMODE_NAME} and INIT it again to send this one.</p>}
+      {stale && report.started && !ended && <p className="pv-note">The robot has an older version of this program. Stop {LIVE_OPMODE_NAME} and INIT it again to send this one.</p>}
     </>;
   }
   const untraveled = env.live && liveProgram ? motorsWithoutTravel(liveProgram) : [];
@@ -131,6 +138,7 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
     {body}
     {untraveled.length > 0 && <p className="pv-note">Give {untraveled.join(", ")} a travel range on the Robot page (Mechanisms). {LIVE_OPMODE_NAME} refuses encoder targets without one.</p>}
     {session.liveError && <p className="pv-live-result bad" role="alert">{session.liveError}</p>}
+    {env.live && <p className="pv-note">Before competitions, turn Live runs off and deploy, so {LIVE_OPMODE_NAME} leaves the robot code.</p>}
   </Section>;
 }
 

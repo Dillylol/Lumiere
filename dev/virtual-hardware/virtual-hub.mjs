@@ -325,7 +325,8 @@ async function check() {
     expect(hello.protocol === 1, `protocol is ${hello.protocol}`);
     expect(typeof hello.library === "string" && hello.library.length > 0, "no library version");
     expect(hello.drivetrain === undefined, "simulator-only drivetrain field present");
-    return `library ${hello.library}`;
+    expect(hello.capabilities?.live === 1, `capabilities ${JSON.stringify(hello.capabilities)}`);
+    return `library ${hello.library}, Lumière Live format ${hello.capabilities.live}`;
   });
   await attempt("Manifest lists the project's OpModes, configured hardware and Pedro Pathing's devices before any INIT, without the SDK's system OpMode", async () => {
     const manifest = await app.next((m) => m.type === "manifest");
@@ -510,11 +511,13 @@ async function check() {
     return `rejected with ${rejected.problems.length} problems, then accepted (${passed.program.steps} steps); the Driver Station shows it`;
   });
   // Runs. A separate paired client pings four times a second, as the app does; the main client watches.
-  const runProgram = (name, { mechanisms = [], routine } = {}) => ({
+  const line = (id, name, from, to) => ({ id, name, kind: "atomic", heading: null, segments: [{
+    start: { x: 72, y: from, headingDeg: 90 }, controls: [], end: { x: 72, y: to, headingDeg: 90 }, heading: { type: "constant", degrees: 90 },
+  }] });
+  /** A Live program from (72, 72) facing +y: `p1` drives 28 in forward, and `p2` back. */
+  const runProgram = (name, { mechanisms = [], routine, back = false } = {}) => ({
     format: 1, name, revision: `run-${name.length}`, start: { x: 72, y: 72, headingDeg: 90 }, mechanisms,
-    paths: [{ id: "p1", name: "Forward", kind: "atomic", heading: null, segments: [{
-      start: { x: 72, y: 72, headingDeg: 90 }, controls: [], end: { x: 72, y: 100, headingDeg: 90 }, heading: { type: "constant", degrees: 90 },
-    }] }],
+    paths: [line("p1", "Forward", 72, 100), ...(back ? [line("p2", "Back", 100, 72)] : [])],
     routine: routine ?? [{ kind: "path", path: "p1" }],
   });
   const checkMechanism = (states, travel) => ({ id: "check", name: "Check", initialState: null, states, devices: [
@@ -527,7 +530,8 @@ async function check() {
     dsSend({ type: "init", opMode: LIVE });
     const init = await app.next((m) => m.type === "lifecycle" && m.phase === "init" && m.opMode === LIVE, 15_000, before);
     const from = app.log.indexOf(init);
-    await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, from);
+    // The simulator runs init() alongside announcing INIT, so Lumière Live's first report can come first.
+    await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, before);
     const pilot = await appClient(ports.robot, { pingMs: 250 });
     pilot.send({ type: "auth", token: liveSecret });
     await pilot.next((m) => m.type === "live" && m.paired);
@@ -597,10 +601,17 @@ async function check() {
     const drive = [...app.log].reverse().find((m) => m.type === "manifest" && m.pedro)?.pedro.devices
       .filter((d) => ["frontLeft", "frontRight", "backLeft", "backRight"].includes(d.role)).map((d) => d.name) ?? [];
     expect(drive.length === 4, "the manifest does not name Pedro's four drive motors");
-    const { pilot, from } = await liveRun(runProgram("STOP check", { routine: [{ kind: "path", path: "p1" }, { kind: "wait", ms: 20_000 }] }));
-    await sleep(300);
-    const moving = (await freshTruth()).devices;
-    expect(drive.some((name) => Math.abs(moving[name]?.power ?? 0) > 0.05), "the drive was not moving before STOP");
+    // Forward and back twice, so the robot is still driving whenever the Driver Station reports it moving:
+    // a fast drivetrain covers one 28 in path in about a second.
+    const there = { kind: "path", path: "p1" };
+    const back = { kind: "path", path: "p2" };
+    const { pilot, from } = await liveRun(runProgram("STOP check", { back: true, routine: [there, back, there, back, { kind: "wait", ms: 20_000 }] }));
+    let moving = false;
+    for (let i = 0; i < 15 && !moving; i++) {
+      const devices = (await freshTruth()).devices;
+      moving = drive.some((name) => Math.abs(devices[name]?.power ?? 0) > 0.05);
+    }
+    expect(moving, "the drive was not moving before STOP");
     const at = Date.now();
     dsSend({ type: "stop" });
     await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === LIVE, 5_000, from);
@@ -645,9 +656,9 @@ async function parity() {
   const record = async (name, afterInit) => {
     const before = app.log.length;
     dsSend({ type: "init", opMode: name });
-    const init = await app.next((m) => m.type === "lifecycle" && m.phase === "init" && m.opMode === name, 15_000, before);
-    const from = app.log.indexOf(init);
-    if (afterInit) await afterInit(from);
+    await app.next((m) => m.type === "lifecycle" && m.phase === "init" && m.opMode === name, 15_000, before);
+    // From before INIT: the simulator runs init() alongside announcing INIT, so an OpMode's first messages can come first.
+    if (afterInit) await afterInit(before);
     await sleep(1000);
     const trace = [];
     let startedAt = 0;
@@ -1014,7 +1025,9 @@ function waitFor(log, subscribe, match, ms, from = 0) {
     const found = log.slice(from).find(match);
     if (found) return done(found);
     let unsubscribe = () => {};
-    const timer = setTimeout(() => { unsubscribe(); failWait(new Error("timed out waiting for a message")); }, ms);
+    // Names the awaited message by its test, so a timeout says which step stalled.
+    const awaited = String(match).replace(/\s+/g, " ").slice(0, 160);
+    const timer = setTimeout(() => { unsubscribe(); failWait(new Error(`timed out after ${ms} ms waiting for ${awaited}`)); }, ms);
     unsubscribe = subscribe((message) => { if (match(message)) { clearTimeout(timer); unsubscribe(); done(message); } });
   });
 }

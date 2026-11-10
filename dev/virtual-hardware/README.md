@@ -114,7 +114,7 @@ as on a slow hub, and connects one app during that gap.
 
 1. An app that connects while the robot is starting first gets an empty OpMode list, then the
    complete manifest with OpModes and hardware, without a lifecycle message.
-2. Greets like a Control Hub, without a token: `hello` with source `robot` and no simulator-only fields.
+2. Greets like a Control Hub, without a token: `hello` with source `robot`, no simulator-only fields, and `capabilities.live` (the Lumière Live program format).
 3. Before any INIT, the manifest lists the project's OpModes and configured hardware, but not the
    SDK's system OpMode. The hardware must include the four drive motors. The localizer can be
    whatever the project's Pedro constants use, because the simulation gives followers their pose
