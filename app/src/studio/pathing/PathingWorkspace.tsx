@@ -13,6 +13,7 @@ import { LayersPanel, RoutineSteps, Section } from "./LayersPanel";
 import { RunBar, RunPanel, TelemetryPanel, type RunEnvironment } from "./RunPanels";
 import { DEFAULT_FIELD, fieldImageSource, isFieldId, type FieldId } from "./fields";
 import { useRunSession } from "./useRunSession";
+import { InfoButton } from "../InfoButton";
 import "./pathing.css";
 
 export type PathingMode = "develop" | "simulate" | "robot";
@@ -285,6 +286,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
       <div className="pv-brand">
         <span className="pv-mark" aria-hidden="true"><Flame/></span>
         <div className="pv-title"><h1>{BRAND.name} Pathing Visualizer</h1><small>Based on the Pedro Pathing Visualizer</small></div>
+        <InfoButton topic="pathing"/>
       </div>
       {auto && <Menu label="File" items={[
         { label: "Import a .pp file…", run: () => fileInput.current?.click() },
@@ -299,6 +301,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
           {item.label}{item.live && <><i className="pv-live" aria-hidden="true"/><span className="pv-sr"> (connected)</span></>}
         </button>)}
       </div>
+      <InfoButton topic={shownMode === "develop" ? "develop" : shownMode === "simulate" ? "simulate" : "robotMode"}/>
       <div className="pv-topbar-actions">
         {auto && <Menu label="Export" icon={<Download/>} align="end" items={[
           { label: "Pedro Pathing file (.pp)", run: exportFile },

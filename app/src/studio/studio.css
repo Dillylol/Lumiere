@@ -208,3 +208,9 @@ button.brand-mark:hover:not(:disabled) {
 .live-runs { margin: 6px 0 28px; }
 .live-runs .live-steps { margin: 8px 0 0; padding-left: 20px; }
 .live-runs .live-steps li + li { margin-top: 4px; }
+/* "i" buttons beside each tab's heading and Pathing's modes, and the help they open. */
+.heading-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}.heading-row h1{margin:0}
+button.info-button{width:26px;height:26px;min-height:0;padding:0;border-radius:50%;color:var(--muted);flex-shrink:0}button.info-button:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}button.info-button svg{width:15px;height:15px}
+.pv-topbar button.info-button{width:24px;height:24px}
+.help-body h3{margin:18px 0 6px;font-size:14px;color:var(--text)}.help-body h3:first-child{margin-top:4px}.help-body ul,.help-body ol{margin:0;padding-left:20px;color:var(--muted);font-size:14px;line-height:1.6}.help-body li{margin-bottom:4px}.help-body a{margin-top:16px}
+.learn-overview{padding:4px 0 20px;border-bottom:1px solid var(--border)}.learn-overview p{max-width:70ch}

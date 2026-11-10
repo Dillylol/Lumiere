@@ -15,6 +15,7 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 ar
   - **If it fails:** the panel explains why from the build output, such as a locked build file, code that doesn't compile, or a missing Android SDK, and what to do.
   - **RUN** does INIT, then START. Once connected, the panel says what to press next.
   - **A Mechanisms section** shows each mechanism's state, judged from the simulator's device outputs, beside the plan's state at the same time, with each device's power, servo position or encoder count. Develop's playback and the web preview show the plan's mechanism states.
+- **"i" buttons explain each tab and Pathing mode:** what it is for, its main functions, how to use it, and its guide. They sit beside the Build, Code, Robot and Learn headings, Pathing's title, and its mode switch (for the mode in view). The Learn page is rebuilt from the same text, and its outdated lines are gone, such as "the simulator models Pinpoint localization". A guided tour is not built yet.
 - **Deploy warns about a second Lumière Live,** such as one another Lumière project deployed into the same TeamCode. The Driver Station would list both.
 - **Virtual hub:** it builds into its own `build-virtual-hub/` folders. On Windows the running hub locked the project's build files, so a simulator launch on the same project failed after about 10 s. Found in the 0.3.0 walkthrough, which ran the hub and the desktop app on the test robot together.
 

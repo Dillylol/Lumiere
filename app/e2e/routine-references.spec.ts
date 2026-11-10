@@ -75,3 +75,34 @@ test("playback shows the plan's mechanism states in Develop and in the preview",
   await expect(states).toContainText("Mechanism 1");
   await expect(states).toContainText("Plan: Safe");
 });
+
+test("each tab and Pathing mode explains itself, and Learn shows it all", async ({ page }) => {
+  await page.getByRole("button", { name: "New project" }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+
+  await page.getByRole("button", { name: "About Build" }).click();
+  const build = page.getByRole("dialog", { name: "Build" });
+  await expect(build).toContainText("Main functions");
+  await expect(build).toContainText("Together runs actions at once");
+  await page.keyboard.press("Escape");
+  await expect(build).toHaveCount(0);
+
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Pathing", exact: true }).click();
+  await page.getByRole("button", { name: "About Pathing" }).click();
+  await expect(page.getByRole("dialog", { name: "Pathing" })).toContainText("Develop draws and edits the paths");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "About Develop mode" }).click();
+  await expect(page.getByRole("dialog", { name: "Develop mode" })).toContainText("How to use it");
+  await page.keyboard.press("Escape");
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Simulate" }).click();
+  await page.getByRole("button", { name: "About Simulate mode" }).click();
+  await expect(page.getByRole("dialog", { name: "Simulate mode" })).toContainText("RUN, under the field, presses INIT and then START");
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Learn", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "How Lumière works" })).toBeVisible();
+  for (const title of ["Build", "Pathing", "Develop mode", "Simulate mode", "Robot mode", "Code", "Robot setup"]) {
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+  }
+  await expect(page.getByText(/currently models Pinpoint/)).toHaveCount(0);
+});
