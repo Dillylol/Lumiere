@@ -141,9 +141,32 @@ as on a slow hub, and connects one app during that gap.
 20. A paired computer's program is checked against the configuration and Pedro Pathing's devices.
     A program that uses Pedro's front-left drive motor, misuses a device, and names a missing one
     is rejected with those three reasons. A valid one is accepted, and the Driver Station shows it.
-21. START in the dry run moves nothing, a program sent after START is refused, and STOP closes
-    Lumière Live.
-22. No OpMode errors.
+21. START runs a paired computer's program: the robot drives the path, the check motor runs at the
+    0.6 power cap though the program asks for 1, and the servo reaches its position. In check mode
+    the hub adds `lumiere_check_motor` and `lumiere_check_servo` to the configuration for this.
+22. Lumière Live stops within 1.5 s when the paired computer goes silent: motors at zero, OpMode
+    ended.
+23. It stops at once when the paired computer disconnects.
+24. A motor that leaves its travel range stops the run.
+25. Driver Station STOP ends a Live run at once while the paired computer keeps pinging; the drive
+    is at zero power and the robot coasts to rest.
+26. No OpMode errors.
+
+## What `--parity` covers
+
+`--parity "<OpMode>" --live-program <file.json> --live-secret-file <file>` runs a project's deployed
+autonomous, then the same program through the project's own Lumière Live, recording the robot's true
+pose and mechanism outputs from START. The program file is what the app sends (`buildLiveProgram`).
+The secret must be the one the project's generated `LumiereLive.java` is paired with. Pass
+`--live-opmode` if its Driver Station name is not "Lumière Live". It checks that both:
+
+1. run to the end of the routine;
+2. take the same time, within 3%;
+3. end at the same pose, within 1.5 in and 3 degrees;
+4. drive the same route, within 1.5 in, compared by shape: the Driver Station hears the robot every 100 ms, and the real-time simulator varies by about half an inch from run to run where the robot settles;
+5. set the same mechanism outputs in the same order, within 0.3 s.
+
+Set the generated file's power limit to 1 for parity; a lower cap changes the outputs on purpose.
 
 ## What `--shakedown` covers
 

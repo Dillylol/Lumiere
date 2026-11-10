@@ -11,7 +11,8 @@ The production release plan supersedes the earlier prototype roadmap. The curren
   - **Lumière Live, the one exception** (opt-in per computer):
     - The generated "Lumière Live" OpMode takes programs from the one computer it is paired with, while the Driver Station has it initialized.
     - The Driver Station still INITs, STARTs and STOPs it.
-    - It is a dry run so far: it checks programs against the robot's hardware and Pedro Pathing's devices, and moves nothing.
+    - It checks each program against the robot's hardware and Pedro Pathing's devices, then runs it with the generated Java's paths and commands.
+    - Mechanism powers are capped. The run stops if the paired computer goes quiet for a second or disconnects, or if a motor leaves its declared travel.
 - No Python relay, AI integration, account requirement, or analytics.
 - The [Lumière Pathing Visualizer](docs/pathing.md) is a credited React rebuild of the Pedro Pathing Visualizer on Lumière's project model. Adapted code keeps its Apache 2.0 license and notice in `third_party/pedro-pathing-visualizer`.
 - One product-name source, stable project identifiers, and the .lum project file extension. Legacy .jules import remains supported.

@@ -73,9 +73,14 @@ describe("readLiveReport", () => {
   it("keeps well-formed fields and drops the rest", () => {
     expect(readLiveReport({ state: "accepted", paired: true, started: false, dryRun: true, powerCap: 0.6,
       program: { name: "Red", revision: "abc", steps: 3, paths: 2, mechanisms: 1 }, problems: [], notes: ["capped", 7] }))
-      .toEqual({ opMode: "Lumière Live", state: "accepted", started: false, paired: true, dryRun: true, powerCap: 0.6,
+      .toEqual({ opMode: "Lumière Live", state: "accepted", started: false, paired: true, dryRun: true, powerCap: 0.6, silenceMs: 1000,
         program: { name: "Red", revision: "abc", steps: 3, paths: 2, mechanisms: 1 }, problems: [], notes: ["capped"] });
     expect(readLiveReport({ state: "dancing" })).toBeNull();
+    // After START: the run, with its phase, reason and time.
+    expect(readLiveReport({ state: "accepted", dryRun: false, silenceMs: 1000, run: { phase: "stopped", reason: "the paired computer was silent for more than 1 s.", elapsedMs: -1 } })?.run)
+      .toEqual({ phase: "stopped", reason: "the paired computer was silent for more than 1 s." });
+    expect(readLiveReport({ state: "accepted", run: { phase: "finished", reason: null, elapsedMs: 23560 } })?.run).toEqual({ phase: "finished", reason: null, elapsedMs: 23560 });
+    expect(readLiveReport({ state: "accepted", run: { phase: "flying" } })?.run).toBeUndefined();
     expect(readLiveReport(null)).toBeNull();
   });
 });

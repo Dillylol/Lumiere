@@ -31,9 +31,9 @@ import java.util.Map;
  *
  * <p>The server accepts {@code stop}, which asks the SDK to stop the active OpMode exactly as the
  * Driver Station's stop button does. While the Driver Station has Lumière Live initialized, a
- * computer paired with it may also pair ({@code auth}) and send a {@code program} for Lumière Live to
- * check. Nothing received over the network can start an OpMode, and in this version nothing received
- * over the network moves a mechanism.
+ * computer paired with it may also pair ({@code auth}) and send a {@code program}, which Lumière Live
+ * checks and, when the Driver Station presses START, runs. Nothing received over the network can start
+ * an OpMode.
  */
 public final class RobotHooks {
     private static final String TAG = "RobotStream";

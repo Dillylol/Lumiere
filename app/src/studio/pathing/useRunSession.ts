@@ -20,6 +20,9 @@ const TRAIL_STEP = 0.5;
 const TRAIL_LIMIT = 2000;
 
 /** Frames come from the network, so values are checked before they are drawn or formatted. */
+/** How often a connection pings, and how often while paired with Lumière Live, in milliseconds. */
+const PING_MS = 2000;
+export const LIVE_PING_MS = 250;
 const finite = (pose?: PoseMessage) => (pose && [pose.x, pose.y, pose.heading].every(Number.isFinite) ? pose : undefined);
 
 /** The manifest's report of what Pedro Pathing drives, checked and bounded like the device list. */
@@ -201,6 +204,15 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     liveReport.current = undefined;
     setLive(undefined);
     setLiveError(undefined);
+    client.current?.setPingInterval(PING_MS);
+  };
+  /**
+   * While this computer is paired with Lumière Live, it pings several times a second: the robot only
+   * starts a run, and keeps it going, while it hears from the paired computer.
+   */
+  const pace = () => {
+    const paired = !!liveReport.current?.paired && liveSent.current.auth && !liveSent.current.failed;
+    client.current?.setPingInterval(paired ? LIVE_PING_MS : PING_MS);
   };
   /**
    * Pairs with Lumière Live, then sends the program once the robot reports this connection paired.
@@ -284,12 +296,14 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       setLive(report);
       if (report.paired) setLiveError(undefined);
       sendLive();
+      pace();
     } else if (message.type === "error") {
       latest.current.onLog(message.message);
       // On a hub, errors without an OpMode answer this computer's Lumière Live pairing or program.
       if (robot && !message.opMode && !message.stack) {
         setLiveError(message.message);
         if (liveSent.current.auth && liveSent.current.revision === null) liveSent.current.failed = true;
+        pace();
       }
     }
   };

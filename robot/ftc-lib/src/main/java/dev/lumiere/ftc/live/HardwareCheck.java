@@ -77,11 +77,22 @@ final class HardwareCheck {
                 for (LiveProgram.State state : mechanism.states) {
                     LiveProgram.Output output = state.outputs.get(device.id);
                     if (output == null) continue;
-                    if ("target".equals(output.kind)) target = true;
+                    if ("target".equals(output.kind)) {
+                        target = true;
+                        LiveProgram.Travel travel = device.travel;
+                        if (travel != null && (output.ticks < travel.minTicks || output.ticks > travel.maxTicks)) {
+                            result.problems.add(where + " is sent to " + output.ticks + " ticks in \"" + state.name + "\", outside its travel of "
+                                    + travel.minTicks + " to " + travel.maxTicks + " ticks.");
+                        }
+                    }
                     double power = "target".equals(output.kind) ? output.power : "power".equals(output.kind) ? Math.abs(output.value) : 0;
                     if (power > powerCap + 1e-9) {
                         result.notes.add(where + " runs at power " + format(power) + " in \"" + state.name + "\"; Lumière Live limits mechanisms to " + format(powerCap) + ".");
                     }
+                }
+
+                if (target && device.travel == null) {
+                    result.problems.add(where + " takes encoder targets but has no travel range. Set its lowest and highest ticks on the Robot page; Lumière Live stops it if it leaves them.");
                 }
 
                 List<String> roles = pedroRoles.get(device.name);

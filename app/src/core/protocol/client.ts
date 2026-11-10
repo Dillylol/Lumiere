@@ -131,10 +131,7 @@ export class StreamClient {
       if (this.options.token) socket.send(JSON.stringify({ type: "auth", token: this.options.token }));
       this.attempts = 0;
       this.setStatus("open");
-      const interval = this.options.pingIntervalMs ?? 2000;
-      this.pingTimer = setInterval(() => {
-        if (socket.readyState === OPEN) socket.send(JSON.stringify({ type: "ping", t: Date.now() }));
-      }, interval);
+      this.startPinging(socket);
     });
     socket.addEventListener("message", (event) => {
       if (this.socket !== socket) return;
@@ -153,6 +150,22 @@ export class StreamClient {
     socket.addEventListener("error", () => {
       // A close event follows; reconnection is handled there.
     });
+  }
+
+  /**
+   * Changes how often the connection pings, starting now. Lumière Live needs to hear from its paired
+   * computer several times a second while it runs a program.
+   */
+  setPingInterval(ms: number) {
+    if (this.options.pingIntervalMs === ms) return;
+    this.options.pingIntervalMs = ms;
+    if (this.socket && this.pingTimer) this.startPinging(this.socket);
+  }
+
+  private startPinging(socket: SocketLike) {
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    const ping = () => { if (socket.readyState === OPEN) socket.send(JSON.stringify({ type: "ping", t: Date.now() })); };
+    this.pingTimer = setInterval(ping, this.options.pingIntervalMs ?? 2000);
   }
 
   private scheduleReconnect() {

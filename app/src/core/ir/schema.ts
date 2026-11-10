@@ -139,6 +139,10 @@ const subsystem = z.object({
     name: z.string().max(60),
     kind: z.enum(["motor", "servo", "crservo"]),
     reversed: z.boolean(),
+    travel: z.object({
+      minTicks: z.number().int().min(-1_000_000).max(1_000_000),
+      maxTicks: z.number().int().min(-1_000_000).max(1_000_000),
+    }).optional(),
   })).max(20),
   states: z.array(z.object({
     id,

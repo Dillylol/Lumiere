@@ -22,6 +22,7 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   await expect(live).toContainText("Off.");
   await live.getByLabel("Live runs from this computer").check();
   await expect(live).toContainText("Only this computer is paired.");
+  await expect(live.getByLabel("Mechanism power limit")).toHaveValue("0.6");
 
   await workspace.getByRole("button", { name: "Pathing", exact: true }).click();
   await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
@@ -33,7 +34,7 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
 
   // The Driver Station initializes Lumière Live: the app pairs, then sends the program once paired.
   const report = (fields: object) => JSON.stringify({ type: "live", opMode: "Lumière Live", state: "waiting", started: false, paired: false,
-    dryRun: true, powerCap: 0.6, program: null, problems: [], notes: [], ...fields });
+    dryRun: false, powerCap: 0.6, silenceMs: 1000, program: null, problems: [], notes: [], ...fields });
   stream!.send(JSON.stringify({ type: "lifecycle", opMode: "Lumière Live", phase: "init" }));
   stream!.send(report({}));
   await expect.poll(() => received.map((message) => message.type)).toEqual(["auth"]);
@@ -51,6 +52,14 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
 
   stream!.send(report({ paired: true, state: "accepted", program: summary, notes: ["\"lift\" in Lift runs at power 1; Lumière Live limits mechanisms to 0.6."] }));
   await expect(controls).toContainText(`"${program.name}" passed`);
+  await expect(controls).toContainText("Press START on the Driver Station to run it.");
   await expect(controls).toContainText("Lumière Live limits mechanisms to 0.6.");
-  await expect(controls).toContainText("Dry run: nothing moves");
+  await expect(controls).toContainText("Mechanism power limit 0.6");
+
+  // START on the Driver Station: the run, then a stop the robot explains.
+  stream!.send(report({ paired: true, state: "accepted", started: true, program: summary, run: { phase: "running", reason: null } }));
+  await expect(controls).toContainText(`Running "${program.name}" from this computer. Keep this window open`);
+  stream!.send(report({ paired: true, state: "accepted", started: true, program: summary,
+    run: { phase: "stopped", reason: "Lumière Live stopped: the paired computer was silent for more than 1.0 s." } }));
+  await expect(controls.getByRole("alert")).toHaveText("Stopped. Lumière Live stopped: the paired computer was silent for more than 1.0 s.");
 });

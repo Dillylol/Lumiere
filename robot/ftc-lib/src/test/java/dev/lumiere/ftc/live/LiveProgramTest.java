@@ -21,7 +21,7 @@ public class LiveProgramTest {
             + "\"states\":[{\"id\":\"off\",\"name\":\"Off\",\"outputs\":{\"m\":{\"kind\":\"power\",\"value\":0}}},"
             + "{\"id\":\"in\",\"name\":\"In\",\"outputs\":{\"m\":{\"kind\":\"power\",\"value\":1}}}],\"initialState\":\"off\"},"
             + "{\"id\":\"claw\",\"name\":\"Claw\",\"devices\":[{\"id\":\"s\",\"name\":\"claw\",\"kind\":\"servo\",\"reversed\":false},"
-            + "{\"id\":\"t\",\"name\":\"Turret\",\"kind\":\"motor\",\"reversed\":false}],"
+            + "{\"id\":\"t\",\"name\":\"Turret\",\"kind\":\"motor\",\"reversed\":false,\"travel\":{\"minTicks\":-200,\"maxTicks\":400}}],"
             + "\"states\":[{\"id\":\"open\",\"name\":\"Open\",\"outputs\":{\"s\":{\"kind\":\"position\",\"value\":0.8},\"t\":{\"kind\":\"target\",\"ticks\":120,\"power\":0.5}}}],\"initialState\":null}],"
             + "\"paths\":["
             + "{\"id\":\"p1\",\"name\":\"Start to Shoot\",\"kind\":\"atomic\",\"heading\":null,\"segments\":[{\"start\":{\"x\":110.5,\"y\":135.5,\"headingDeg\":0},"

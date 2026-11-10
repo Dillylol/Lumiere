@@ -188,6 +188,22 @@ describe("robot profile checks", () => {
     expect(scanned(project).map((item) => `${item.severity}:${item.code}`)).toEqual(["error:robot.device.drive", "warning:robot.localizer.missing"]);
   });
 
+  it("keeps encoder targets within a motor's travel, and travel ranges on motors", () => {
+    const project = createProject("Travel");
+    const lift = { id: "l", name: "lift", kind: "motor" as const, reversed: false, travel: { minTicks: 0, maxTicks: 1800 } };
+    const claw = { id: "c", name: "claw", kind: "servo" as const, reversed: false, travel: { minTicks: 0, maxTicks: 10 } };
+    project.subsystems.push({ id: "m", name: "Lift", devices: [lift, claw], initialStateId: null, states: [
+      { id: "up", name: "Up", outputs: { l: { kind: "target", ticks: 2000, power: 0.8 } } },
+      { id: "down", name: "Down", outputs: { l: { kind: "target", ticks: 0, power: 0.5 } } },
+    ] });
+    const found = validateProject(project).filter((item) => item.code.startsWith("device.travel") || item.code === "state.output.travel");
+    expect(found.map((item) => `${item.severity}:${item.code}`)).toEqual(["error:device.travel", "error:state.output.travel"]);
+    expect(found[0].message).toBe(`"claw" is a servo; only motors have a travel range.`);
+    expect(found[1].message).toBe(`"Up" sends "lift" to 2000 ticks, outside its travel of 0 to 1800.`);
+    lift.travel = { minTicks: 100, maxTicks: 100 };
+    expect(validateProject(project).some((item) => item.message.includes("from a lower number of ticks to a higher one"))).toBe(true);
+  });
+
   it("matches names the way the robot does, ignoring spaces at either end", () => {
     const project = createProject("Spaces");
     project.subsystems.push({ id: "c", name: "Claw", devices: [{ id: "s", name: " claw ", kind: "servo", reversed: false }], states: [], initialStateId: null });

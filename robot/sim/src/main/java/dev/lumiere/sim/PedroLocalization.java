@@ -34,6 +34,8 @@ final class PedroLocalization {
     static final String FOLLOWER = "com.pedropathing.follower.Follower";
     private static final String LOCALIZER = "com.pedropathing.localization.Localizer";
     private static final int MAX_DEPTH = 4;
+    /** Lumière Live's package: the robot library's own OpMode, which runs the team's follower. */
+    private static final String LIVE = "dev.lumiere.ftc.live.";
     /** Objects from these packages are never searched: they are not the team's, and some are large. */
     private static final String[] LIBRARIES = {
             "java.", "javax.", "jdk.", "sun.", "android.", "androidx.", "kotlin.", "kotlinx.", "com.qualcomm.",
@@ -99,6 +101,8 @@ final class PedroLocalization {
     }
 
     private static boolean isLibrary(String name) {
+        // Lumière Live holds the team's follower inside the robot library, so its objects are searched.
+        if (name.startsWith(LIVE)) return false;
         for (String prefix : LIBRARIES) if (name.startsWith(prefix)) return true;
         return false;
     }

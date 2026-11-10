@@ -8,6 +8,8 @@
 //   node dev/virtual-hardware/virtual-hub.mjs --run "Example Auto" [--seconds 12]
 //   node dev/virtual-hardware/virtual-hub.mjs --script "until app; init Example Auto; start; wait 20; stop"
 //   node dev/virtual-hardware/virtual-hub.mjs --probe [--pedro 3.0.2]          Pedro heading probe
+//   node dev/virtual-hardware/virtual-hub.mjs --parity "Red Goal" --live-program <file.json> --live-secret-file <file>
+//                                    the deployed OpMode against the same program run by Lumière Live
 //
 // Common options: --config <simulator.json>  --pedro <version>  --offline
 import { spawn, spawnSync } from "node:child_process";
@@ -31,7 +33,7 @@ if (flag("--help")) {
 
 const project = resolve(value("--project", resolve(here, "work/robot-project")));
 const mode = flag("--check") ? "check" : flag("--shakedown") ? "shakedown" : flag("--probe") ? "probe"
-  : value("--run") ? "run" : value("--script") ? "script" : "console";
+  : value("--run") ? "run" : value("--script") ? "script" : value("--parity") ? "parity" : "console";
 const ROBOT_PORT = 58080;
 const DEFAULT_OPMODE = "$Stop$Robot$";
 
@@ -123,7 +125,7 @@ ds.addEventListener("message", (event) => {
   if (message.type === "manifest") dsState.opModes = message.opModes;
   if (message.type === "lifecycle") { dsState.phase = message.phase; dsState.opMode = message.opMode; }
   if (message.type === "telemetry") dsState.telemetry = message.lines;
-  if (message.type === "robot") dsState.truth = message;
+  if (message.type === "robot") { dsState.truth = message; dsState.truths = (dsState.truths ?? 0) + 1; }
   if (message.type === "error") dsState.errors.push(message);
   dsListeners.forEach((listener) => listener(message));
 });
@@ -150,6 +152,7 @@ if (mode === "run") await runOnce();
 else if (mode === "check") await shutdown(await check());
 else if (mode === "shakedown") await shutdown(await shakedown());
 else if (mode === "script") await runScript(value("--script"));
+else if (mode === "parity") await shutdown(await parity());
 else await console_();
 
 // ---------------------------------------------------------------------------------------------
@@ -465,7 +468,7 @@ async function check() {
     const from = app.log.length;
     dsSend({ type: "init", opMode: LIVE });
     const waiting = await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, from);
-    expect(waiting.paired === false && waiting.dryRun === true, JSON.stringify(waiting));
+    expect(waiting.paired === false && waiting.dryRun === false, JSON.stringify(waiting));
     const stranger = await appClient(ports.robot);
     await stranger.next((m) => m.type === "live");
     stranger.send({ type: "program", program: liveProgram("Unpaired") });
@@ -506,26 +509,280 @@ async function check() {
     expect(/Program\s*:\s*Live check/.test(lines) && /Check\s*:\s*passed/.test(lines), `Driver Station telemetry: ${lines}`);
     return `rejected with ${rejected.problems.length} problems, then accepted (${passed.program.steps} steps); the Driver Station shows it`;
   });
-  await attempt("START in the dry run moves nothing, and STOP closes Lumière Live", async () => {
-    const before = dsState.truth?.pose;
-    const from = app.log.length;
+  // Runs. A separate paired client pings four times a second, as the app does; the main client watches.
+  const runProgram = (name, { mechanisms = [], routine } = {}) => ({
+    format: 1, name, revision: `run-${name.length}`, start: { x: 72, y: 72, headingDeg: 90 }, mechanisms,
+    paths: [{ id: "p1", name: "Forward", kind: "atomic", heading: null, segments: [{
+      start: { x: 72, y: 72, headingDeg: 90 }, controls: [], end: { x: 72, y: 100, headingDeg: 90 }, heading: { type: "constant", degrees: 90 },
+    }] }],
+    routine: routine ?? [{ kind: "path", path: "p1" }],
+  });
+  const checkMechanism = (states, travel) => ({ id: "check", name: "Check", initialState: null, states, devices: [
+    { id: "m", name: "lumiere_check_motor", kind: "motor", reversed: false, ...(travel ? { travel } : {}) },
+    { id: "s", name: "lumiere_check_servo", kind: "servo", reversed: false },
+  ] });
+  /** INITs Lumière Live, then a fresh client pairs and sends the program, which must pass. */
+  const liveRun = async (program) => {
+    const before = app.log.length;
+    dsSend({ type: "init", opMode: LIVE });
+    const init = await app.next((m) => m.type === "lifecycle" && m.phase === "init" && m.opMode === LIVE, 15_000, before);
+    const from = app.log.indexOf(init);
+    await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, from);
+    const pilot = await appClient(ports.robot, { pingMs: 250 });
+    pilot.send({ type: "auth", token: liveSecret });
+    await pilot.next((m) => m.type === "live" && m.paired);
+    pilot.send({ type: "program", program });
+    const report = await pilot.next((m) => m.type === "live" && (m.state === "accepted" || m.state === "rejected"));
+    expect(report.state === "accepted", report.problems.join(" | "));
     dsSend({ type: "start" });
-    await app.next((m) => m.type === "live" && m.started, 10_000, from);
-    await sleep(1500);
-    const after = dsState.truth?.pose;
-    const moved = before && after ? Math.hypot(after.x - before.x, after.y - before.y) : NaN;
-    expect(Number.isFinite(moved) && moved < 0.05, `moved ${moved} in`);
-    app.send({ type: "program", program: liveProgram("After start") });
-    const late = await app.next((m) => m.type === "error", 5_000, from);
-    expect(/already started/.test(late.message), late.message);
+    await app.next((m) => m.type === "live" && m.run, 10_000, from);
+    return { pilot, from };
+  };
+  const checkMotorPower = () => dsState.truth?.devices?.lumiere_check_motor?.power;
+  /** Waits until the Driver Station has had two new reports of the robot's true state. */
+  const freshTruth = async () => {
+    const seen = dsState.truths ?? 0;
+    for (let i = 0; i < 50 && (dsState.truths ?? 0) < seen + 2; i++) await sleep(50);
+    return dsState.truth;
+  };
+  await attempt("START runs a paired computer's program: the robot drives the path, and mechanism powers are capped", async () => {
+    const { pilot, from } = await liveRun(runProgram("Run check", {
+      mechanisms: [checkMechanism([{ id: "on", name: "On", outputs: { m: { kind: "power", value: 1 }, s: { kind: "position", value: 0.25 } } }])],
+      routine: [{ kind: "state", mechanism: "check", state: "on" }, { kind: "path", path: "p1" }, { kind: "wait", ms: 300 }],
+    }));
+    const finished = await app.next((m) => m.type === "live" && m.run?.phase === "finished", 20_000, from);
+    const truth = await freshTruth();
+    const pose = truth?.pose;
+    const servo = truth?.devices?.lumiere_check_servo?.position;
+    expect(pose && pose.y > 96, `the robot is at ${JSON.stringify(pose)}, short of y = 100`);
+    expect(Math.abs(checkMotorPower() - 0.6) < 1e-6, `the check motor runs at ${checkMotorPower()}; the program asked for 1, capped at 0.6`);
+    expect(Math.abs(servo - 0.25) < 1e-6, `the check servo is at ${servo}`);
     dsSend({ type: "stop" });
     await app.next((m) => m.type === "live" && m.state === "closed", 10_000, from);
-    return `moved ${moved.toFixed(3)} in after START`;
+    pilot.close();
+    return `finished in ${(finished.run.elapsedMs / 1000).toFixed(1)} s at (${pose.x.toFixed(1)}, ${pose.y.toFixed(1)}); check motor at 0.6 for 1, servo at 0.25`;
+  });
+  /** Starts a run that keeps the check motor powered, then breaks the connection the given way. */
+  const stopCheck = async (name, routine, travel, act) => {
+    const states = [{ id: "on", name: "On", outputs: { m: { kind: "power", value: 0.4 } } }];
+    if (travel) states.push({ id: "home", name: "Home", outputs: { m: { kind: "target", ticks: 0, power: 0.3 } } });
+    const { pilot, from } = await liveRun(runProgram(name, { mechanisms: [checkMechanism(states, travel)], routine: [{ kind: "state", mechanism: "check", state: "on" }, ...routine] }));
+    await sleep(500);
+    const at = Date.now();
+    act(pilot);
+    const stopped = await app.next((m) => m.type === "live" && m.run?.phase === "stopped", 5_000, from);
+    const seconds = (Date.now() - at) / 1000;
+    const ended = await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === LIVE, 5_000, app.log.indexOf(stopped));
+    await freshTruth();
+    expect(!checkMotorPower(), `the check motor still runs at ${checkMotorPower()} (${stopped.run.reason}; OpMode ended: ${!!ended})`);
+    pilot.close();
+    return { reason: stopped.run.reason, seconds };
+  };
+  await attempt("Lumière Live stops within 1.5 s when the paired computer goes silent", async () => {
+    const { reason, seconds } = await stopCheck("Silence check", [{ kind: "wait", ms: 20_000 }], null, (pilot) => pilot.pace(0));
+    expect(/silent/.test(reason) && seconds <= 1.5, `${reason} (after ${seconds.toFixed(2)} s)`);
+    return `stopped ${seconds.toFixed(2)} s after the last ping; motors at zero; OpMode ended`;
+  });
+  await attempt("Lumière Live stops when the paired computer disconnects", async () => {
+    const { reason, seconds } = await stopCheck("Disconnect check", [{ kind: "wait", ms: 20_000 }], null, (pilot) => pilot.close());
+    expect(/disconnected/.test(reason) && seconds <= 1, `${reason} (after ${seconds.toFixed(2)} s)`);
+    return `stopped ${seconds.toFixed(2)} s after the connection closed`;
+  });
+  await attempt("A motor that leaves its travel stops the run", async () => {
+    const { reason } = await stopCheck("Travel check", [{ kind: "wait", ms: 20_000 }], { minTicks: -50, maxTicks: 50 }, () => {});
+    expect(/left its travel/.test(reason), reason);
+    return reason;
+  });
+  await attempt("Driver Station STOP ends a Live run at once, while the paired computer keeps pinging", async () => {
+    const drive = [...app.log].reverse().find((m) => m.type === "manifest" && m.pedro)?.pedro.devices
+      .filter((d) => ["frontLeft", "frontRight", "backLeft", "backRight"].includes(d.role)).map((d) => d.name) ?? [];
+    expect(drive.length === 4, "the manifest does not name Pedro's four drive motors");
+    const { pilot, from } = await liveRun(runProgram("STOP check", { routine: [{ kind: "path", path: "p1" }, { kind: "wait", ms: 20_000 }] }));
+    await sleep(300);
+    const moving = (await freshTruth()).devices;
+    expect(drive.some((name) => Math.abs(moving[name]?.power ?? 0) > 0.05), "the drive was not moving before STOP");
+    const at = Date.now();
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === LIVE, 5_000, from);
+    const seconds = (Date.now() - at) / 1000;
+    const stopped = (await freshTruth()).devices;
+    const powered = drive.filter((name) => Math.abs(stopped[name]?.power ?? 0) > 1e-9);
+    // A robot stopped at speed coasts; it must come to rest without the drive pushing it.
+    await sleep(1500);
+    const a = (await freshTruth()).pose;
+    await sleep(500);
+    const b = (await freshTruth()).pose;
+    const settled = Math.hypot(b.x - a.x, b.y - a.y);
+    pilot.close();
+    expect(seconds <= 0.5 && powered.length === 0 && settled < 0.5,
+      `stopped after ${seconds.toFixed(2)} s; still powered: ${powered.join(", ") || "none"}; moved ${settled.toFixed(2)} in between 1.5 s and 2 s after STOP`);
+    return `stopped after ${seconds.toFixed(2)} s with the drive at zero power; at rest within 2 s`;
   });
   await attempt("No OpMode errors on the Driver Station", async () => {
     expect(dsState.errors.length === 0, dsState.errors.map((e) => e.message).join("; "));
   });
 
+  app.close();
+  return finish();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Parity: a deployed OpMode against the same program run by Lumière Live. The program file is what the
+// app sends (buildLiveProgram); the secret is the one the project's generated LumiereLive is paired with.
+
+async function parity() {
+  const { attempt, finish } = suite();
+  const deployed = value("--parity");
+  const liveName = value("--live-opmode", "Lumière Live");
+  const program = JSON.parse(readFileSync(resolve(value("--live-program")), "utf8"));
+  const secret = readFileSync(resolve(value("--live-secret-file")), "utf8").trim();
+  const mechanismDevices = new Set(program.mechanisms.flatMap((mechanism) => mechanism.devices.map((device) => device.name.trim())));
+  // Lumière Live needs to hear from the paired computer several times a second.
+  const app = await appClient(ports.robot, { pingMs: 250 });
+  await app.next((m) => m.type === "manifest" && m.opModes.some((o) => o.name === deployed) && m.opModes.some((o) => o.name === liveName), 30_000);
+
+  /** Runs an OpMode from INIT until its routine reports completion, recording the robot's true state from START. */
+  const record = async (name, afterInit) => {
+    const before = app.log.length;
+    dsSend({ type: "init", opMode: name });
+    const init = await app.next((m) => m.type === "lifecycle" && m.phase === "init" && m.opMode === name, 15_000, before);
+    const from = app.log.indexOf(init);
+    if (afterInit) await afterInit(from);
+    await sleep(1000);
+    const trace = [];
+    let startedAt = 0;
+    const sample = () => {
+      const truth = dsState.truth;
+      if (!truth?.pose) return;
+      const devices = Object.fromEntries(Object.entries(truth.devices ?? {}).filter(([device]) => mechanismDevices.has(device)));
+      trace.push({ ms: Date.now() - startedAt, x: truth.pose.x, y: truth.pose.y, heading: truth.pose.heading, devices });
+    };
+    // The state at the end of INIT, from a fresh report, so both runs start from the same reading.
+    const seen = dsState.truths ?? 0;
+    for (let i = 0; i < 50 && (dsState.truths ?? 0) < seen + 2; i++) await sleep(50);
+    startedAt = Date.now();
+    sample();
+    dsSend({ type: "start" });
+    const sampler = setInterval(sample, 50);
+    const done = await app.next((m) => (m.type === "state" && typeof m.data?.["lumiere.routineElapsedMs"] === "number")
+      || (m.type === "live" && m.run && m.run.phase !== "running"), 40_000, from);
+    const finishedAt = Date.now() - startedAt;
+    await sleep(500);
+    clearInterval(sampler);
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === name, 10_000, from);
+    if (done.type === "live" && done.run.phase !== "finished") throw new Error(`${name} did not finish: ${done.run.phase}, ${done.run.reason}`);
+    const routineMs = done.type === "state" ? done.data["lumiere.routineElapsedMs"] : done.run.elapsedMs;
+    return { routineMs, finishedAt, trace };
+  };
+
+  let a;
+  let b;
+  await attempt(`The deployed "${deployed}" runs to the end of its routine`, async () => {
+    a = await record(deployed);
+    return `routine ${(a.routineMs / 1000).toFixed(2)} s, ${a.trace.length} samples`;
+  });
+  await attempt(`${liveName} accepts the same program, then runs it to the end`, async () => {
+    b = await record(liveName, async (from) => {
+      await app.next((m) => m.type === "live" && m.state === "waiting", 15_000, from);
+      app.send({ type: "auth", token: secret });
+      await app.next((m) => m.type === "live" && m.paired, 5_000, from);
+      app.send({ type: "program", program });
+      const report = await app.next((m) => m.type === "live" && (m.state === "accepted" || m.state === "rejected"), 15_000, from);
+      expect(report.state === "accepted", report.problems.join(" | "));
+    });
+    return `routine ${(b.routineMs / 1000).toFixed(2)} s, ${b.trace.length} samples`;
+  });
+  if (!a || !b) {
+    app.close();
+    return finish();
+  }
+
+  const at = (trace, ms) => trace.reduce((best, point) => (Math.abs(point.ms - ms) < Math.abs(best.ms - ms) ? point : best), trace[0]);
+  const angle = (radians) => Math.abs(((radians + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * 180 / Math.PI;
+  await attempt("Both take the same time, within 3%", async () => {
+    const difference = Math.abs(a.routineMs - b.routineMs) / a.routineMs;
+    expect(difference <= 0.03, `deployed ${(a.routineMs / 1000).toFixed(2)} s, Live ${(b.routineMs / 1000).toFixed(2)} s`);
+    return `deployed ${(a.routineMs / 1000).toFixed(2)} s, Live ${(b.routineMs / 1000).toFixed(2)} s (${(difference * 100).toFixed(1)}%)`;
+  });
+  await attempt("Both end at the same pose, within 1.5 in and 3 degrees", async () => {
+    const endA = at(a.trace, a.finishedAt);
+    const endB = at(b.trace, b.finishedAt);
+    const distance = Math.hypot(endA.x - endB.x, endA.y - endB.y);
+    const turn = angle(endA.heading - endB.heading);
+    expect(distance <= 1.5 && turn <= 3, `deployed (${endA.x}, ${endA.y}), Live (${endB.x}, ${endB.y}); ${distance.toFixed(2)} in, ${turn.toFixed(1)} degrees`);
+    return `(${endB.x.toFixed(1)}, ${endB.y.toFixed(1)}); ${distance.toFixed(2)} in and ${turn.toFixed(1)} degrees apart`;
+  });
+  await attempt("Both drive the same route, within 1.5 in", async () => {
+    // Compared by shape: the Driver Station hears the robot every 100 ms, so two runs compared at the same
+    // clock time can be a report apart, several inches at full speed. The real-time simulator itself varies
+    // by about half an inch from run to run where the robot settles, so the tolerance matches the end pose's.
+    const route = (trace, finishedAt) => trace.filter((point) => point.ms <= finishedAt);
+    const left = route(a.trace, a.finishedAt);
+    const right = route(b.trace, b.finishedAt);
+    const fromRoute = (point, other) => {
+      let best = Infinity;
+      for (let i = 1; i < other.length; i++) {
+        const p = other[i - 1];
+        const q = other[i];
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const length = dx * dx + dy * dy;
+        const t = length ? Math.max(0, Math.min(1, ((point.x - p.x) * dx + (point.y - p.y) * dy) / length)) : 0;
+        best = Math.min(best, Math.hypot(point.x - (p.x + t * dx), point.y - (p.y + t * dy)));
+      }
+      return best;
+    };
+    let worst = 0;
+    let where = null;
+    for (const [one, other] of [[left, right], [right, left]]) {
+      for (const point of one) {
+        const distance = fromRoute(point, other);
+        if (distance > worst) { worst = distance; where = point; }
+      }
+    }
+    let sameTime = 0;
+    for (const point of left) {
+      const other = at(right, point.ms);
+      sameTime = Math.max(sameTime, Math.hypot(point.x - other.x, point.y - other.y));
+    }
+    expect(worst <= 1.5, `${worst.toFixed(2)} in off the other route at (${where?.x}, ${where?.y})`);
+    return `at most ${worst.toFixed(2)} in off each other's route (${sameTime.toFixed(1)} in apart at the same clock time, within one 100 ms report)`;
+  });
+  await attempt("Both set the same mechanism outputs in the same order, within 0.3 s", async () => {
+    /** Each device's commanded value whenever it changes: power for motors and continuous servos, position for servos. */
+    const changes = (trace) => {
+      const result = {};
+      for (const point of trace) {
+        for (const [device, state] of Object.entries(point.devices)) {
+          const value = state.type === "servo" ? state.position : state.power;
+          if (value === null || value === undefined) continue;
+          const list = (result[device] ??= []);
+          if (!list.length || Math.abs(list[list.length - 1].value - value) > 1e-3) list.push({ ms: point.ms, value });
+        }
+      }
+      return result;
+    };
+    const left = changes(a.trace);
+    const right = changes(b.trace);
+    const problems = [];
+    let compared = 0;
+    for (const device of mechanismDevices) {
+      const x = left[device] ?? [];
+      const y = right[device] ?? [];
+      const values = (list) => list.map((change) => change.value.toFixed(3)).join(" -> ");
+      if (values(x) !== values(y)) {
+        problems.push(`${device}: deployed ${values(x) || "none"}, Live ${values(y) || "none"}`);
+        continue;
+      }
+      x.forEach((change, i) => {
+        compared++;
+        if (Math.abs(change.ms - y[i].ms) > 300) problems.push(`${device} ${change.value}: deployed at ${change.ms} ms, Live at ${y[i].ms} ms`);
+      });
+    }
+    expect(!problems.length, problems.join("; "));
+    return `${compared} output changes on ${mechanismDevices.size} devices match`;
+  });
   app.close();
   return finish();
 }
@@ -688,12 +945,18 @@ async function shakedown() {
 // ---------------------------------------------------------------------------------------------
 // Helpers.
 
-function appClient(port) {
+/** An app connection. `pace(ms)` changes how often it pings; 0 stops pinging, as a frozen app would. */
+function appClient(port, { pingMs = 2000 } = {}) {
   return new Promise((done, failOpen) => {
     const socket = new WebSocket(`ws://127.0.0.1:${port}/stream`);
     const log = [];
     let listeners = [];
-    const pinger = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping", t: Date.now() })); }, 2000);
+    let pinger = null;
+    const pace = (ms) => {
+      if (pinger) clearInterval(pinger);
+      pinger = ms > 0 ? setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping", t: Date.now() })); }, ms) : null;
+    };
+    pace(pingMs);
     socket.addEventListener("message", (event) => {
       let message;
       try {
@@ -707,14 +970,15 @@ function appClient(port) {
     });
     let markClosed;
     const closed = new Promise((resolveClosed) => { markClosed = resolveClosed; });
-    socket.addEventListener("close", () => { clearInterval(pinger); markClosed(); });
+    socket.addEventListener("close", () => { pace(0); markClosed(); });
     socket.addEventListener("error", () => failOpen(new Error("Could not connect to the robot stream.")), { once: true });
     socket.addEventListener("open", () => done({
       log,
       closed,
       send: (message) => socket.send(JSON.stringify(message)),
       next: (match, ms = 15_000, from = 0) => waitFor(log, (listener) => { listeners.push(listener); return () => { listeners = listeners.filter((l) => l !== listener); }; }, match, ms, from),
-      close: () => { clearInterval(pinger); socket.close(); },
+      pace,
+      close: () => { pace(0); socket.close(); },
     }), { once: true });
   });
 }

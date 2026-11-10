@@ -94,29 +94,56 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
   } else {
     const summary = report.program;
     const stale = summary && summary.revision !== liveProgram.revision;
+    const run = report.run;
+    const seconds = (report.silenceMs / 1000).toLocaleString();
+    const passed = summary && `"${summary.name}" passed: ${count(summary.steps, "step")}, ${count(summary.paths, "path")}, ${count(summary.mechanisms, "mechanism")}.`;
     body = <>
       <p className="pv-chip-line">
         <span className={`pv-chip${report.paired ? "" : " muted"}`}>{report.paired ? "Paired" : "Pairing…"}</span>
-        {report.dryRun && <span className="pv-chip">Dry run: nothing moves</span>}
+        {report.dryRun
+          ? <span className="pv-chip">Dry run: nothing moves</span>
+          : <span className="pv-chip">Mechanism power limit {report.powerCap}</span>}
       </p>
       {!summary
         ? <p className="pv-note">{report.paired ? "Sending the program…" : "Pairing with the robot…"}</p>
         : report.state === "checking"
           ? <p className="pv-note">Checking "{summary.name}" against the robot's hardware…</p>
-          : report.state === "accepted"
-            ? <p className="pv-live-result ok" role="status">"{summary.name}" passed: {count(summary.steps, "step")}, {count(summary.paths, "path")}, {count(summary.mechanisms, "mechanism")}. {report.started ? "START ran the dry run; nothing moved." : "Press START on the Driver Station for a dry run."}</p>
-            : <div className="pv-live-result bad" role="status">
-              <p>"{summary.name}" can't run on this robot: {count(report.problems.length, "problem")}.</p>
-              <ul>{report.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
-            </div>}
+          : run?.phase === "running"
+            ? <p className="pv-live-result ok" role="status">Running "{summary.name}" from this computer. Keep this window open: {LIVE_OPMODE_NAME} stops if it doesn't hear from this computer for {seconds} s.</p>
+            : run?.phase === "finished"
+              ? <p className="pv-live-result ok" role="status">"{summary.name}" finished{run.elapsedMs !== undefined ? ` in ${(run.elapsedMs / 1000).toFixed(1)} s` : ""}. The robot holds its last pose until the Driver Station stops it.</p>
+              : run?.phase === "stopped"
+                ? <p className="pv-live-result bad" role="alert">Stopped. {run.reason}</p>
+                : run?.phase === "not run"
+                  ? <p className="pv-live-result bad" role="status">Not run. {run.reason}</p>
+                  : report.state === "accepted"
+                    ? <p className="pv-live-result ok" role="status">{passed} {report.dryRun ? "This robot's Lumière Live is a dry run: START moves nothing." : "Press START on the Driver Station to run it."}</p>
+                    : <div className="pv-live-result bad" role="status">
+                      <p>"{summary.name}" can't run on this robot: {count(report.problems.length, "problem")}.</p>
+                      <ul>{report.problems.map((problem) => <li key={problem}>{problem}</li>)}</ul>
+                    </div>}
       {report.notes.length > 0 && <ul className="pv-note pv-live-notes">{report.notes.map((note) => <li key={note}>{note}</li>)}</ul>}
       {stale && report.started && <p className="pv-note">The robot has an older version of this program. Stop {LIVE_OPMODE_NAME} and INIT it again to send this one.</p>}
     </>;
   }
+  const untraveled = env.live && liveProgram ? motorsWithoutTravel(liveProgram) : [];
   return <Section title={LIVE_OPMODE_NAME}>
     {body}
+    {untraveled.length > 0 && <p className="pv-note">Give {untraveled.join(", ")} a travel range on the Robot page (Mechanisms). {LIVE_OPMODE_NAME} refuses encoder targets without one.</p>}
     {session.liveError && <p className="pv-live-result bad" role="alert">{session.liveError}</p>}
   </Section>;
+}
+
+/** Motors the program sends to encoder targets without a travel range, which Lumière Live refuses. */
+function motorsWithoutTravel(program: LiveProgram): string[] {
+  const names: string[] = [];
+  for (const mechanism of program.mechanisms) {
+    for (const device of mechanism.devices) {
+      const targets = mechanism.states.some((state) => state.outputs[device.id]?.kind === "target");
+      if (device.kind === "motor" && targets && !device.travel) names.push(`"${device.name.trim()}" in ${mechanism.name}`);
+    }
+  }
+  return names;
 }
 
 /** The left panel in Simulate and Robot: how to start the simulator or reach the robot, and what to run. */

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SocketLike } from "../../core";
 import type { ExitResult, RunningTask } from "../../desktop/backend";
 import type { DesktopSimulator } from "../../desktop/robotProject";
-import { useRunSession, type RunSessionOptions } from "./useRunSession";
+import { LIVE_PING_MS, useRunSession, type RunSessionOptions } from "./useRunSession";
 
 class FakeSocket implements SocketLike {
   readyState = 0;
@@ -175,6 +175,31 @@ describe("useRunSession", () => {
     expect(result.current.live).toBeUndefined();
     act(() => socket.receive(report({})));
     expect(socket.commands().filter((type) => type === "auth")).toHaveLength(2);
+  });
+
+  it("pings four times a second while paired with Lumière Live, so the robot keeps hearing it", () => {
+    vi.useFakeTimers();
+    try {
+      const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "s".repeat(64), program: null } });
+      act(() => result.current.open());
+      const socket = sockets[0];
+      act(() => socket.open());
+      const pings = () => socket.sent.filter((message) => message.type === "ping").length;
+      act(() => { vi.advanceTimersByTime(2000); });
+      expect(pings()).toBe(1);
+      act(() => socket.receive({ type: "live", state: "waiting", started: false, paired: false, dryRun: false, problems: [], notes: [] }));
+      act(() => socket.receive({ type: "live", state: "waiting", started: false, paired: true, dryRun: false, problems: [], notes: [] }));
+      const before = pings();
+      act(() => { vi.advanceTimersByTime(1000); });
+      expect(pings() - before).toBe(1000 / LIVE_PING_MS);
+      // Lumière Live stopped: back to the usual pace.
+      act(() => socket.receive({ type: "live", state: "closed", started: true, paired: false, dryRun: false, problems: [], notes: [] }));
+      const after = pings();
+      act(() => { vi.advanceTimersByTime(2000); });
+      expect(pings() - after).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("stops after the robot refuses this computer's pairing", () => {

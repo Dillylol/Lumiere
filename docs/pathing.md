@@ -18,7 +18,8 @@ Hide either side panel with its panel button to give the field more room. In win
 - **Robot** watches the robot. Enter the Control Hub's address or use **Find robot**, then **Connect robot**. Start OpModes from the Driver Station; this connection reads telemetry and can request STOP. On the desktop, **Deploy code** and **Deploy APK** are here too.
   - **Lumière Live:** with Live runs on for this computer (Robot page), initializing Lumière Live on the Driver Station makes this connection pair and send the open autonomous.
   - **What the robot finds:** the panel shows whether the program passed the check against the robot's hardware and Pedro Pathing's devices, with any problems and notes.
-  - **Dry run:** this version only checks the program, and nothing moves.
+  - **Running it:** START on the Driver Station runs the program with mechanism powers capped, and the panel shows the run: running, finished with its time, or stopped with the reason.
+  - **Keep the connection open:** while paired, this connection pings four times a second. The robot stops the run if it hears nothing for a second.
 
 In Simulate and Robot, the field is read-only. The left panel holds the run controls and the planned routine, and the right panel shows telemetry, the follower's state, `Session.data` values and the run comparison. When the run is this program's own OpMode, the field draws the run against the plan:
 

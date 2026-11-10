@@ -180,6 +180,11 @@ function validateSubsystems(subsystems: Subsystem[], add: Add) {
       if (hardwareName !== device.name) {
         add("warning", "device.name.spaces", `"${hardwareName}" has spaces at the start or end of its name. The robot ignores them; remove them so the name matches the configuration exactly.`, where);
       }
+      if (device.travel && (device.kind !== "motor" || device.travel.minTicks >= device.travel.maxTicks)) {
+        add("error", "device.travel", device.kind !== "motor"
+          ? `"${hardwareName}" is a ${device.kind === "servo" ? "servo" : "continuous servo"}; only motors have a travel range.`
+          : `"${hardwareName}"'s travel must go from a lower number of ticks to a higher one.`, where);
+      }
       if (deviceNames.has(hardwareName)) add("error", "device.name.duplicate", `"${hardwareName}" is listed twice in this mechanism.`, where);
       deviceNames.add(hardwareName);
       const owner = hardwareOwners.get(hardwareName);
@@ -205,6 +210,8 @@ function validateSubsystems(subsystems: Subsystem[], add: Add) {
         const allowed = device.kind === "servo" ? ["position"] : device.kind === "crservo" ? ["power"] : ["power", "target"];
         if (!allowed.includes(output.kind)) {
           add("error", "state.output.kind", `A ${device.kind === "crservo" ? "continuous rotation servo" : device.kind} cannot be given a ${output.kind}.`, { ...where, deviceId });
+        } else if (output.kind === "target" && device.travel && (output.ticks < device.travel.minTicks || output.ticks > device.travel.maxTicks)) {
+          add("error", "state.output.travel", `"${state.name}" sends "${device.name}" to ${output.ticks} ticks, outside its travel of ${device.travel.minTicks} to ${device.travel.maxTicks}.`, { ...where, deviceId });
         }
       }
     }

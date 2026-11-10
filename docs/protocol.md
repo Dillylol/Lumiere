@@ -18,7 +18,7 @@ protocol. An app can therefore show a real robot and a simulated robot with the 
 | Type | Fields | Accepted by | Effect |
 | --- | --- | --- | --- |
 | `auth` | `token` | Both | Simulator: must be the first message. A wrong or missing token closes the connection, and unauthenticated clients are closed after 3 seconds. Robot: pairs this connection with Lumière Live, using the computer's pairing secret, while the Driver Station has Lumière Live initialized. A wrong secret gets an `error`, and the fifth wrong secret closes the connection. |
-| `program` | `program` | Robot | Sends Lumière Live a program to check. Requires a paired connection, and Lumière Live initialized but not started. See [Lumière Live programs](#lumière-live-programs). |
+| `program` | `program` | Robot | Sends Lumière Live a program to check and, when the Driver Station presses START, run. Requires a paired connection, and Lumière Live initialized but not started. See [Lumière Live programs](#lumière-live-programs). |
 | `ping` | `t` (any) | Both | Replies with `pong` echoing `t`. |
 | `stop` | none | Both | Robot: requests a stop of the active OpMode, like the Driver Station STOP button. Simulator: presses STOP. |
 | `init` | `opMode` (name) | Simulator | Stops any running OpMode, then initializes the named OpMode. |
@@ -185,25 +185,34 @@ Lumière Live's report, sent to every client whenever it changes while Lumière 
 {
   "type": "live",
   "opMode": "Lumière Live",
-  "state": "rejected",
-  "started": false,
+  "state": "accepted",
+  "started": true,
   "paired": true,
-  "dryRun": true,
+  "dryRun": false,
   "powerCap": 0.6,
+  "silenceMs": 1000,
   "program": { "name": "Red Goal", "revision": "3f2a9c1b", "steps": 18, "paths": 9, "mechanisms": 4 },
-  "problems": ["\"Intake\" in Intake is not in the robot's configuration."],
-  "notes": []
+  "problems": [],
+  "notes": ["\"Intake\" in Intake runs at power 1 in \"In\"; Lumière Live limits mechanisms to 0.6."],
+  "run": { "phase": "stopped", "reason": "Lumière Live stopped: the paired computer was silent for more than 1.0 s." }
 }
 ```
 
 - **`state`:** `waiting` for a program, `checking` one, `accepted`, `rejected`, or `closed` once the OpMode stops.
 - **`paired`:** whether a computer is paired with this run of Lumière Live.
-- **`dryRun`:** true while Lumière Live only checks programs. In this version nothing moves, before or after START.
-- **`problems`:** why the program can't run on this robot: a device that is missing or configured as another type, a device Pedro Pathing drives, an encoder target on a dead wheel's port, or a malformed program. **`notes`:** what doesn't stop it, such as a power above `powerCap`.
+- **`dryRun`:** true from robot libraries whose Lumière Live only checked programs and never moved. It is false since programs run.
+- **`silenceMs`:** how long Lumière Live waits to hear from the paired computer before it stops a run.
+- **`run`:** after START. `phase` is `running`, `finished` (the routine is done, and the follower holds its last pose), `stopped` with a `reason`, or `not run` with a `reason`, such as no program that passed or no paired computer. `elapsedMs` is the routine's time once it finishes.
+- **`problems`:** why the program can't run on this robot: a device that is missing or configured as another type, a device Pedro Pathing drives, an encoder target on a dead wheel's port, an encoder target without a travel range or outside it, or a malformed program. **`notes`:** what doesn't stop it, such as a power above `powerCap`.
 
 ## Lumière Live programs
 
-Lumière generates `LumiereLive.java` (`@Autonomous` "Lumière Live") when Live runs are on for a computer. It extends the robot library's `LiveRunner` and carries the SHA-256 of that computer's pairing secret, the team's Pedro constants class, and the power cap. The Driver Station stays in charge: only it can INIT and START Lumière Live, and its STOP always works.
+Lumière generates `LumiereLive.java` (`@Autonomous` "Lumière Live") when Live runs are on for a computer. It extends the robot library's `LiveRunner` and carries the SHA-256 of that computer's pairing secret, the team's Pedro constants class, and the mechanism power cap.
+
+- **INIT:** a program that passes the check is set up as a generated OpMode's `init()` sets it up. The follower is placed at the start pose, and each mechanism's devices are configured and its starting state applied.
+- **START:** the routine runs with the Pedro Pathing paths and Ivy commands the generated Java would use. Mechanism powers are capped at the power cap.
+- **Stopping:** a run stops when the paired computer is silent for more than `silenceMs` (the app pings every 250 ms while paired), when it disconnects, when a motor with encoder targets leaves its travel range, or on any error. Stopping sets mechanism motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
+- **The Driver Station stays in charge:** only it can INIT and START Lumière Live, and its STOP always works.
 
 When Lumière Live is initialized, the paired app sends `auth`, then `program`, and a new `program` whenever the open program changes before START. A program (format 1):
 
@@ -215,7 +224,7 @@ When Lumière Live is initialized, the paired app sends `auth`, then `program`, 
   "start": { "x": 110.5, "y": 135.5, "headingDeg": 0 },
   "mechanisms": [{
     "id": "intake", "name": "Intake", "initialState": "off",
-    "devices": [{ "id": "m", "name": "Intake", "kind": "motor", "reversed": true }],
+    "devices": [{ "id": "m", "name": "Intake", "kind": "motor", "reversed": true, "travel": { "minTicks": -100, "maxTicks": 100 } }],
     "states": [{ "id": "off", "name": "Off", "outputs": { "m": { "kind": "power", "value": 0 } } }]
   }],
   "paths": [{
@@ -229,7 +238,7 @@ When Lumière Live is initialized, the paired app sends `auth`, then `program`, 
 
 - **Same numbers as the generated Java:** angles are in degrees, and every number is rounded to 6 decimal places as the Java generator writes it. Each path carries the start, control and end poses the generated OpMode declares, so Lumière Live gets the same doubles a deployed OpMode parses.
 - **Paths:** an `atomic` path has one segment with its own `heading` rule. A `compound` path has several segments; its `heading` applies across them all, or is null when each segment has its own. Heading rules are those of the project format: `linear`, `constant`, `tangential` (`reverse`), and `piecewise` (`segments` of rules between `startProgress` and `endProgress`, including `facingPoint`).
-- **Mechanisms:** the ones the routine uses, plus any with a starting state. Devices are `motor`, `servo` or `crservo`. Outputs are `power` (-1 to 1), `position` (0 to 1, servos only) or `target` (whole `ticks` at a `power` above 0, motors only).
+- **Mechanisms:** the ones the routine uses, plus any with a starting state. Devices are `motor`, `servo` or `crservo`. Outputs are `power` (-1 to 1), `position` (0 to 1, servos only) or `target` (whole `ticks` at a `power` above 0, motors only). A motor that takes encoder targets needs a `travel` range in ticks from where it was at INIT; targets must fall within it, and the run stops if the motor goes more than 5% of the range (at least 20 ticks) past it.
 - **Routine:** `path`, `wait` (`ms`, 0 to 10 minutes), `state`, and `together` or `race` groups of `steps`, nested at most 8 deep. Empty groups are left out, as the generated Java leaves them out.
 - **Limits:** at most 30 mechanisms, 200 paths and 1,000 steps. A format newer than the robot library reads is refused with a request to update it.
 

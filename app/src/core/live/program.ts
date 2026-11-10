@@ -78,9 +78,16 @@ export interface LiveReport {
   started: boolean;
   /** Whether a computer is paired with this run of Lumière Live. */
   paired: boolean;
-  /** True while Lumière Live only checks programs and moves nothing. */
+  /** True when the robot's Lumière Live only checks programs and moves nothing (an older robot library). */
   dryRun: boolean;
   powerCap: number;
+  /** How long the robot waits to hear from the paired computer before it stops a run, in milliseconds. */
+  silenceMs: number;
+  /**
+   * The run after START: `running`, `finished` (the routine is done and the robot holds its last
+   * pose), `stopped` with the reason, or `not run` with the reason. Absent before START.
+   */
+  run?: { phase: "running" | "finished" | "stopped" | "not run"; reason: string | null; elapsedMs?: number };
   program: { name: string; revision: string; steps: number; paths: number; mechanisms: number } | null;
   problems: string[];
   notes: string[];
@@ -185,6 +192,19 @@ function output(value: Output): Output {
   }
 }
 
+const RUN_PHASES = ["running", "finished", "stopped", "not run"];
+
+function readRun(value: unknown): Pick<LiveReport, "run"> {
+  if (!value || typeof value !== "object") return {};
+  const run = value as Record<string, unknown>;
+  if (typeof run.phase !== "string" || !RUN_PHASES.includes(run.phase)) return {};
+  return { run: {
+    phase: run.phase as NonNullable<LiveReport["run"]>["phase"],
+    reason: typeof run.reason === "string" ? run.reason.slice(0, 400) : null,
+    ...(typeof run.elapsedMs === "number" && run.elapsedMs >= 0 ? { elapsedMs: run.elapsedMs } : {}),
+  } };
+}
+
 /** Reads a `live` message, keeping only well-formed fields. */
 export function readLiveReport(value: unknown): LiveReport | null {
   if (!value || typeof value !== "object") return null;
@@ -201,6 +221,8 @@ export function readLiveReport(value: unknown): LiveReport | null {
     paired: message.paired === true,
     dryRun: message.dryRun !== false,
     powerCap: typeof message.powerCap === "number" ? message.powerCap : LIVE_DEFAULT_POWER_CAP,
+    silenceMs: typeof message.silenceMs === "number" && message.silenceMs > 0 ? message.silenceMs : 1000,
+    ...readRun(message.run),
     program: summary ? {
       name: typeof summary.name === "string" ? summary.name.slice(0, 120) : "",
       revision: typeof summary.revision === "string" ? summary.revision.slice(0, 64) : "",

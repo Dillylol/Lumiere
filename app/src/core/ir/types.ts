@@ -150,6 +150,11 @@ export interface Device {
   name: string;
   kind: DeviceKind;
   reversed: boolean;
+  /**
+   * For a motor that takes encoder targets: the ticks it may travel between, counted from where it is at
+   * INIT. Lumière Live needs it, refuses targets outside it, and stops the run if the motor leaves it.
+   */
+  travel?: { minTicks: number; maxTicks: number };
 }
 
 export type Output =

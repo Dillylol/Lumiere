@@ -87,6 +87,8 @@ public final class VirtualControlHub implements AutoCloseable {
         if (System.getProperty(LIVE_PROPERTY) != null) found.addAll(OpModeCatalog.scan(LIVE_PACKAGE));
         this.opModes = Collections.unmodifiableList(found);
         this.manager = VirtualOpModeManager.create(this::stopRequestedByRobotLibrary);
+        // The check's Lumière Live builds the project's own follower from this class.
+        System.setProperty(dev.lumiere.devtools.virtualhub.live.VirtualLive.CONSTANTS_PROPERTY, config.constantsClass);
         DrivetrainDiscovery.Drivetrain drivetrain = DrivetrainDiscovery.discover(config.constantsClass);
         this.simulation = new Simulation(config.robot, drivetrain, config.startX, config.startY, config.startHeading, new Simulation.Listener() {
             @Override
@@ -115,6 +117,11 @@ public final class VirtualControlHub implements AutoCloseable {
             }
         });
         for (SimulatorConfig.Device device : config.devices) device.declareIn(simulation.hardware());
+        if (System.getProperty(LIVE_PROPERTY) != null) {
+            // Mechanism devices the Lumière Live checks can drive on any project.
+            simulation.hardware().declare(com.qualcomm.robotcore.hardware.DcMotorEx.class, "lumiere_check_motor");
+            simulation.hardware().declare(com.qualcomm.robotcore.hardware.Servo.class, "lumiere_check_servo");
+        }
         this.driverStation = new StreamServer("127.0.0.1", driverStationPort, token, this::greeting, this::onCommand);
     }
 

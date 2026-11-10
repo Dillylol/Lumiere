@@ -208,8 +208,9 @@ function liveSource(packageName: string, constants: Constants, live: LiveTarget)
   ]);
   w.line("/**");
   w.line(` * ${LIVE_OPMODE_NAME}, paired with the computer that deployed this code. That computer sends it`);
-  w.line(` * autonomous programs from ${BRAND.name}, and it checks each one against this robot's hardware.`);
-  w.line(" * In this version it is a dry run: nothing moves.");
+  w.line(` * autonomous programs from ${BRAND.name}. Each one is checked against this robot's hardware, set up`);
+  w.line(" * at INIT, and run on START, with mechanism powers capped at powerCap(). A run stops if that");
+  w.line(" * computer goes quiet for a second, and the Driver Station's STOP always works.");
   w.line(" *");
   w.line(` * <p>Turn off Live runs in ${BRAND.name} and deploy to remove it. Remove it before competitions.`);
   w.line(" */");

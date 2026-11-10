@@ -30,6 +30,9 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
         void send(String message);
 
         void close();
+
+        /** When the client was last heard from, pings included, in System.currentTimeMillis() time. */
+        long lastHeard();
     }
 
     /** Handles a text message knowing which client sent it, and hears when a client leaves. */
@@ -200,6 +203,11 @@ public class StreamServer extends NanoWSD implements Stream.Transport {
         @Override
         public void close() {
             closeQuietly();
+        }
+
+        @Override
+        public long lastHeard() {
+            return lastHeard;
         }
 
         /** Tells the handler once that this client has left, however it left. */

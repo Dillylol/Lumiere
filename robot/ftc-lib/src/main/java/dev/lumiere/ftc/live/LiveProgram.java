@@ -134,12 +134,26 @@ public final class LiveProgram {
         /** {@code motor}, {@code servo} or {@code crservo}. */
         public final String kind;
         public final boolean reversed;
+        /** For a motor that takes encoder targets: the ticks it may travel between, or null when not set. */
+        public final Travel travel;
 
-        Device(String id, String name, String kind, boolean reversed) {
+        Device(String id, String name, String kind, boolean reversed, Travel travel) {
             this.id = id;
             this.name = name;
             this.kind = kind;
             this.reversed = reversed;
+            this.travel = travel;
+        }
+    }
+
+    /** A motor's soft limits, in encoder ticks from where it was at INIT. */
+    public static final class Travel {
+        public final int minTicks;
+        public final int maxTicks;
+
+        Travel(int minTicks, int maxTicks) {
+            this.minTicks = minTicks;
+            this.maxTicks = maxTicks;
         }
     }
 
@@ -326,7 +340,8 @@ public final class LiveProgram {
                     continue;
                 }
                 Object reversed = device.get("reversed");
-                Device parsed = new Device(deviceId, deviceName.trim(), kind, Boolean.TRUE.equals(reversed));
+                Travel travel = travel(device.get("travel"), "\"" + deviceName.trim() + "\" in " + label, kind);
+                Device parsed = new Device(deviceId, deviceName.trim(), kind, Boolean.TRUE.equals(reversed), travel);
                 if (byId.put(deviceId, parsed) != null) problem(label + " lists the device id \"" + deviceId + "\" twice.");
                 devices.add(parsed);
             }
@@ -390,6 +405,22 @@ public final class LiveProgram {
                 problem(subject + " an output Lumière Live does not know.");
             }
             return null;
+        }
+
+        Travel travel(Object json, String where, String kind) {
+            if (json == null) return null;
+            Map<String, Object> map = object(json);
+            double min = map == null ? Double.NaN : number(map.get("minTicks"));
+            double max = map == null ? Double.NaN : number(map.get("maxTicks"));
+            if (!"motor".equals(kind)) {
+                problem(where + " has a travel range, but only motors have one.");
+                return null;
+            }
+            if (!(Math.abs(min) <= 1_000_000_000 && Math.abs(max) <= 1_000_000_000) || min != Math.rint(min) || max != Math.rint(max) || min >= max) {
+                problem(where + " has a travel range that is not two whole numbers of ticks, lowest first.");
+                return null;
+            }
+            return new Travel((int) min, (int) max);
         }
 
         Path path(Object json) {

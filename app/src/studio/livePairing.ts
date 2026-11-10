@@ -10,6 +10,8 @@ export interface LivePairing {
   /** 64 hexadecimal digits. The robot code carries only its SHA-256. */
   secret: string;
   pairingHash: string;
+  /** The highest power Lumière Live gives a mechanism, above 0 and at most 1. Absent means the default. */
+  powerCap?: number;
 }
 
 const key = (projectId: string) => `lumiere-live-${projectId}`;
@@ -20,7 +22,8 @@ export function loadLivePairing(projectId: string): LivePairing | null {
     if (!stored) return null;
     const value = JSON.parse(stored) as Partial<LivePairing>;
     if (value.version === 1 && typeof value.secret === "string" && /^[0-9a-f]{64}$/.test(value.secret) && isPairingHash(value.pairingHash)) {
-      return { version: 1, secret: value.secret, pairingHash: value.pairingHash };
+      const cap = typeof value.powerCap === "number" && value.powerCap > 0 && value.powerCap <= 1 ? { powerCap: value.powerCap } : {};
+      return { version: 1, secret: value.secret, pairingHash: value.pairingHash, ...cap };
     }
   } catch {
     // Unreadable storage behaves like Live runs being off.

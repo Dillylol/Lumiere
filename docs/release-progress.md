@@ -30,16 +30,26 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
     are listed, but Lumière does nothing with them yet. The simulator and virtual hub can list
     analog, camera and custom-driver devices without simulating them.
   - **Release:** the manifest part needs a robot-library release.
-- **Lumière Live, dry run (step 2 of Live runs):**
-  - **Pairing:** turning on Live runs on the Robot page pairs this computer with a random secret kept on this computer only. Deploys, and the Code page, then add a generated `LumiereLive.java` carrying the secret's SHA-256, the team's Pedro constants class and a 0.6 power cap.
+- **Lumière Live: autonomous programs run from this computer without rebuilding the robot code:**
+  - **Pairing:** turning on Live runs on the Robot page pairs this computer with a random secret kept on this computer only.
+    - Deploys, and the Code page, then add a generated `LumiereLive.java` carrying the secret's SHA-256, the team's Pedro constants class and the mechanism power limit (0.6 unless set on the Robot page).
     - Turning Live runs off and deploying removes the file, even when outdated files are kept.
     - "Lumière Live" is reserved as an OpMode name.
-  - **The run:** when the Driver Station initializes Lumière Live, Robot mode pairs and sends the open autonomous, and sends it again when it changes before START.
+  - **INIT:** when the Driver Station initializes Lumière Live, Robot mode pairs and sends the open autonomous, and sends it again when it changes before START.
     - The program carries exactly the numbers the generated Java uses: the same poses and heading rules, rounded the way the generator writes them.
-    - The robot library's `LiveRunner` checks the program's shape, then its mechanisms against the configuration and Pedro Pathing's devices: missing or mistyped devices, Pedro's drive motors, and encoder targets on dead-wheel ports.
-    - It reports to the app and the Driver Station, and moves nothing, before or after START.
+    - The robot library's `LiveRunner` checks it: missing or mistyped devices, Pedro's drive motors, encoder targets on dead-wheel ports, and encoder targets without a travel range or outside it.
+    - A program that passes is set up as the generated `init()` would set it up: the follower at the start pose, the mechanisms' devices, and their starting states.
+  - **START:** the routine runs with the generated Java's Pedro Pathing paths and Ivy commands, with mechanism powers capped at the limit.
+  - **Stopping:** a run stops when the paired computer is silent for more than 1 s (the app pings every 250 ms while paired), when it disconnects, when a motor leaves its travel range, or on any error.
+    - Stopping sets mechanism motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
+    - Driver Station STOP always works.
+  - **Travel ranges:** motors that take encoder targets get an optional travel range on the Robot page. Lumière Live requires one, and targets outside it are errors in Problems.
   - **Refused:** programs while Lumière Live isn't running, a wrong secret (the fifth wrong attempt closes the connection), programs from unpaired connections, and programs after START.
-  - **Tested:** robot library 45 tests, app unit and end-to-end tests, and 22/22 virtual hub checks on the quickstart and on the modernized team robot. That robot's real autonomous passed the check through the app, with notes for six mechanism powers above the cap.
+  - **Simulator:** it now gives Lumière Live's follower the simulated pose, as it does for any OpMode's follower.
+  - **Tested:**
+    - **Unit tests:** the robot library's 50 tests cover the run, the cap and every stop path with stand-in hardware.
+    - **Virtual hub:** 26/26 checks on the quickstart and on the modernized team robot, including the run, the cap, and stops on silence (1.0 s), on disconnect, on a motor leaving its travel, and on Driver Station STOP.
+    - **Parity (new `--parity` mode):** on that robot, Lumière Live ran its real autonomous like the deployed OpMode. Routine times were within 0.3%, the routes and end poses within the simulator's own run-to-run variation (about an inch at most), and all 16 mechanism output changes matched.
   - **Release:** needs a robot-library release.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 
