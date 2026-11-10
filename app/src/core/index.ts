@@ -20,6 +20,7 @@ export {
 export { validateProject, hasErrors, buttonLabel, AUTONOMOUS_PERIOD_MS, type Diagnostic, type DiagnosticLocation, type Severity } from "./ir/validate";
 export { isVersion1Project, migrateVersion1, migrateVersion2, type Migration } from "./ir/migrate";
 export { physicalRobot, type PhysicalRobot } from "./ir/robot";
+export { DRIVE_ROLES, ENCODER_ROLES, localizerLabel, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType, type OwnedDevice } from "./ir/pedro";
 
 export {
   angleError,

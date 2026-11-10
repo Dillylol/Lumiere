@@ -80,7 +80,7 @@ public final class HeadlessRun {
         String name = entry != null ? entry.name : type.getSimpleName();
         DrivetrainDiscovery.Drivetrain drivetrain = DrivetrainDiscovery.discover(config.constantsClass);
         try (Simulation simulation = new Simulation(config.robot, drivetrain, config.startX, config.startY, config.startHeading, null)) {
-            for (SimulatorConfig.Device device : config.devices) simulation.hardware().declare(device.type, device.name);
+            for (SimulatorConfig.Device device : config.devices) device.declareIn(simulation.hardware());
             OpMode opMode;
             try {
                 opMode = type.getDeclaredConstructor().newInstance();

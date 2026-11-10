@@ -144,6 +144,20 @@ public final class SimHardware {
         return getOrCreate(type, name);
     }
 
+    /**
+     * Lists a configured device the simulator does not simulate, such as an analog sensor, a camera,
+     * or a team's own I2C driver. It appears in the manifest with {@code type}; requests for it by
+     * type find nothing, as they do for any device the simulator cannot create.
+     */
+    public synchronized HardwareDevice list(String name, String type) {
+        HardwareDevice existing = devices.get(name);
+        if (existing != null) return existing;
+        HardwareDevice device = new ListedDevice(type);
+        devices.put(name, device);
+        types.put(name, type);
+        return device;
+    }
+
     private DcMotorEx motorDevice(String name) {
         MotorState state = new MotorState(name);
         motors.put(name, state);

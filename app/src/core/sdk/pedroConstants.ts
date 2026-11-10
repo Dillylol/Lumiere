@@ -3,7 +3,8 @@
  * `pedro/Constants.java`), so the app's robot profile matches the code the robot runs:
  *
  * - `MecanumConfig`: drive motor names and directions.
- * - The localizer config, such as `PinpointConfig`: device name and pod offsets.
+ * - The localizer config, such as `PinpointConfig` or `ThreeWheelIMUConfig`: every device it names
+ *   (dead wheels with their direction and ticks-to-inches, the IMU), and the Pinpoint's pod offsets.
  * - `ForesightConfig`: achievable forward and strafe velocities and natural decelerations.
  * - `TUNED`.
  *
@@ -11,8 +12,9 @@
  * as literals are read. A setting whose value is computed is listed in `unreadable` instead of
  * guessed, and the profile keeps its own value for it.
  */
-import { DRIVE_MOTOR_POSITIONS, type DriveMotor, type DriveMotorPosition, type RobotLocalizer, type RobotProfile } from "../ir/types";
+import { DRIVE_MOTOR_POSITIONS, type DriveMotor, type DriveMotorPosition, type LocalizerDevice, type RobotLocalizer, type RobotProfile } from "../ir/types";
 import { ROBOT_LIMITS } from "../ir/schema";
+import { ENCODER_ROLES } from "../ir/pedro";
 import { importsOf, maskJava, scanTo, unescapeJavaString } from "../java/source";
 
 export interface PedroConstants {
@@ -42,6 +44,11 @@ const FORESIGHT_SETTINGS = {
   naturalStrafeDeceleration: "strafeDeceleration",
 } as const;
 const INCHES_PER_UNIT: Record<string, number> = { INCH: 1, MM: 1 / 25.4, CM: 1 / 2.54, METER: 1 / 0.0254 };
+/** Which ticks-to-inches setting applies to each dead wheel: forward-measuring wheels, or the strafe wheel. */
+const TICKS_TO_INCHES: Record<string, string> = {
+  leftEncoder: "forwardTicksToInches", rightEncoder: "forwardTicksToInches", xPod: "forwardTicksToInches",
+  strafeEncoder: "strafeTicksToInches", yPod: "strafeTicksToInches",
+};
 
 function parseValue(text: string): Value {
   const trimmed = text.trim();
@@ -106,8 +113,25 @@ export function readPedroConstants(source: string): PedroConstants {
   if (localizerConfig) {
     const kind = localizerConfig.type.replace(/Config$/, "").toLowerCase();
     localizer = { kind };
-    const name = read(localizerConfig.type, localizerConfig.settings, "name", "string");
-    if (name?.kind === "string") localizer.name = name.text;
+    // Every device the config names: `<role>Name` settings, or `name` for a localizer that is one device.
+    const devices: LocalizerDevice[] = [];
+    for (const setting of localizerConfig.settings.keys()) {
+      const role = setting === "name" ? kind : setting.endsWith("Name") && setting.length > "Name".length ? setting.slice(0, -"Name".length) : undefined;
+      if (!role) continue;
+      const name = read(localizerConfig.type, localizerConfig.settings, setting, "string");
+      if (name?.kind !== "string" || !name.text.trim()) continue;
+      const device: LocalizerDevice = { role, name: name.text.trim() };
+      if (setting === "name") localizer.name = device.name;
+      if (ENCODER_ROLES.has(role)) {
+        const direction = localizerConfig.settings.get(`${role}Direction`);
+        if (direction?.kind === "constant") device.reversed = direction.name === "REVERSE";
+        else if (direction?.kind === "number") device.reversed = direction.value < 0;
+        const ticks = localizerConfig.settings.get(TICKS_TO_INCHES[role]);
+        if (ticks?.kind === "number" && ticks.value > 0) device.inchesPerTick = ticks.value;
+      }
+      devices.push(device);
+    }
+    if (devices.length) localizer.devices = devices;
     if (kind === "pinpoint") {
       const unit = read(localizerConfig.type, localizerConfig.settings, "offsetUnits", "constant");
       const scale = unit?.kind === "constant" ? INCHES_PER_UNIT[unit.name] : 1;

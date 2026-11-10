@@ -170,6 +170,12 @@ export const projectSchema: z.ZodType<Project> = z.object({
       name: z.string().max(60).optional(),
       xPodOffset: finite.optional(),
       yPodOffset: finite.optional(),
+      devices: z.array(z.object({
+        role: z.string().min(1).max(40),
+        name: z.string().max(80),
+        reversed: z.boolean().optional(),
+        inchesPerTick: finite.optional(),
+      })).max(20).optional(),
     }).optional(),
     constants: z.object({
       file: z.string().max(400),
@@ -180,6 +186,11 @@ export const projectSchema: z.ZodType<Project> = z.object({
     scan: z.object({
       devices: z.array(z.object({ name: z.string().max(80), type: z.string().max(80) })).max(300),
       scannedAt: z.string().max(40),
+      pedro: z.object({
+        constants: z.string().max(200),
+        localizer: z.string().max(40).nullable(),
+        devices: z.array(z.object({ role: z.string().min(1).max(40), name: z.string().max(80) })).max(40),
+      }).optional(),
     }).optional(),
   }),
   subsystems: z.array(subsystem).max(30),

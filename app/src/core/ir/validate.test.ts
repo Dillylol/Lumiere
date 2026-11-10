@@ -145,6 +145,56 @@ describe("robot profile checks", () => {
     expect(scanned(project).find((item) => item.code === "robot.device.missing")?.location).toEqual({ subsystemId: "claw", deviceId: "lift" });
   });
 
+  it("keeps mechanisms off Pedro's dead wheels, and checks every localizer device against the robot", () => {
+    const project = createProject("Dead wheels");
+    project.robot.drivetrain = drivetrain;
+    project.robot.localizer = { kind: "threewheelimu", devices: [
+      { role: "leftEncoder", name: "intake" }, { role: "rightEncoder", name: "lift" }, { role: "strafeEncoder", name: "turret" },
+    ] };
+    // A motor sharing its port with a dead wheel may be given power, but not an encoder target.
+    const motor = (id: string, name: string) => ({ id, name, kind: "motor" as const, reversed: false });
+    project.subsystems.push(
+      { id: "intake", name: "Intake", devices: [motor("i", "intake")], states: [{ id: "on", name: "On", outputs: { i: { kind: "power", value: 1 } } }], initialStateId: null },
+      { id: "turret", name: "Turret", devices: [motor("t", "turret")], states: [{ id: "c", name: "Center", outputs: { t: { kind: "target", ticks: 0, power: 0.5 } } }], initialStateId: null },
+    );
+    const unscanned = scanned(project);
+    expect(unscanned.map((item) => `${item.severity}:${item.code}`)).toEqual(["error:robot.device.odometry"]);
+    expect(unscanned[0].location).toEqual({ subsystemId: "turret", deviceId: "t" });
+    expect(unscanned[0].message).toContain("strafe dead wheel");
+
+    // The robot reports Pedro's IMU, which the constants file left to Pedro's default, and a different right wheel.
+    project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: [
+      ...Object.values(drivetrain).map((item) => ({ name: item.name, type: "motor" })),
+      { name: "intake", type: "motor" }, { name: "turret", type: "motor" }, { name: "lift", type: "servo" }, { name: "imu", type: "voltage" },
+    ], pedro: { constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "threewheelimu", devices: [
+      { role: "rightEncoder", name: "lift2" }, { role: "imu", name: "imu" },
+    ] } };
+    const found = scanned(project);
+    expect(found.map((item) => item.code)).toEqual(["robot.device.odometry", "robot.localizer.type", "robot.localizer.type", "robot.pedro.mismatch"]);
+    expect(found[1].message).toBe(`"lift" is configured as servo, but Pedro Pathing uses it as its right dead wheel, which needs a motor port.`);
+    expect(found[2].message).toContain("localizer IMU, which needs imu");
+    expect(found[3].message).toContain(`name "lift" as the right dead wheel, but the robot reports "lift2"`);
+  });
+
+  it("uses the robot's report for Pedro devices when the project has not read the constants", () => {
+    const project = createProject("Browser");
+    project.subsystems.push({ id: "m", name: "Lift", devices: [{ id: "d", name: "lf", kind: "motor", reversed: false }], states: [], initialStateId: null });
+    project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: [{ name: "lf", type: "motor" }], pedro: {
+      constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "pinpoint",
+      devices: [{ role: "frontLeft", name: "lf" }, { role: "pinpoint", name: "odo" }],
+    } };
+    expect(scanned(project).map((item) => `${item.severity}:${item.code}`)).toEqual(["error:robot.device.drive", "warning:robot.localizer.missing"]);
+  });
+
+  it("matches names the way the robot does, ignoring spaces at either end", () => {
+    const project = createProject("Spaces");
+    project.subsystems.push({ id: "c", name: "Claw", devices: [{ id: "s", name: " claw ", kind: "servo", reversed: false }], states: [], initialStateId: null });
+    project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: [{ name: "claw", type: "servo" }] };
+    const codes = validateProject(project).map((item) => item.code);
+    expect(codes).toContain("device.name.spaces");
+    expect(codes).not.toContain("robot.device.missing");
+  });
+
   it("skips hardware checks until the robot has been scanned, but still catches a device used twice", () => {
     const project = createProject("Unscanned");
     project.robot.drivetrain = drivetrain;

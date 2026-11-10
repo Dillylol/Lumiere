@@ -1,12 +1,19 @@
-import { DRIVE_MOTOR_POSITIONS, ROBOT_LIMITS, SIZING_CUBE_INCHES, type DriveMotorPosition, type Project, type RobotProfile } from "../core";
+import {
+  DRIVE_MOTOR_POSITIONS, DRIVE_ROLES, ENCODER_ROLES, ROBOT_LIMITS, SIZING_CUBE_INCHES, localizerLabel, pedroDevices, pedroRoleLabel, pedroRoleType,
+  type DriveMotorPosition, type LocalizerDevice, type OwnedDevice, type Project, type RobotProfile,
+} from "../core";
 import { NumberField } from "./ProgramEditor";
 
 const POSITION_LABELS: Record<DriveMotorPosition, string> = { frontLeft: "Front left", frontRight: "Front right", backLeft: "Back left", backRight: "Back right" };
 const KIND_LABELS: Record<string, string> = {
   motor: "Motor", servo: "Servo", crservo: "Continuous servo", imu: "IMU", voltage: "Voltage sensor",
-  pinpoint: "goBILDA Pinpoint", otos: "SparkFun OTOS", camera: "Camera", digital: "Digital input",
+  pinpoint: "goBILDA Pinpoint", otos: "SparkFun OTOS", octoquad: "OctoQuad", camera: "Camera", digital: "Digital channel",
   touch: "Touch sensor", color: "Color sensor", distance: "Distance sensor", analog: "Analog input",
 };
+/** Devices mechanisms can drive. Anything else is listed so the team sees it, but Lumière does nothing with it. */
+const DRIVABLE = new Set(["motor", "servo", "crservo"]);
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+const typeLabel = (type: string) => KIND_LABELS[type] ?? `${type} (custom driver)`;
 type Field = { key: keyof typeof ROBOT_LIMITS; label: string; unit: string };
 const OWN_FIELDS: Field[] = [
   { key: "widthInches", label: "Width", unit: "in" },
@@ -21,15 +28,18 @@ const PEDRO_FIELDS: Field[] = [
   { key: "strafeDeceleration", label: "Strafe coast deceleration", unit: "in/s²" },
 ];
 
-/** What uses each configured device: a drive motor, the localizer, or mechanisms. */
-function usesOf(project: Project): Map<string, string[]> {
+/** What uses each configured device: Pedro Pathing (drive motors, dead wheels, the localizer) or mechanisms. */
+function usesOf(project: Project, pedro: OwnedDevice[]): Map<string, string[]> {
   const uses = new Map<string, string[]>();
   const add = (name: string, use: string) => uses.set(name, [...(uses.get(name) ?? []), use]);
-  const robot = project.robot;
-  if (robot.drivetrain) for (const position of DRIVE_MOTOR_POSITIONS) add(robot.drivetrain[position].name, `${POSITION_LABELS[position]} drive`);
-  if (robot.localizer?.name) add(robot.localizer.name, "Localizer");
-  for (const subsystem of project.subsystems) for (const device of subsystem.devices) add(device.name, subsystem.name || "Mechanism");
+  for (const device of pedro) add(device.name, capitalized(pedroRoleLabel(device.role)));
+  for (const subsystem of project.subsystems) for (const device of subsystem.devices) add(device.name.trim(), subsystem.name || "Mechanism");
   return uses;
+}
+
+/** A localizer device's row: the constants' details when the project read them. */
+function localizerDetails(robot: RobotProfile, device: OwnedDevice): LocalizerDevice | undefined {
+  return device.source === "constants" ? robot.localizer?.devices?.find((item) => item.role === device.role && item.name === device.name) : undefined;
 }
 
 function when(iso: string) {
@@ -47,9 +57,17 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
   const synced = linked && robot.constants !== undefined;
   const scan = robot.scan;
   const configured = scan ? new Map(scan.devices.map((device) => [device.name, device.type])) : undefined;
-  const uses = usesOf(project);
+  const pedro = pedroDevices(robot);
+  const uses = usesOf(project, pedro);
+  const localizerKind = robot.localizer?.kind ?? scan?.pedro?.localizer ?? undefined;
+  const localizerDevices = pedro.filter((device) => !DRIVE_ROLES.has(device.role));
   const set = (key: keyof RobotProfile, value: number) => onChange({ ...project, robot: { ...robot, [key]: value } });
-  const status = (name: string) => !configured ? "Not scanned" : configured.has(name) ? "Configured" : "Missing";
+  const status = (name: string, expected?: string) => {
+    if (!configured) return "Not scanned";
+    const type = configured.get(name);
+    if (type === undefined) return "Missing";
+    return expected && type !== expected ? `Configured as ${typeLabel(type).toLowerCase()}` : "Configured";
+  };
   const fileName = robot.constants?.file.split("/").slice(-2).join("/");
   const field = ({ key, label, unit }: Field) => <NumberField key={key} label={`${label} (${unit})`} value={robot[key]}
     min={ROBOT_LIMITS[key].min} max={ROBOT_LIMITS[key].max} onChange={(value) => set(key, value)}/>;
@@ -93,24 +111,42 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
       </table>
     </>}
 
-    {robot.localizer && <>
+    {localizerKind && <>
       <h3>Localizer</h3>
       <dl className="stream-values profile-values">
-        <div><dt>Type</dt><dd>{robot.localizer.kind === "pinpoint" ? "goBILDA Pinpoint" : robot.localizer.kind.toUpperCase()}</dd></div>
-        {robot.localizer.name && <div><dt>Device</dt><dd>{robot.localizer.name} · {status(robot.localizer.name)}</dd></div>}
-        {robot.localizer.xPodOffset !== undefined && <div><dt>Pod offsets</dt><dd>x {robot.localizer.xPodOffset} in, y {robot.localizer.yPodOffset ?? 0} in</dd></div>}
+        <div><dt>Type</dt><dd>{localizerLabel(localizerKind)}</dd></div>
+        {robot.localizer?.xPodOffset !== undefined && <div><dt>Pod offsets</dt><dd>x {robot.localizer.xPodOffset} in, y {robot.localizer.yPodOffset ?? 0} in</dd></div>}
       </dl>
+      {localizerDevices.length > 0 && <table aria-label="Localizer devices">
+        <thead><tr><th scope="col">Role</th><th scope="col">Device</th><th scope="col">Direction</th><th scope="col">Inches per tick</th><th scope="col">On the robot</th></tr></thead>
+        <tbody>{localizerDevices.map((device) => {
+          const details = localizerDetails(robot, device);
+          const wheel = ENCODER_ROLES.has(device.role);
+          return <tr key={`${device.role}\0${device.name}`}>
+            <td>{capitalized(pedroRoleLabel(device.role))}{device.source === "robot" ? " (reported by the robot)" : ""}</td>
+            <td>{device.name}</td>
+            <td>{wheel && details?.reversed !== undefined ? (details.reversed ? "Reversed" : "Forward") : "—"}</td>
+            <td>{wheel && details?.inchesPerTick !== undefined ? details.inchesPerTick : "—"}</td>
+            <td>{status(device.name, pedroRoleType(device.role))}</td>
+          </tr>;
+        })}</tbody>
+      </table>}
     </>}
 
     <h3>Robot hardware</h3>
     {scan ? <>
       <table>
         <thead><tr><th scope="col">Device</th><th scope="col">Type</th><th scope="col">Used by</th></tr></thead>
-        <tbody>{scan.devices.map((device) => <tr key={device.name}>
-          <td>{device.name}</td><td>{KIND_LABELS[device.type] ?? device.type}</td><td>{uses.get(device.name)?.join(", ") ?? "—"}</td>
+        <tbody>{scan.devices.map((device) => <tr key={`${device.name}\0${device.type}`}>
+          <td>{device.name}</td><td>{typeLabel(device.type)}</td>
+          <td>{uses.get(device.name)?.join(", ") ?? (DRIVABLE.has(device.type) ? "—" : "Listed only")}</td>
         </tr>)}</tbody>
       </table>
-      <p className="profile-note">Read from the robot's configuration {when(scan.scannedAt)}.</p>
+      <p className="profile-note">
+        The robot's configuration, as it last reported it. It last changed {when(scan.scannedAt)}.
+        {" "}Lumière lists sensors and other devices it doesn't drive, but does nothing with them yet.
+        {scan.pedro && <> The robot reads Pedro Pathing's devices from <code>{scan.pedro.constants.split(".").slice(-2).join(".")}</code>.</>}
+      </p>
     </> : <p className="profile-note">Connect to the robot from Pathing → Robot to read its configured hardware and check it against this project.</p>}
   </section>;
 }

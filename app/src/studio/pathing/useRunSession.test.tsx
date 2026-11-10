@@ -122,12 +122,18 @@ describe("useRunSession", () => {
     act(() => socket.open());
     act(() => {
       socket.receive({ type: "hello", protocol: 1, source: "robot", library: "hub" });
-      socket.receive({ type: "manifest", opModes: [], devices: [{ name: "claw", type: "servo" }] });
+      socket.receive({ type: "manifest", opModes: [], devices: [{ name: "claw", type: "servo" }], pedro: {
+        constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "threewheelimu",
+        devices: [{ name: "lf", role: "leftEncoder" }, { name: 7, role: "imu" }, { name: "rf", role: "" }],
+      } } as never);
       socket.receive({ type: "lifecycle", opMode: "Main Auto", phase: "init" });
       socket.receive({ type: "lifecycle", opMode: "Main Auto", phase: "running" });
       socket.receive({ type: "state", opMode: "Main Auto", pose: { x: 5, y: 6, heading: 0 }, follower: "follow", loopMs: 12 });
     });
-    expect(onScan).toHaveBeenCalledWith([{ name: "claw", type: "servo" }]);
+    // Malformed Pedro entries are dropped; the rest is passed on with the devices.
+    expect(onScan).toHaveBeenCalledWith([{ name: "claw", type: "servo" }], {
+      constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "threewheelimu", devices: [{ role: "leftEncoder", name: "lf" }],
+    });
     expect(result.current.pose).toEqual({ x: 5, y: 6, heading: 0 });
     expect(result.current.follower).toBe("follow");
     act(() => result.current.stop());

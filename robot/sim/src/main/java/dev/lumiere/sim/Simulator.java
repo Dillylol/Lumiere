@@ -64,9 +64,7 @@ public final class Simulator {
                 Stream.publish("error", errorBody(opMode, failure));
             }
         });
-        for (SimulatorConfig.Device device : config.devices) {
-            simulation.hardware().declare(device.type, device.name);
-        }
+        for (SimulatorConfig.Device device : config.devices) device.declareIn(simulation.hardware());
         this.server = new StreamServer(hostname, port, token, this::greeting, this::onMessage);
     }
 

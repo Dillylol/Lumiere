@@ -1,4 +1,5 @@
 import { resolvePath } from "../geometry/paths";
+import { DRIVE_ROLES, ENCODER_ROLES, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType } from "./pedro";
 import {
   DRIVE_MOTOR_POSITIONS,
   FIELD_INCHES,
@@ -104,12 +105,23 @@ function validateRobot(project: Project, add: Add) {
     add("info", "robot.constants.unreadable", `Lumière could not read ${robot.constants.unreadable.join(", ")} in Constants.java, so the profile keeps its own value.`, at);
   }
 
-  const driveNames = new Set(robot.drivetrain ? DRIVE_MOTOR_POSITIONS.map((position) => robot.drivetrain![position].name) : []);
+  // Pedro Pathing drives these devices, so mechanisms must leave them alone.
+  const pedro = pedroDevices(robot);
   for (const subsystem of project.subsystems) {
+    const mechanism = subsystem.name || "a mechanism";
     for (const device of subsystem.devices) {
-      if (driveNames.has(device.name)) {
-        add("warning", "robot.device.drive", `"${device.name}" in ${subsystem.name || "a mechanism"} is also a drive motor. One device can't be driven by both.`, { subsystemId: subsystem.id, deviceId: device.id });
+      const where = { subsystemId: subsystem.id, deviceId: device.id };
+      const roles = pedro.filter((owned) => owned.name === device.name.trim()).map((owned) => owned.role);
+      if (roles.some((role) => DRIVE_ROLES.has(role))) {
+        add("error", "robot.device.drive", `"${device.name.trim()}" in ${mechanism} is a drive motor. Pedro Pathing drives it, so a mechanism can't.`, where);
+        continue;
       }
+      const wheel = roles.find((role) => ENCODER_ROLES.has(role));
+      if (wheel && device.kind === "motor" && subsystem.states.some((state) => state.outputs[device.id]?.kind === "target")) {
+        add("error", "robot.device.odometry", `"${device.name.trim()}" in ${mechanism} has Pedro Pathing's ${pedroRoleLabel(wheel)} on its encoder port, so an encoder target would follow the dead wheel, and resetting the encoder would break localization. Give this motor power instead, or move the dead wheel to another port.`, where);
+      }
+      const other = roles.find((role) => !ENCODER_ROLES.has(role));
+      if (other) add("warning", "robot.device.pedro", `"${device.name.trim()}" in ${mechanism} is Pedro Pathing's ${pedroRoleLabel(other)}.`, where);
     }
   }
 
@@ -123,13 +135,19 @@ function validateRobot(project: Project, add: Add) {
       else if (type !== "motor") add("warning", "robot.drive.type", `"${motor.name}" is configured as ${type}, not a motor.`, at);
     }
   }
-  const localizer = robot.localizer;
-  if (localizer?.name !== undefined && !configured.has(localizer.name)) {
-    add("warning", "robot.localizer.missing", `The ${localizer.kind} localizer "${localizer.name}" is not in the robot's configuration.`, at);
+  for (const owned of pedro) {
+    if (DRIVE_ROLES.has(owned.role)) continue;
+    const type = configured.get(owned.name);
+    const expected = pedroRoleType(owned.role);
+    if (type === undefined) add("warning", "robot.localizer.missing", `Pedro Pathing's ${pedroRoleLabel(owned.role)} "${owned.name}" is not in the robot's configuration.`, at);
+    else if (expected && type !== expected) add("warning", "robot.localizer.type", `"${owned.name}" is configured as ${type}, but Pedro Pathing uses it as its ${pedroRoleLabel(owned.role)}, which needs ${expected === "motor" ? "a motor port" : expected}.`, at);
+  }
+  for (const mismatch of pedroMismatches(robot)) {
+    add("warning", "robot.pedro.mismatch", `The project's Pedro constants name "${mismatch.constants}" as the ${pedroRoleLabel(mismatch.role)}, but the robot reports "${mismatch.robot}". Install the latest code on the robot, or relink the FTC SDK project to read its constants again.`, at);
   }
   for (const subsystem of project.subsystems) {
     for (const device of subsystem.devices) {
-      const type = configured.get(device.name);
+      const type = configured.get(device.name.trim());
       const where = { subsystemId: subsystem.id, deviceId: device.id };
       if (type === undefined) add("warning", "robot.device.missing", `"${device.name}" in ${subsystem.name || "a mechanism"} is not in the robot's configuration.`, where);
       else if (type !== device.kind) add("warning", "robot.device.type", `"${device.name}" is configured as ${type}, but ${subsystem.name || "its mechanism"} uses it as ${device.kind === "crservo" ? "a continuous servo" : `a ${device.kind}`}.`, where);
@@ -155,6 +173,9 @@ function validateSubsystems(subsystems: Subsystem[], add: Add) {
       if (!hardwareName) {
         add("error", "device.name.empty", "Enter the device's name from the Robot Controller configuration.", where);
         continue;
+      }
+      if (hardwareName !== device.name) {
+        add("warning", "device.name.spaces", `"${hardwareName}" has spaces at the start or end of its name. The robot ignores them; remove them so the name matches the configuration exactly.`, where);
       }
       if (deviceNames.has(hardwareName)) add("error", "device.name.duplicate", `"${hardwareName}" is listed twice in this mechanism.`, where);
       deviceNames.add(hardwareName);

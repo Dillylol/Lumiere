@@ -185,14 +185,36 @@ export interface DriveMotor {
   reversed: boolean;
 }
 
+/**
+ * A device Pedro Pathing drives. Its role is Pedro's own setting name without "Name": `frontLeft` from
+ * `MecanumConfig.frontLeftName`, `leftEncoder` from `ThreeWheelConfig.leftEncoderName`, `xPod` from
+ * `TwoWheelConfig.xPodName`. A localizer with a single device, such as the Pinpoint, gives that device
+ * the localizer's kind as its role (`pinpoint`).
+ */
+export interface PedroDevice {
+  role: string;
+  /** The name in the Robot Controller configuration. */
+  name: string;
+}
+
+/** A device the localizer uses, as the team's constants class sets it. */
+export interface LocalizerDevice extends PedroDevice {
+  /** A dead wheel whose encoder counts backwards (Pedro's `Encoder.REVERSE`). */
+  reversed?: boolean;
+  /** A dead wheel's distance per encoder tick, in inches (Pedro's ticks-to-inches setting). */
+  inchesPerTick?: number;
+}
+
 export interface RobotLocalizer {
-  /** `pinpoint` for the goBILDA Pinpoint; otherwise the Pedro config type in lower case without "config", such as `otos`. */
+  /** `pinpoint` for the goBILDA Pinpoint; otherwise the Pedro config type in lower case without "config", such as `otos` or `threewheelimu`. */
   kind: string;
   /** The device name in the Robot Controller configuration, when the config sets one. */
   name?: string;
   /** Pinpoint pod offsets from the robot's center, in inches. */
   xPodOffset?: number;
   yPodOffset?: number;
+  /** Every device the localizer config names, such as three dead wheels and an IMU. */
+  devices?: LocalizerDevice[];
 }
 
 /** A configured device the robot reported in its manifest. */
@@ -200,6 +222,15 @@ export interface ScannedDevice {
   name: string;
   /** `motor`, `servo`, `crservo`, `imu`, `voltage`, `pinpoint`, `otos`, `camera`, … (see docs/protocol.md). */
   type: string;
+}
+
+/** What the robot reported about Pedro Pathing, read from the constants class it runs. */
+export interface ScannedPedro {
+  /** The constants class the robot read. */
+  constants: string;
+  /** The localizer's kind, as in {@link RobotLocalizer.kind}, or null when none was found. */
+  localizer: string | null;
+  devices: PedroDevice[];
 }
 
 /**
@@ -236,8 +267,11 @@ export interface RobotProfile {
     /** Settings Lumière could not read because they are computed rather than written as values. */
     unreadable: string[];
   };
-  /** The configured hardware the robot last reported. */
-  scan?: { devices: ScannedDevice[]; scannedAt: string };
+  /**
+   * The configured hardware the robot last reported, and the devices Pedro Pathing drives on it.
+   * `scannedAt` is when that report last changed.
+   */
+  scan?: { devices: ScannedDevice[]; scannedAt: string; pedro?: ScannedPedro };
 }
 
 export interface Project {

@@ -322,7 +322,7 @@ async function check() {
     expect(hello.drivetrain === undefined, "simulator-only drivetrain field present");
     return `library ${hello.library}`;
   });
-  await attempt("Manifest lists the project's OpModes and configured hardware before any INIT, without the SDK's system OpMode", async () => {
+  await attempt("Manifest lists the project's OpModes, configured hardware and Pedro Pathing's devices before any INIT, without the SDK's system OpMode", async () => {
     const manifest = await app.next((m) => m.type === "manifest");
     const names = manifest.opModes.map((m) => m.name);
     expect(names.includes("Example Auto") && names.includes("Example TeleOp"), `got ${names.join(", ")}`);
@@ -331,7 +331,15 @@ async function check() {
     expect(auto.flavor === "autonomous", `Example Auto flavor ${auto.flavor}`);
     const devices = manifest.devices.map((d) => `${d.name}:${d.type}`);
     expect(devices.filter((d) => d.endsWith(":motor")).length >= 4, `devices ${devices.join(", ") || "none"}`);
-    return `${names.length} OpModes, ${devices.length} devices`;
+    // Pedro Pathing's own constants name its devices; every one must be in the configuration.
+    const pedro = manifest.pedro;
+    expect(pedro && Array.isArray(pedro.devices), "no pedro block: the project's Pedro constants were not found");
+    const roles = pedro.devices.map((d) => d.role);
+    expect(["frontLeft", "frontRight", "backLeft", "backRight"].every((role) => roles.includes(role)), `Pedro roles ${roles.join(", ")}`);
+    const configured = new Set(manifest.devices.map((d) => d.name));
+    const missing = pedro.devices.filter((d) => !configured.has(d.name)).map((d) => `${d.role} ${d.name}`);
+    expect(!missing.length, `Pedro devices missing from the configuration: ${missing.join(", ")}`);
+    return `${names.length} OpModes, ${devices.length} devices; Pedro: ${pedro.localizer}, ${pedro.devices.map((d) => `${d.role}=${d.name}`).join(" ")}`;
   });
   await attempt("No lifecycle before the first OpMode", async () => {
     await sleep(500);

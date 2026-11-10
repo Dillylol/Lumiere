@@ -44,7 +44,13 @@ export type ServerMessage =
       };
       robot?: { widthInches: number; lengthInches: number };
     }
-  | { type: "manifest"; devices: DeviceInfo[]; opModes: OpModeInfo[] }
+  | {
+      type: "manifest";
+      devices: DeviceInfo[];
+      opModes: OpModeInfo[];
+      /** The devices Pedro Pathing drives, read from the team's constants class, when the robot found it. */
+      pedro?: { constants: string; localizer: string | null; devices: { name: string; role: string }[] };
+    }
   | { type: "lifecycle"; opMode: string | null; phase: Phase }
   | {
       type: "state";

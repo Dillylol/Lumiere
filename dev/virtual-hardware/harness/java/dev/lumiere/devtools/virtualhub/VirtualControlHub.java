@@ -110,7 +110,7 @@ public final class VirtualControlHub implements AutoCloseable {
                 toDriverStation(Stream.encode("error", errorBody(opMode, failure)));
             }
         });
-        for (SimulatorConfig.Device device : config.devices) simulation.hardware().declare(device.type, device.name);
+        for (SimulatorConfig.Device device : config.devices) device.declareIn(simulation.hardware());
         this.driverStation = new StreamServer("127.0.0.1", driverStationPort, token, this::greeting, this::onCommand);
     }
 

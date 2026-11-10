@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { PanelLeft, PanelRight, Plug, Square } from "lucide-react";
-import type { Pose, Program, Project, ScannedDevice } from "../../core";
+import type { Pose, Program, Project, ScannedDevice, ScannedPedro } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunComparison } from "../RunComparison";
 import { isRunTimingKey } from "../runTimings";
@@ -21,7 +21,7 @@ export interface RunEnvironment {
   simulatorSetup?: ReactNode;
   host: string;
   onHost(host: string): void;
-  onScan(devices: ScannedDevice[]): void;
+  onScan(devices: ScannedDevice[], pedro?: ScannedPedro): void;
   /** Desktop deploys, offered when an FTC SDK project is linked. */
   deployCode?(): void;
   deployApk?(): void;

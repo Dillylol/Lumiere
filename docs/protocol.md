@@ -68,11 +68,21 @@ startup first receives an incomplete manifest, then the complete one.
 {
   "type": "manifest",
   "devices": [{ "name": "left_front_drive", "type": "motor" }],
-  "opModes": [{ "name": "Example Auto", "group": "Examples", "flavor": "autonomous" }]
+  "opModes": [{ "name": "Example Auto", "group": "Examples", "flavor": "autonomous" }],
+  "pedro": {
+    "constants": "org.firstinspires.ftc.teamcode.pedro.Constants",
+    "localizer": "threewheelimu",
+    "devices": [{ "name": "left_front_drive", "role": "frontLeft" }, { "name": "left_front_drive", "role": "leftEncoder" }, { "name": "imu", "role": "imu" }]
+  }
 }
 ```
 
-- **Device `type` values:** `motor`, `servo`, `crservo`, `imu`, `voltage`, `digital`, `touch`, `color`, `distance`, `analog`, `pinpoint`, `otos`, `camera`, or a lowercase class name for other devices.
+- **Device `type` values:** `motor`, `servo`, `crservo`, `imu`, `voltage`, `digital`, `touch`, `color`, `distance`, `analog`, `pinpoint`, `otos`, `octoquad`, `camera`, or a lowercase class name for other devices. A device that implements `Manifest.Typed` states its own type.
+- **Names:** every configured name is listed, including names that differ only in case.
+- **`pedro`:** the devices Pedro Pathing drives, read from the team's Pedro constants class. It is left out when no constants class is found.
+  - **Where the robot looks:** `org.firstinspires.ftc.teamcode.pedro.Constants` (Lumière's quickstart), then `org.firstinspires.ftc.teamcode.pedroPathing.Constants` (Pedro Pathing's quickstart). The simulator reads the class the app names in its configuration. A class that holds no Pedro Pathing configs is never initialized.
+  - **`role`:** Pedro's own setting name without "Name": `frontLeft` from `MecanumConfig.frontLeftName`, `leftEncoder` from `ThreeWheelConfig.leftEncoderName`, `xPod` from `TwoWheelConfig.xPodName`. A localizer set up with one device (`PinpointConfig.name`, `OTOSConfig.name`, `OctoQuadConfig.name`) gives that device the localizer's kind as its role. Settings that are not set are left out.
+  - **`localizer`:** the localizer config's type in lower case without "Config", such as `pinpoint` or `threewheelimu`, or null.
 - **`flavor` values:** `autonomous`, `teleop`, or `utility`.
 - **Simulator devices:** the simulator lists only devices it has already created, so the list grows as OpModes request hardware.
 
@@ -202,6 +212,6 @@ The optional configuration file:
 ```
 
 - **`devices`:** declares hardware that code reads through typed mappings such as `hardwareMap.dcMotor.get(name)`. Devices requested with `hardwareMap.get(Class, name)` are created automatically.
-- **Device `type` values:** `motor`, `servo`, `crservo`, `imu`, `digital`, `touch`, and `distance`.
+- **Device `type` values:** `motor`, `servo`, `crservo`, `imu`, `digital`, `touch`, and `distance` are simulated. Any other short lowercase type, such as `analog`, `camera`, or a team driver's class name, is listed in the manifest but not simulated: OpModes that ask for it get nothing, as before.
 
 `scripts/sim-smoke.mjs` is a working reference client.

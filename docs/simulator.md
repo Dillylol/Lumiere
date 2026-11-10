@@ -46,6 +46,11 @@ of odometry.
 The simulator's `hello` reports both, and the app shows them under Telemetry. When a follower is
 found, each `robot` message names the localizer the simulation stands in for.
 
+- **Pedro's devices:** the manifest's `pedro` block names every device the constants give Pedro
+  Pathing (drive motors, dead wheels, IMU, Pinpoint, OTOS or OctoQuad), with Pedro's own setting
+  names as roles. The robot library reports the same block from a real hub, so the app identifies
+  these devices the same way in both places and keeps mechanisms off them.
+
 ## Spike results (2026-09-13)
 
 A generated quickstart project (FTC SDK 12.0.0, Pedro Pathing 3.0.0, AutoTune 1.0.0, Ivy 1.1.1,
@@ -97,7 +102,9 @@ The "SDK shim" fallback was not needed.
 - **Odometry:** the follower's pose is exact in simulation, so pod slip, IMU drift and tuning errors in
   the localizer itself only show on the robot.
 - **Hardware not simulated:** cameras and vision processors (for example the Limelight and AprilTag
-  pipelines) return no detections.
+  pipelines) return no detections. Analog inputs, cameras and a team's own I2C drivers can be
+  declared in the simulator configuration with their own type (`analog`, `camera`, `vl53l1x`), so the
+  manifest lists the robot's whole configuration, but OpModes that ask for them get nothing.
 - **Hardware map:** devices requested through `hardwareMap.get(Class, name)` are created on demand.
   Devices read from typed mappings such as `hardwareMap.dcMotor.get(name)` must be declared in the
   simulator configuration or in the drivetrain constants.

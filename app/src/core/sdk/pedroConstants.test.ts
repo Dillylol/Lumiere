@@ -14,7 +14,7 @@ describe("readPedroConstants", () => {
       backLeft: { name: "left_back_drive", reversed: true },
       backRight: { name: "right_back_drive", reversed: false },
     });
-    expect(constants.localizer).toEqual({ kind: "pinpoint", name: "pinpoint", xPodOffset: 0, yPodOffset: 0 });
+    expect(constants.localizer).toEqual({ kind: "pinpoint", name: "pinpoint", xPodOffset: 0, yPodOffset: 0, devices: [{ role: "pinpoint", name: "pinpoint" }] });
     expect(constants.foresight).toEqual({ maxForwardVelocity: 60, maxStrafeVelocity: 50, forwardDeceleration: 40, strafeDeceleration: 50 });
     expect(constants.unreadable).toEqual([]);
   });
@@ -49,7 +49,7 @@ describe("readPedroConstants", () => {
     expect(constants.tuned).toBe(true);
     expect(constants.drivetrain?.frontLeft).toEqual({ name: "fl", reversed: true });
     expect(constants.drivetrain?.backRight).toEqual({ name: "br", reversed: false });
-    expect(constants.localizer).toEqual({ kind: "pinpoint", name: "odo", xPodOffset: -3.307, yPodOffset: 1 });
+    expect(constants.localizer).toEqual({ kind: "pinpoint", name: "odo", xPodOffset: -3.307, yPodOffset: 1, devices: [{ role: "pinpoint", name: "odo" }] });
     expect(constants.foresight).toEqual({ maxStrafeVelocity: 55.5, forwardDeceleration: 38.2 });
     expect(constants.unreadable).toEqual(["ForesightConfig.maxAchievableForwardVelocity"]);
   });
@@ -64,9 +64,46 @@ describe("readPedroConstants", () => {
     const constants = readPedroConstants(source);
     expect(constants.tuned).toBeNull();
     expect(constants.drivetrain).toBeNull();
-    expect(constants.localizer).toEqual({ kind: "otos", name: "sparkfun_otos" });
+    expect(constants.localizer).toEqual({ kind: "otos", name: "sparkfun_otos", devices: [{ role: "otos", name: "sparkfun_otos" }] });
     expect(constants.foresight).toEqual({});
     expect(constants.unreadable).toEqual(["ForesightConfig.maxAchievableForwardVelocity (900 is outside 1–200)"]);
+  });
+
+  it("reads every device a dead-wheel localizer names, with each wheel's direction and ticks-to-inches", () => {
+    // Bjorn's layout: three dead wheels on drive motors' encoder ports, and the hub's IMU.
+    const source = `
+      import com.pedropathing.revhub.localizers.ThreeWheelIMUConfig;
+      public final class Constants {
+        public static ThreeWheelIMUConfig localizerConfig = new ThreeWheelIMUConfig(c -> {
+          c.leftEncoderName.set("lf");
+          c.rightEncoderName.set("lr");
+          c.strafeEncoderName.set(STRAFE_PORT);
+          c.imuName.set("imu");
+          c.forwardTicksToInches.set(0.001989436789);
+          c.strafeTicksToInches.set(0.002);
+          c.leftEncoderDirection.set(Encoder.REVERSE);
+          c.rightEncoderDirection.set(-1);
+          c.strafeEncoderDirection.set(Encoder.FORWARD);
+        });
+      }`;
+    const constants = readPedroConstants(source);
+    expect(constants.localizer).toEqual({ kind: "threewheelimu", devices: [
+      { role: "leftEncoder", name: "lf", reversed: true, inchesPerTick: 0.001989436789 },
+      { role: "rightEncoder", name: "lr", reversed: true, inchesPerTick: 0.001989436789 },
+      { role: "imu", name: "imu" },
+    ] });
+    // A computed name is reported rather than guessed; the robot's own report fills it in.
+    expect(constants.unreadable).toEqual(["ThreeWheelIMUConfig.strafeEncoderName"]);
+
+    const twoWheel = readPedroConstants(`
+      import com.pedropathing.revhub.localizers.TwoWheelConfig;
+      class Constants { static TwoWheelConfig l = new TwoWheelConfig(c -> {
+        c.xPodName.set("par"); c.yPodName.set("perp"); c.strafeTicksToInches.set(0.003); c.yPodDirection.set(Encoder.FORWARD);
+      }); }`);
+    expect(twoWheel.localizer).toEqual({ kind: "twowheel", devices: [
+      { role: "xPod", name: "par" },
+      { role: "yPod", name: "perp", reversed: false, inchesPerTick: 0.003 },
+    ] });
   });
 
   it("leaves the drivetrain out when a motor is not fully described", () => {

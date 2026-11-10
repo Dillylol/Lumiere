@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient,
   type ConnectionStatus, type GamepadStateMessage, type OpModeInfo, type Phase, type Point, type PoseMessage,
-  type ScannedDevice, type ServerMessage, type SocketFactory,
+  type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
 } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
@@ -22,6 +22,17 @@ const TRAIL_LIMIT = 2000;
 /** Frames come from the network, so values are checked before they are drawn or formatted. */
 const finite = (pose?: PoseMessage) => (pose && [pose.x, pose.y, pose.heading].every(Number.isFinite) ? pose : undefined);
 
+/** The manifest's report of what Pedro Pathing drives, checked and bounded like the device list. */
+function scannedPedro(value: unknown): ScannedPedro | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const pedro = value as { constants?: unknown; localizer?: unknown; devices?: unknown };
+  if (typeof pedro.constants !== "string" || !Array.isArray(pedro.devices)) return undefined;
+  const devices = pedro.devices
+    .filter((device): device is { name: string; role: string } => !!device && typeof device.name === "string" && typeof device.role === "string" && device.role.length > 0)
+    .slice(0, 40).map((device) => ({ role: device.role.slice(0, 40), name: device.name.slice(0, 80) }));
+  return { constants: pedro.constants.slice(0, 200), localizer: typeof pedro.localizer === "string" ? pedro.localizer.slice(0, 40) : null, devices };
+}
+
 export interface RunSessionOptions {
   source: RunSource;
   projectId: string;
@@ -36,8 +47,8 @@ export interface RunSessionOptions {
   /** Robot: the Control Hub's address. */
   host?: string;
   onHost?(host: string): void;
-  /** Robot: the hardware its configuration lists, from the manifest. */
-  onScan?(devices: ScannedDevice[]): void;
+  /** Robot: the hardware its configuration lists, from the manifest, and what Pedro Pathing drives. */
+  onScan?(devices: ScannedDevice[], pedro?: ScannedPedro): void;
   /** Tests replace the WebSocket. */
   socketFactory?: SocketFactory;
 }
@@ -202,7 +213,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       if (streamSource.current === "robot" && Array.isArray(message.devices)) {
         const devices = message.devices.filter((device) => device && typeof device.name === "string" && typeof device.type === "string").slice(0, 300)
           .map((device) => ({ name: device.name.slice(0, 80), type: device.type.slice(0, 80) }));
-        if (devices.length) latest.current.onScan?.(devices);
+        if (devices.length) latest.current.onScan?.(devices, scannedPedro(message.pedro));
       }
     } else if (message.type === "lifecycle" && PHASES.includes(message.phase)) {
       setActive(typeof message.opMode === "string" ? message.opMode : null);

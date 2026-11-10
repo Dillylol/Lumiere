@@ -27,15 +27,25 @@ test("reads the robot's configured hardware into the robot profile", async ({ pa
     { name: "left_front_drive", type: "motor" },
     { name: "pinpoint", type: "pinpoint" },
     { name: "claw", type: "servo" },
-  ] }));
+    { name: "ranger", type: "analog" },
+    { name: "vl53l1x", type: "vl53l1x" },
+  ], pedro: { constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "pinpoint", devices: [
+    { name: "left_front_drive", role: "frontLeft" },
+    { name: "pinpoint", role: "pinpoint" },
+  ] } }));
 
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
   await expect(profile.getByRole("row", { name: /^claw Servo —$/ })).toBeVisible();
-  await expect(profile.getByRole("row", { name: /^left_front_drive Motor —$/ })).toBeVisible();
-  await expect(profile).toContainText("Read from the robot's configuration");
+  // The robot names the devices Pedro Pathing drives; sensors are listed but not used.
+  await expect(profile.getByRole("row", { name: /^left_front_drive Motor Front left drive motor$/ })).toBeVisible();
+  await expect(profile.getByRole("row", { name: /^ranger Analog input Listed only$/ })).toBeVisible();
+  await expect(profile.getByRole("row", { name: /^vl53l1x vl53l1x \(custom driver\) Listed only$/ })).toBeVisible();
+  await expect(profile.getByRole("table", { name: "Localizer devices" }).getByRole("row", { name: /^Pinpoint localizer \(reported by the robot\) pinpoint — — Configured$/ })).toBeVisible();
+  await expect(profile).toContainText("It last changed");
+  await expect(profile).toContainText("reads Pedro Pathing's devices from pedro.Constants");
 
   // The scan is saved with the project.
   await page.reload();
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
-  await expect(profile.getByRole("row", { name: /^pinpoint goBILDA Pinpoint —$/ })).toBeVisible();
+  await expect(profile.getByRole("row", { name: /^pinpoint goBILDA Pinpoint Pinpoint localizer$/ })).toBeVisible();
 });

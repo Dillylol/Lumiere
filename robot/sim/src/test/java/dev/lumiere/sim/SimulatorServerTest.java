@@ -38,6 +38,7 @@ public class SimulatorServerTest {
         SimulatorConfig config = new SimulatorConfig();
         config.packagePrefix = "dev.lumiere.sim.testbed";
         config.constantsClass = TestConstants.class.getName();
+        config.devices.add(new SimulatorConfig.Device("ranger", null, "analog"));
         Simulator simulator = new Simulator("127.0.0.1", port, TOKEN, config);
         Thread runner = new Thread(() -> {
             try {
@@ -72,6 +73,10 @@ public class SimulatorServerTest {
         Map<String, Object> manifest = next(messages, m -> "manifest".equals(m.get("type")));
         assertTrue(Json.write(manifest), Json.write(manifest.get("opModes")).contains("Test Path Auto"));
         assertTrue(Json.write(manifest), Json.write(manifest.get("devices")).contains("\"fl\""));
+        // Listed but not simulated, and Pedro's devices named by the team's constants.
+        assertTrue(Json.write(manifest), Json.write(manifest.get("devices")).contains("{\"name\":\"ranger\",\"type\":\"analog\"}"));
+        assertTrue(Json.write(manifest), Json.write(manifest.get("pedro")).contains("{\"name\":\"fl\",\"role\":\"frontLeft\"}"));
+        assertTrue(Json.write(manifest), Json.write(manifest.get("pedro")).contains("{\"name\":\"odometry\",\"role\":\"pinpoint\"}"));
 
         socket.send("{\"type\":\"init\",\"opMode\":\"Test Path Auto\"}");
         next(messages, m -> "lifecycle".equals(m.get("type")) && "init".equals(m.get("phase")));

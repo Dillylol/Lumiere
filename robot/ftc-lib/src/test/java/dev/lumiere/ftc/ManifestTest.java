@@ -60,6 +60,51 @@ public class ManifestTest {
     }
 
     @Test
+    public void keepsDevicesWhoseNamesDifferOnlyInCase() {
+        HardwareMap map = new HardwareMap(null, null);
+        map.put("arm", fake(DcMotorEx.class));
+        map.put("Arm", fake(DcMotorEx.class));
+        map.put("Claw", fake(Servo.class));
+        assertEquals(Json.parse("[{\"name\":\"Arm\",\"type\":\"motor\"},{\"name\":\"arm\",\"type\":\"motor\"},{\"name\":\"Claw\",\"type\":\"servo\"}]"),
+                Json.parse(Json.write(Manifest.build(map, Collections.<Manifest.OpModeInfo>emptyList()).get("devices"))));
+    }
+
+    /** A device the simulator lists without simulating it. */
+    static final class Listed implements HardwareDevice, Manifest.Typed {
+        private final String type;
+
+        Listed(String type) {
+            this.type = type;
+        }
+
+        @Override public String manifestType() { return type; }
+        @Override public Manufacturer getManufacturer() { return Manufacturer.Other; }
+        @Override public String getDeviceName() { return "Listed"; }
+        @Override public String getConnectionInfo() { return ""; }
+        @Override public int getVersion() { return 1; }
+        @Override public void resetDeviceConfigurationForOpMode() { }
+        @Override public void close() { }
+    }
+
+    /** Named like the FTC SDK's OctoQuad driver. */
+    static final class FakeOctoQuadDriver implements HardwareDevice {
+        @Override public Manufacturer getManufacturer() { return Manufacturer.Other; }
+        @Override public String getDeviceName() { return "OctoQuad"; }
+        @Override public String getConnectionInfo() { return ""; }
+        @Override public int getVersion() { return 1; }
+        @Override public void resetDeviceConfigurationForOpMode() { }
+        @Override public void close() { }
+    }
+
+    @Test
+    public void devicesCanStateTheirOwnType() {
+        assertEquals("analog", Manifest.typeOf(new Listed("Analog")));
+        assertEquals("vl53l1x", Manifest.typeOf(new Listed("vl53l1x")));
+        assertEquals("listed", Manifest.typeOf(new Listed(" ")));
+        assertEquals("octoquad", Manifest.typeOf(new FakeOctoQuadDriver()));
+    }
+
+    @Test
     public void emptyManifestWithoutHardware() {
         Map<String, Object> body = Manifest.build(null, Collections.<Manifest.OpModeInfo>emptyList());
         assertEquals("{\"devices\":[],\"opModes\":[]}", Json.write(body));

@@ -118,7 +118,8 @@ as on a slow hub, and connects one app during that gap.
 3. Before any INIT, the manifest lists the project's OpModes and configured hardware, but not the
    SDK's system OpMode. The hardware must include the four drive motors. The localizer can be
    whatever the project's Pedro constants use, because the simulation gives followers their pose
-   through Pedro Pathing.
+   through Pedro Pathing. The manifest's `pedro` block names the four drive motors, and every device
+   Pedro Pathing uses is in the configuration.
 4. No lifecycle message before the first OpMode.
 5. The desktop app's origin is accepted (HTTP 101).
 6. Web pages from other origins are refused (HTTP 403).

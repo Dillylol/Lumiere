@@ -17,6 +17,19 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
     to end with the follower's pose matching the simulated robot. The virtual hub passes 18/18 on
     that robot and on the quickstart.
   - **Release:** needs a robot-library release before teams get it.
+- **Pedro Pathing's devices are identified, not asked for:**
+  - **Robot side:** the hardware scan's manifest names every device the team's Pedro constants give
+    Pedro Pathing (drive motors, dead wheels, IMU, Pinpoint, OTOS or OctoQuad). It uses Pedro's own
+    setting names as roles, read from the constants class on the robot.
+  - **App side:** the app reads the same devices from Constants.java, with each dead wheel's direction
+    and ticks-to-inches, and fills gaps from the robot's report.
+  - **Checks:** mechanisms can't use a drive motor, or an encoder target on a motor whose encoder
+    port carries a dead wheel; both are errors. Problems also flags Pedro's devices that are missing
+    or of the wrong type, and the constants and robot disagreeing.
+  - **Fixes:** the manifest no longer drops names that differ only in case. Sensors and other devices
+    are listed, but Lumière does nothing with them yet. The simulator and virtual hub can list
+    analog, camera and custom-driver devices without simulating them.
+  - **Release:** the manifest part needs a robot-library release.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 
 ## Version 0.2.0

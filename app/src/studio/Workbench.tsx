@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, Check, ChevronDown, Code2, Command, Copy, Download, FolderOpen, GitBranch, Play, Plus, Redo2, Route, Trash2, Undo2, Wrench } from "lucide-react";
-import { applyTunerOutput, createAutonomous, createTeleOp, findOpModes, generateJava, newId, ownershipOf, parseBuildOutput, readPedroConstants, syncRobotProfile, updateTuningLocalizer, validateProject, type Project, type Program, type ScannedDevice } from "../core";
+import { applyTunerOutput, createAutonomous, createTeleOp, findOpModes, generateJava, newId, ownershipOf, parseBuildOutput, readPedroConstants, syncRobotProfile, updateTuningLocalizer, validateProject, type Project, type Program, type ScannedDevice, type ScannedPedro } from "../core";
 import { isDesktop } from "../desktop/backend";
 import { Modal } from "../components/ui/Modal";
 import { Brand, Learn } from "./StudioApp";
@@ -36,11 +36,13 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  // The robot's manifest arrives on a stream callback, so it reads the newest project here.
  const latestProject = useRef(project);
  latestProject.current = project;
- const recordScan = useCallback((devices: ScannedDevice[]) => {
+ const recordScan = useCallback((devices: ScannedDevice[], pedro?: ScannedPedro) => {
    const current = latestProject.current;
-   const known = current.robot.scan?.devices ?? [];
-   if (known.length === devices.length && known.every((device, i) => device.name === devices[i].name && device.type === devices[i].type)) return;
-   onUpdate({ ...current, robot: { ...current.robot, scan: { devices, scannedAt: new Date().toISOString() } } });
+   const next = { devices, ...(pedro ? { pedro } : {}) };
+   const known = current.robot.scan;
+   // Saved only when the report changes, so `scannedAt` says when the robot's configuration last changed.
+   if (known && JSON.stringify({ devices: known.devices, ...(known.pedro ? { pedro: known.pedro } : {}) }) === JSON.stringify(next)) return;
+   onUpdate({ ...current, robot: { ...current.robot, scan: { ...next, scannedAt: new Date().toISOString() } } });
  }, [onUpdate]);
  const [simulatorConfig, setSimulatorConfig] = useState<string>();
  /** Pathing's mode: Develop draws paths, Simulate runs them, Robot watches the robot. */

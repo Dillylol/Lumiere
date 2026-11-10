@@ -2,6 +2,8 @@ package dev.lumiere.sim;
 
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
+import dev.lumiere.ftc.PedroHardware;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.function.Supplier;
@@ -44,6 +46,8 @@ public final class DrivetrainDiscovery {
     }
 
     public static Drivetrain discover(String constantsClassName) {
+        // The robot library's manifest reports Pedro's devices from the same class.
+        PedroHardware.useConstants(constantsClassName);
         Drivetrain result = new Drivetrain();
         Class<?> constants;
         try {

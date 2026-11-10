@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 
 import dev.lumiere.ftc.internal.Json;
+import dev.lumiere.sim.hardware.SimHardware;
 import dev.lumiere.sim.physics.RobotParameters;
 
 import java.io.IOException;
@@ -17,20 +18,39 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** Simulator settings, read from an optional JSON file. Every field has a working default. */
 public final class SimulatorConfig {
-    /** A device to create before any OpMode runs, so typed hardware-map lookups find it. */
+    /**
+     * A device to create before any OpMode runs, so typed hardware-map lookups find it. A type the
+     * simulator cannot simulate, such as {@code analog}, {@code camera} or a team's own driver, is
+     * listed in the manifest only: lookups for it find nothing.
+     */
     public static final class Device {
         public final String name;
+        /** The FTC SDK interface the simulator creates, or null for a device that is only listed. */
         public final Class<?> type;
+        /** The manifest type of a device that is only listed, or null. */
+        public final String listedType;
 
-        Device(String name, Class<?> type) {
+        Device(String name, Class<?> type, String listedType) {
             this.name = name;
             this.type = type;
+            this.listedType = listedType;
+        }
+
+        /** Creates the device in the simulated hardware, or lists it when the simulator cannot simulate it. */
+        public void declareIn(SimHardware hardware) {
+            if (type != null) hardware.declare(type, name);
+            else hardware.list(name, listedType);
         }
     }
+
+    /** Device types are short lowercase words, as the manifest reports them. */
+    private static final Pattern LISTED_TYPE = Pattern.compile("[a-z][a-z0-9_]{0,39}");
 
     public String packagePrefix = "org.firstinspires.ftc.teamcode";
     public String constantsClass = DrivetrainDiscovery.DEFAULT_CONSTANTS_CLASS;
@@ -78,8 +98,10 @@ public final class SimulatorConfig {
                 if (!(item instanceof Map)) continue;
                 Map<String, Object> device = (Map<String, Object>) item;
                 String name = Json.string(device, "name", null);
-                Class<?> type = typeFor(Json.string(device, "type", ""));
-                if (name != null && !name.trim().isEmpty() && type != null) devices.add(new Device(name.trim(), type));
+                String typeName = Json.string(device, "type", "").trim().toLowerCase(Locale.ROOT);
+                if (name == null || name.trim().isEmpty() || !LISTED_TYPE.matcher(typeName).matches()) continue;
+                Class<?> type = typeFor(typeName);
+                devices.add(new Device(name.trim(), type, type == null ? typeName : null));
             }
         }
     }
