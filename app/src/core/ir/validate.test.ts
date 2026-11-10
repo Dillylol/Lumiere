@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import sample from "../../../../fixtures/projects/sample-robot.json";
 import { createAutonomous, createLine, createProject, createTeleOp } from "./create";
-import { parseProject, safeParseProject } from "./schema";
+import { describeProjectError, parseProject, safeParseProject } from "./schema";
 import type { AutonomousProgram, Project, TeleOpProgram } from "./types";
-import { validateProject } from "./validate";
+import { actionNumber, describeLocation, validateProject } from "./validate";
 
 const codes = (project: Project) => validateProject(project).map((item) => `${item.severity}:${item.code}`);
 const load = () => parseProject(structuredClone(sample));
@@ -18,7 +18,48 @@ describe("project schema", () => {
     (servo.subsystems[0].states[0].outputs as Record<string, { value: number }>).device_claw.value = 3;
     const result = safeParseProject(servo);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain("subsystems.0.states.0.outputs.device_claw.value");
+    if (!result.ok) expect(result.error).toBe('Mechanism "Claw", state "Open": the value is above 1.');
+  });
+
+  it("explains a broken project in words, naming the program and action", () => {
+    const broken = structuredClone(sample) as unknown as { programs: { routine: Record<string, unknown>[] }[] };
+    delete broken.programs[0].routine[1].stateId;
+    (broken.programs[0].routine[5].steps as Record<string, unknown>[])[1].subsystemId = 7;
+    let message = "";
+    try { parseProject(broken); } catch (error) { message = describeProjectError(error, broken); }
+    expect(message.split("\n")).toEqual([
+      '"Blue Basket", action 2: the state is missing or not valid.',
+      '"Blue Basket", action 6.2: the mechanism is missing or not valid.',
+    ]);
+    expect(describeProjectError(new Error("disk full"))).toBe("disk full");
+  });
+
+  it("saves actions and buttons whose mechanism, state or path is not chosen yet", () => {
+    const project = load();
+    const auto = project.programs[0] as AutonomousProgram;
+    auto.routine.push({ id: "unset_state", kind: "state", subsystemId: "", stateId: "" }, { id: "unset_path", kind: "path", pathId: "" });
+    const teleop = project.programs[1] as TeleOpProgram;
+    teleop.bindings[0].action = { kind: "toggle", subsystemId: "mech_claw", firstStateId: "", secondStateId: "" };
+    expect(() => parseProject(project)).not.toThrow();
+    const found = validateProject(project);
+    const unset = found.filter((item) => item.code.endsWith(".unset"));
+    expect(unset.map((item) => [item.severity, item.message])).toEqual([
+      ["error", "Choose a mechanism and a state for this action."],
+      ["error", "Choose a path for this action."],
+      ["error", 'Choose the states of "Claw" for this button.'],
+    ]);
+    expect(found.some((item) => item.code === "binding.state.same")).toBe(false);
+    expect(describeLocation(project, unset[0].location)).toBe("Blue Basket · action 10");
+    expect(describeLocation(project, unset[2].location)).toBe("Driver Control · button 1");
+    expect(actionNumber(auto.routine, "step_6b")).toBe("6.2");
+  });
+
+  it("says when a chosen mechanism has no states yet", () => {
+    const project = load();
+    project.subsystems.push({ id: "mech_new", name: "Shooter", devices: [], states: [], initialStateId: null });
+    (project.programs[0] as AutonomousProgram).routine.push({ id: "new", kind: "state", subsystemId: "mech_new", stateId: "" });
+    expect(validateProject(project).find((item) => item.location.stepId === "new")?.message)
+      .toBe('"Shooter" has no states yet. Add one on the Robot page, or choose another mechanism.');
   });
 
   it("creates valid empty projects and programs", () => {

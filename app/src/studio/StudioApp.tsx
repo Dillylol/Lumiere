@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, BookOpen, Copy, Download, Flame, Folder, FolderOpen, Gamepad2, Plus, RefreshCw, Route, Settings, Square, Trash2, Upload } from "lucide-react";
 import { BRAND } from "../brand";
-import { createAutonomous, createLine, createProject, createTeleOp, duplicateProject, newId, type Project } from "../core";
+import { createAutonomous, createLine, createProject, createTeleOp, describeProjectError, duplicateProject, newId, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
 import { Modal } from "../components/ui/Modal";
 import { deleteProject, exportProject, listProjects, parseImport, PROJECT_FILE_TYPES, recovery, saveProject, stage } from "./store";
@@ -42,7 +42,8 @@ export function Brand({ onBack }: { onBack?: () => void }) {
     </Modal>
   </>;
 }
-export function errorText(error: unknown) { return error instanceof Error ? error.message : String(error); }
+/** A message for an error. Problems in a project name the program, action or mechanism instead of the stored structure. */
+export function errorText(error: unknown, project?: unknown) { return describeProjectError(error, project); }
 export function starter(name: string, template: string): Project {
   const project = createProject(name);
   if (template === "teleop") project.programs.push(createTeleOp("Main TeleOp"));
@@ -85,7 +86,7 @@ function Studio() {
   useEffect(() => { let live=true; void listProjects().then(result=>{if(live){setProjects(result.projects);setNotice(result.warnings.join("\n"));setReady(true); for(const draft of Object.values(recovery())) pending.current.set(draft.id,draft);}}).catch(e=>{if(live){setNotice(errorText(e));setReady(true);}}); return ()=>{live=false;}; },[]);
   const flush = () => {
     const drafts=[...pending.current.values()]; pending.current.clear();
-    queue.current=queue.current.then(async()=>{for(const draft of drafts){try{await saveProject(draft);}catch(e){pending.current.set(draft.id,draft);setSaved("Save failed");setNotice(errorText(e));return;}} if(!pending.current.size)setSaved("Saved");});
+    queue.current=queue.current.then(async()=>{for(const draft of drafts){try{await saveProject(draft);}catch(e){pending.current.set(draft.id,draft);setSaved("Save failed");setNotice(`Couldn't save "${draft.name}". ${errorText(e,draft)}`);return;}} if(!pending.current.size)setSaved("Saved");});
     return queue.current;
   };
   useEffect(()=>{if(!pending.current.size)return;const timer=setTimeout(()=>void flush(),750);return()=>clearTimeout(timer);},[projects]);
@@ -95,7 +96,7 @@ function Studio() {
     try{stage(next);}catch(e){setNotice(`Recovery storage: ${errorText(e)}`);}
     pending.current.set(next.id,next);setSaved("Saving…");setProjects(items=>items.map(p=>p.id===next.id?next:p));
   };
-  const add=async(project:Project)=>{try{await saveProject(project);setProjects(items=>[project,...items]);setDialog(false);go(`/project/${project.id}`);}catch(e){setNotice(errorText(e));}};
+  const add=async(project:Project)=>{try{await saveProject(project);setProjects(items=>[project,...items]);setDialog(false);go(`/project/${project.id}`);}catch(e){setNotice(errorText(e,project));}};
   const active=projects.find(p=>route===`/project/${p.id}`);
   if(active)return <Suspense fallback={<div className="studio-loading">Opening workspace…</div>}><Workbench key={active.id} project={active} onUpdate={update} onBack={()=>{void flush();go("/");}} saved={saved} notice={notice} onNotice={setNotice}/></Suspense>;
   return <div className="studio-home">

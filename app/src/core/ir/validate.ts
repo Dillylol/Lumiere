@@ -257,17 +257,26 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
       const where = { ...at, stepId: step.id };
       switch (step.kind) {
         case "path":
-          if (!pathIds.has(step.pathId)) add("error", "step.path.missing", "This step drives a path that no longer exists.", where);
+          if (!step.pathId) add("error", "step.path.unset", "Choose a path for this action.", where);
+          else if (!pathIds.has(step.pathId)) add("error", "step.path.missing", "This step drives a path that no longer exists.", where);
           else driven.push(step.pathId);
-          groupPaths.push(step.pathId);
+          if (step.pathId) groupPaths.push(step.pathId);
           break;
         case "wait":
           if (step.ms > AUTONOMOUS_PERIOD_MS) add("warning", "step.wait.long", "This wait is longer than the 30 second autonomous period.", where);
           break;
         case "state": {
+          if (!step.subsystemId) {
+            add("error", "step.state.unset", "Choose a mechanism and a state for this action.", where);
+            break;
+          }
           const subsystem = project.subsystems.find((item) => item.id === step.subsystemId);
           if (!subsystem) add("error", "step.state.subsystem", "This step uses a mechanism that no longer exists.", where);
-          else if (!subsystem.states.some((state) => state.id === step.stateId)) add("error", "step.state.missing", `This step uses a state that "${subsystem.name}" no longer has.`, where);
+          else if (!step.stateId) {
+            add("error", "step.state.unset", subsystem.states.length
+              ? `Choose a state of "${subsystem.name}" for this action.`
+              : `"${subsystem.name}" has no states yet. Add one on the Robot page, or choose another mechanism.`, where);
+          } else if (!subsystem.states.some((state) => state.id === step.stateId)) add("error", "step.state.missing", `This step uses a state that "${subsystem.name}" no longer has.`, where);
           groupSubsystems.set(step.subsystemId, (groupSubsystems.get(step.subsystemId) ?? 0) + 1);
           break;
         }
@@ -329,6 +338,10 @@ function validateTeleOp(program: TeleOpProgram, project: Project, add: Add) {
       add("error", "binding.button.duplicate", `Gamepad ${binding.gamepad} ${buttonLabel(binding.button)} is already used for ${purpose}.`, where);
     }
     used.set(key, binding);
+    if (!binding.action.subsystemId) {
+      add("error", "binding.unset", "Choose a mechanism and its state for this button.", where);
+      continue;
+    }
     const subsystem = project.subsystems.find((item) => item.id === binding.action.subsystemId);
     if (!subsystem) {
       add("error", "binding.subsystem", "This button controls a mechanism that no longer exists.", where);
@@ -337,10 +350,14 @@ function validateTeleOp(program: TeleOpProgram, project: Project, add: Add) {
     const states = binding.action.kind === "state" ? [binding.action.stateId]
       : binding.action.kind === "toggle" ? [binding.action.firstStateId, binding.action.secondStateId]
         : [binding.action.heldStateId, binding.action.releasedStateId];
-    if (states.some((stateId) => !subsystem.states.some((state) => state.id === stateId))) {
+    if (states.some((stateId) => !stateId)) {
+      add("error", "binding.unset", subsystem.states.length
+        ? `Choose the ${states.length === 1 ? "state" : "states"} of "${subsystem.name}" for this button.`
+        : `"${subsystem.name}" has no states yet. Add one on the Robot page, or choose another mechanism.`, where);
+    } else if (states.some((stateId) => !subsystem.states.some((state) => state.id === stateId))) {
       add("error", "binding.state", `This button uses a state that "${subsystem.name}" no longer has.`, where);
     }
-    if (states.length === 2 && states[0] === states[1]) {
+    if (states.length === 2 && states[0] && states[0] === states[1]) {
       add("warning", "binding.state.same", "Both states are the same, so the button will not change anything.", where);
     }
   }
@@ -363,3 +380,40 @@ function pathControls(path: PathDoc): Point[] {
 }
 
 export const hasErrors = (diagnostics: Diagnostic[]) => diagnostics.some((item) => item.severity === "error");
+
+/**
+ * Where a diagnostic is, in words: its program and action, path or button, or its mechanism, such as
+ * `Main Auto · action 8`. Undefined for the project as a whole.
+ */
+export function describeLocation(project: Project, location: DiagnosticLocation): string | undefined {
+  const parts: string[] = [];
+  const program = location.programId ? project.programs.find((item) => item.id === location.programId) : undefined;
+  if (program) parts.push(program.name.trim() || "Unnamed program");
+  if (program?.kind === "autonomous") {
+    const number = location.stepId ? actionNumber(program.routine, location.stepId) : undefined;
+    if (number) parts.push(`action ${number}`);
+    const path = location.pathId ? program.paths.find((item) => item.id === location.pathId) : undefined;
+    if (path) parts.push(`path "${label(path)}"`);
+  }
+  if (program?.kind === "teleop" && location.bindingId) {
+    const index = program.bindings.findIndex((item) => item.id === location.bindingId);
+    if (index >= 0) parts.push(`button ${index + 1}`);
+  }
+  const subsystem = location.subsystemId ? project.subsystems.find((item) => item.id === location.subsystemId) : undefined;
+  if (subsystem) parts.push(`mechanism "${subsystem.name.trim() || "Unnamed"}"`);
+  if (location.robot && !parts.length) parts.push("Robot profile");
+  return parts.length ? parts.join(" · ") : undefined;
+}
+
+/** An action's number in a routine, such as "3", or "3.2" for the second action of a group. */
+export function actionNumber(steps: Step[], stepId: string): string | undefined {
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    if (step.id === stepId) return String(i + 1);
+    if (step.kind === "together" || step.kind === "race") {
+      const inner = actionNumber(step.steps, stepId);
+      if (inner) return `${i + 1}.${inner}`;
+    }
+  }
+  return undefined;
+}

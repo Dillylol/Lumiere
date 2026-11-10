@@ -3,7 +3,7 @@
  * so it runs in the web app, the desktop app, and tests alike. See README.md in this folder.
  */
 export * from "./ir/types";
-export { parseProject, safeParseProject, projectSchema, ROBOT_LIMITS } from "./ir/schema";
+export { parseProject, safeParseProject, describeProjectError, projectSchema, ROBOT_LIMITS } from "./ir/schema";
 export {
   createAutonomous,
   createDevice,
@@ -17,7 +17,7 @@ export {
   newId,
   pathColor,
 } from "./ir/create";
-export { validateProject, hasErrors, buttonLabel, AUTONOMOUS_PERIOD_MS, type Diagnostic, type DiagnosticLocation, type Severity } from "./ir/validate";
+export { validateProject, hasErrors, buttonLabel, describeLocation, actionNumber, AUTONOMOUS_PERIOD_MS, type Diagnostic, type DiagnosticLocation, type Severity } from "./ir/validate";
 export { isVersion1Project, migrateVersion1, migrateVersion2, type Migration } from "./ir/migrate";
 export { physicalRobot, type PhysicalRobot } from "./ir/robot";
 export { DRIVE_ROLES, ENCODER_ROLES, localizerLabel, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType, type OwnedDevice } from "./ir/pedro";

@@ -11,6 +11,11 @@ import { migrateVersion2 } from "./migrate";
 
 const finite = z.number().finite();
 const id = z.string().min(1).max(100);
+/**
+ * A reference an action or button makes to a path, mechanism or state. It may be empty while the team
+ * has not chosen one yet: validation reports it, and blocks generating code, but saving still works.
+ */
+const ref = z.string().max(100);
 const name = z.string().max(120);
 
 /**
@@ -72,9 +77,9 @@ const pathDoc = z.discriminatedUnion("kind", [
 ]);
 
 export const stepSchema: z.ZodType<Step> = z.lazy(() => z.discriminatedUnion("kind", [
-  z.object({ id, kind: z.literal("path"), pathId: id }),
+  z.object({ id, kind: z.literal("path"), pathId: ref }),
   z.object({ id, kind: z.literal("wait"), ms: z.number().finite().min(0).max(600_000) }),
-  z.object({ id, kind: z.literal("state"), subsystemId: id, stateId: id }),
+  z.object({ id, kind: z.literal("state"), subsystemId: ref, stateId: ref }),
   z.object({ id, kind: z.literal("together"), steps: z.array(stepSchema).max(50) }),
   z.object({ id, kind: z.literal("race"), steps: z.array(stepSchema).max(50) }),
 ]));
@@ -88,9 +93,9 @@ const button = z.enum([
 ]);
 
 const bindingAction = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("state"), subsystemId: id, stateId: id }),
-  z.object({ kind: z.literal("toggle"), subsystemId: id, firstStateId: id, secondStateId: id }),
-  z.object({ kind: z.literal("hold"), subsystemId: id, heldStateId: id, releasedStateId: id }),
+  z.object({ kind: z.literal("state"), subsystemId: ref, stateId: ref }),
+  z.object({ kind: z.literal("toggle"), subsystemId: ref, firstStateId: ref, secondStateId: ref }),
+  z.object({ kind: z.literal("hold"), subsystemId: ref, heldStateId: ref, releasedStateId: ref }),
 ]);
 
 const program = z.discriminatedUnion("kind", [
@@ -213,7 +218,84 @@ export function parseProject(value: unknown): Project {
 export function safeParseProject(value: unknown): { ok: true; project: Project } | { ok: false; error: string } {
   const result = projectSchema.safeParse(migrateVersion2(value));
   if (result.success) return { ok: true, project: result.data };
-  const issue = result.error.issues[0];
-  const where = issue.path.length ? ` at ${issue.path.join(".")}` : "";
-  return { ok: false, error: `${issue.message}${where}` };
+  return { ok: false, error: describeIssue(result.error.issues[0], value) };
+}
+
+/** What a field is called on screen, by its name in the project. */
+const FIELD_NAMES: Record<string, string> = {
+  pathId: "path", subsystemId: "mechanism", stateId: "state", firstStateId: "first state", secondStateId: "second state",
+  heldStateId: "state while held", releasedStateId: "state when released", initialStateId: "starting state", ms: "wait time",
+  name: "name", group: "group", preselectTeleOp: "TeleOp to select next", slowModeScale: "slow mode scale",
+  widthInches: "width", lengthInches: "length", maxForwardVelocity: "forward speed", maxStrafeVelocity: "strafe speed",
+  forwardDeceleration: "forward deceleration", strafeDeceleration: "strafe deceleration", acceleration: "acceleration",
+  turnRateDeg: "turn rate", headingDeg: "heading", minTicks: "lowest travel", maxTicks: "highest travel", ticks: "target",
+  value: "value", power: "power",
+};
+
+type Issue = { code: string; path: PropertyKey[]; message: string; origin?: string; minimum?: unknown; maximum?: unknown };
+
+/**
+ * Describes what is wrong with a project in words a team can act on: the program, action, mechanism or
+ * path it concerns, and what is wrong with it, instead of the stored structure. Other errors give their
+ * message. `value` is the project that failed, used to name its parts.
+ */
+export function describeProjectError(error: unknown, value?: unknown): string {
+  if (error instanceof z.ZodError) {
+    const issues = error.issues.slice(0, 3).map((issue) => describeIssue(issue as Issue, value));
+    const more = error.issues.length - issues.length;
+    return [...issues, ...(more > 0 ? [`…and ${more} more.`] : [])].join("\n");
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function describeIssue(issue: Issue, value: unknown): string {
+  const places: string[] = [];
+  let field = "";
+  let node: unknown = value;
+  let action: number[] | null = null;
+  const named = (item: unknown, fallback: string) => {
+    const text = item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string" ? (item as { name: string }).name.trim() : "";
+    return text ? `"${text}"` : fallback;
+  };
+  const flushAction = () => { if (action) places.push(`action ${action.join(".")}`); action = null; };
+  for (let i = 0; i < issue.path.length; i++) {
+    const key = issue.path[i];
+    const next = issue.path[i + 1];
+    const child = node && typeof node === "object" ? (node as Record<PropertyKey, unknown>)[key] : undefined;
+    if (typeof next === "number" && (key === "routine" || key === "steps")) {
+      action = key === "routine" ? [next + 1] : [...(action ?? []), next + 1];
+      node = Array.isArray(child) ? child[next] : undefined;
+      i++;
+      continue;
+    }
+    flushAction();
+    if (typeof next === "number") {
+      const item = Array.isArray(child) ? child[next] : undefined;
+      if (key === "programs") places.push(named(item, `program ${next + 1}`));
+      else if (key === "subsystems") places.push(`mechanism ${named(item, String(next + 1))}`);
+      else if (key === "states") places.push(`state ${named(item, String(next + 1))}`);
+      else if (key === "devices") places.push(`device ${named(item, String(next + 1))}`);
+      else if (key === "paths" || key === "segments") places.push(`${key === "paths" ? "path" : "segment"} ${named(item, String(next + 1))}`);
+      else if (key === "bindings") places.push(`button ${next + 1}`);
+      else places.push(`${FIELD_NAMES[String(key)] ?? String(key)} ${next + 1}`);
+      node = item;
+      i++;
+      continue;
+    }
+    if (key === "robot") places.push("the robot profile");
+    else if (key === "start") places.push("the start pose");
+    else if (i === issue.path.length - 1) field = FIELD_NAMES[String(key)] ?? String(key);
+    node = child;
+  }
+  flushAction();
+  const problem = issue.code === "too_small"
+    ? issue.origin === "string" ? "is empty" : issue.origin === "array" ? "has too few items" : `is below ${String(issue.minimum)}`
+    : issue.code === "too_big"
+      ? issue.origin === "string" ? "is too long" : issue.origin === "array" ? "has too many items" : `is above ${String(issue.maximum)}`
+      : issue.code === "invalid_type" ? "is missing or not valid"
+        : issue.code === "invalid_value" || issue.code === "invalid_union" ? "is not an allowed value"
+          : issue.message.charAt(0).toLowerCase() + issue.message.slice(1);
+  const what = field ? `the ${field} ${problem}` : problem;
+  const sentence = places.length ? `${places.join(", ")}: ${what}.` : `The project ${what}.`;
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1);
 }

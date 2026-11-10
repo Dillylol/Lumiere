@@ -3,6 +3,14 @@
 Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
 continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.3.0 is tagged from this record.
 
+## Unreleased
+
+- **Unfinished actions no longer break saving.** Adding "Set mechanism state" before any mechanism had states left the action empty. The project could then no longer be saved, and the error was the schema's raw JSON.
+  - **Saving:** an action or button whose path, mechanism or state is not chosen yet now saves. Problems says what to choose ("Choose a mechanism and a state for this action").
+  - **The editor:** "Set mechanism state" starts on the first mechanism that has states, and is disabled, with the reason, until one exists. "Follow path" is disabled until the program has a path.
+  - **Problems names where each problem is,** such as "Main Auto · action 3". Clicking a routine problem selects that action in Build.
+  - **Save errors are sentences** that name the program, action, mechanism or path, never raw JSON.
+
 ## Version 0.3.0
 
 - **Lumière Pathing Visualizer:** [Pathing](pathing.md) replaces Paths and the embedded Visualizer. It is a credited React rebuild of the Pedro Pathing Visualizer that edits programs directly: drags are single undo steps, all heading rules are editable, mirroring works on the data, and the routine is timed on a timeline with playback. `.pp` import and export remain.
