@@ -56,3 +56,22 @@ test("mechanism actions never break saving, and Problems say what to choose and 
   await page.getByRole("button", { name: /Main Auto · action 3: Choose a mechanism/ }).click();
   await expect(page.locator("aside.properties h3")).toHaveText("Mechanism state");
 });
+
+test("playback shows the plan's mechanism states in Develop and in the preview", async ({ page }) => {
+  await page.getByRole("button", { name: "New project" }).click();
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByRole("button", { name: "Robot", exact: true }).click();
+  await page.getByRole("button", { name: "Add mechanism" }).click();
+  await page.getByRole("button", { name: "Build", exact: true }).click();
+  await page.getByRole("combobox", { name: "Add action" }).selectOption("state");
+
+  await page.getByRole("navigation", { name: "Workspace" }).getByRole("button", { name: "Pathing", exact: true }).click();
+  const planned = page.getByLabel("Planned mechanism states");
+  await expect(planned).toContainText("Mechanism 1");
+  await expect(planned).toContainText("Safe");
+
+  await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Simulate" }).click();
+  const states = page.getByLabel("Mechanism states");
+  await expect(states).toContainText("Mechanism 1");
+  await expect(states).toContainText("Plan: Safe");
+});

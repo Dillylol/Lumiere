@@ -16,7 +16,7 @@ import {
 } from "../core";
 import { addSdkLibraries, createRobotProject, installToolchain, isDesktop, toolchainStatus, type RunEvent, type RunningTask, type SdkChange, type ToolchainStatus } from "../desktop/backend";
 import { applyDeployPlan, joinPath, readDeployFiles, readFtcProject } from "../desktop/ftcFolder";
-import { adbConnect, gradle, GRADLE_TASKS, startSimulator, type DesktopSimulator } from "../desktop/robotProject";
+import { adbConnect, explainLaunchFailure, gradle, GRADLE_TASKS, launchStage, startSimulator, type DesktopSimulator, type LaunchFailure, type LaunchStage } from "../desktop/robotProject";
 import { loadSdkLink, newSdkLink, saveSdkLink, type SdkLink } from "./sdkLink";
 import { confirmAction } from "./store";
 
@@ -54,6 +54,15 @@ export function autoDeployBlocker(inspection: FtcProjectInspection | undefined, 
 /**
  * @param live Live runs on this computer: deploys also write the Lumière Live OpMode, paired with it.
  */
+/** A simulator launch in progress. */
+export interface SimulatorStartup {
+  stage: LaunchStage;
+  /** The latest line of build output. */
+  line: string;
+  /** When the launch began, by `Date.now()`. */
+  startedAt: number;
+}
+
 export function useDesktop(project: Project, onLog: (line: string) => void, live?: LiveTarget) {
   const [sdk, setSdkState] = useState<SdkLink | null>(() => loadSdkLink(project));
   const [inspection, setInspection] = useState<FtcProjectInspection>();
@@ -61,6 +70,10 @@ export function useDesktop(project: Project, onLog: (line: string) => void, live
   const [files, setFiles] = useState<JavaFile[]>([]);
   const [status, setStatus] = useState<ToolchainStatus>();
   const [busy, setBusy] = useState("");
+  /** A simulator launch in progress: its stage, the latest build line and when it began. */
+  const [startup, setStartup] = useState<SimulatorStartup | null>(null);
+  /** Why the last simulator launch failed, until the next launch or until it is dismissed. */
+  const [startupError, setStartupError] = useState<LaunchFailure | null>(null);
   const folder = sdk?.folder ?? "";
 
   const task = useRef<RunningTask<unknown> | null>(null);
@@ -146,6 +159,15 @@ export function useDesktop(project: Project, onLog: (line: string) => void, live
       task.current = null;
       locked.current = false;
       setBusy("");
+    }
+  };
+  /** Runs a launch step, keeping its failure explained for the Simulate panel unless the team stopped it. */
+  const explained = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (error) {
+      if (!cancelled.current) setStartupError(explainLaunchFailure(errorText(error)));
+      throw error;
     }
   };
   const track = async <T,>(running: Promise<RunningTask<T>>) => {
@@ -353,12 +375,35 @@ export function useDesktop(project: Project, onLog: (line: string) => void, live
       onLog(result.cancelled ? "Build cancelled." : result.code === 0 ? "BUILD SUCCESSFUL" : `BUILD FAILED (exit ${result.code})`);
     });
 
-  const launch = async (program: Program, configPath?: string): Promise<DesktopSimulator | undefined> =>
-    perform("Starting simulator", async () => {
+  const launch = async (program: Program, configPath?: string): Promise<DesktopSimulator | undefined> => {
+    if (locked.current) return undefined;
+    setStartupError(null);
+    setStartup({ stage: "saving", line: "", startedAt: Date.now() });
+    // Build output arrives line by line; the panel shows the latest at most a few times a second.
+    let shown = 0;
+    const progress = (event: RunEvent) => {
+      report(event);
+      if (event.event !== "stdout" && event.event !== "stderr") return;
+      const line = event.line.trim();
+      const stage = launchStage(line);
+      const now = Date.now();
+      if (!line || (!stage && now - shown < 150)) return;
+      shown = now;
+      setStartup((current) => current && { ...current, line, stage: stage ?? current.stage });
+    };
+    try {
+      return await perform("Starting simulator", () => launchNow(program, configPath, progress));
+    } finally {
+      setStartup(null);
+    }
+  };
+  const launchNow = (program: Program, configPath: string | undefined, progress: (event: RunEvent) => void) =>
+    explained(async (): Promise<DesktopSimulator | undefined> => {
       abort.current = new AbortController();
       await sync();
       if (cancelled.current) return undefined;
-      const options = { signal: abort.current.signal, onEvent: report };
+      setStartup((current) => current && { ...current, stage: "building" });
+      const options = { signal: abort.current.signal, onEvent: progress };
       if (configPath) return startSimulator(folder, { ...options, configPath });
 
       const fs = await import("@tauri-apps/plugin-fs");
@@ -439,6 +484,9 @@ export function useDesktop(project: Project, onLog: (line: string) => void, live
     cancel,
     run,
     launch,
+    startup,
+    startupError,
+    dismissStartupError: () => setStartupError(null),
     edit,
     reloadFile,
     save: () => perform("Saving Java", saveFiles),

@@ -14,7 +14,11 @@ Hide either side panel with its panel button to give the field more room. In win
 ## Modes
 
 - **Develop** draws and edits the paths, timed by the estimate.
-- **Simulate** runs the program. The desktop app launches the simulator with your Java: choose the OpMode, press **INIT**, **START** and **STOP** under the field, and drive with a USB gamepad, the keyboard, or the on-screen A/B/X/Y buttons. The match timer presses STOP after 30 seconds, or 2 minutes for TeleOp. The web app can't run Java, so its Simulate plays the estimate.
+- **Simulate** runs the program. The desktop app launches the simulator with your Java.
+  - **Launching:** while it starts, the panel shows each stage (saving and deploying your code, building it with Gradle, starting the simulator) with the time so far and the latest build line. The first launch can take several minutes. If it fails, the panel says why and what to do, and **Show build output** opens the full log.
+  - **Running:** choose the OpMode, then press **RUN** under the field (INIT, then START), or **INIT** and **START** yourself; **STOP** ends it. Drive with a USB gamepad, the keyboard, or the on-screen A/B/X/Y buttons. The match timer presses STOP after 30 seconds, or 2 minutes for TeleOp.
+  - **Mechanisms** (right panel): each mechanism's state, judged from its devices' outputs, beside the state the plan has at the same time, and each device's power, servo position or encoder count. Devices your code drives outside any mechanism are listed too.
+  - **The web app** can't run Java, so its Simulate plays the estimate, with the plan's mechanism states.
 - **Robot** watches the robot. Enter the Control Hub's address or use **Find robot**, then **Connect robot**. Start OpModes from the Driver Station; this connection reads telemetry and can request STOP. On the desktop, **Deploy code** and **Deploy APK** are here too.
   - **[Lumière Live](live.md):** with Live runs on for this computer (Robot page), initializing Lumière Live on the Driver Station makes this connection pair and send the open autonomous. A Live run of it is drawn against the plan like the program's own OpMode, and its time goes to the program's run comparison.
   - **What the robot finds:** the panel shows whether the program passed the check against the robot's hardware and Pedro Pathing's devices, with any problems and notes.

@@ -70,7 +70,9 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  ) : undefined;
  const runEnv: RunEnvironment = {
    desktop: isDesktop(), busy: desktop.busy, canLaunch: !!desktop.folder && !omittedFromSdk,
-   launch: () => program ? desktop.launch(program, simulatorConfig) : Promise.resolve(undefined),
+   // The build output opens with the launch, as for other desktop tasks; Pathing shows its progress too.
+   launch: () => { if (!program) return Promise.resolve(undefined); setBottom("output"); return desktop.launch(program, simulatorConfig); },
+   startup: desktop.startup, startupError: desktop.startupError, dismissStartupError: desktop.dismissStartupError, showOutput: () => setBottom("output"),
    cancel: desktop.cancel, onLog: log, simulatorSetup, host, onHost: setHost, onScan: recordScan,
    deployCode: desktop.folder ? () => { setBottom("output"); void desktop.deploy(); } : undefined,
    deployApk: desktop.folder && /^[\w.-]+$/.test(host) ? () => { setBottom("output"); void desktop.run("deploy", host); } : undefined,

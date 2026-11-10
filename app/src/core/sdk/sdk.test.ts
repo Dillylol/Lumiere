@@ -206,6 +206,20 @@ describe("planDeploy", () => {
     expect(text).toMatch(/missing Pedro Pathing, Ivy commands/);
   });
 
+  it("warns when another package already has Lumière Live, as another Lumière project's deploy leaves it", () => {
+    const files = plainSdk();
+    files.set(`${JAVA}/generated/other/LumiereLive.java`, [
+      "package org.firstinspires.ftc.teamcode.generated.other;",
+      "@Autonomous(name = \"Lumière Live\", group = \"Lumière\")",
+      "public class LumiereLive extends LiveRunner {}",
+    ].join("\n"));
+    const inspection = inspectFtcProject({ files });
+    const live = { pairingHash: "d".repeat(64) };
+    const warned = expectPlan(planDeploy(project(), settings({ live }), new Map(), [], [], inspection)).warnings.join(" ");
+    expect(warned).toContain(`already has an OpMode named "Lumière Live" (${JAVA}/generated/other/LumiereLive.java)`);
+    expect(expectPlan(planDeploy(project(), settings(), new Map(), [], [], inspection)).warnings.join(" ")).not.toContain("Lumière Live");
+  });
+
   it("never plans to remove files outside TeamCode sources, and reports invalid settings", () => {
     const outside = new Map([["TeamCode/build.gradle", "x"], ["../escape.java", "x"]]);
     const plan = expectPlan(planDeploy(project(), settings(), outside, ["TeamCode/build.gradle", "../escape.java", `${JAVA}/../../x.java`]));

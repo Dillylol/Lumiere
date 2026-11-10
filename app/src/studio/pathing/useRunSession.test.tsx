@@ -202,6 +202,36 @@ describe("useRunSession", () => {
     }
   });
 
+  it("runs with one press, INIT then START, and keeps what the simulator's devices report", async () => {
+    const task = { id: 1, result: new Promise<ExitResult>(() => {}), cancel: vi.fn(() => Promise.resolve(true)) } satisfies RunningTask<ExitResult>;
+    const launch = vi.fn(async (): Promise<DesktopSimulator> => ({ url: "ws://127.0.0.1:5000/stream", token: "secret", task }));
+    const { result, sockets } = setup({ launch, cancel: vi.fn(), canLaunch: true });
+    await act(async () => { result.current.open(); });
+    const socket = sockets[0];
+    act(() => {
+      socket.open();
+      socket.receive({ type: "manifest", opModes: [{ name: "Main Auto", flavor: "autonomous" }, { name: "Other Auto", flavor: "autonomous" }] });
+      socket.receive({ type: "lifecycle", opMode: "Other Auto", phase: "init" });
+    });
+    // Another OpMode is initialized, but Run starts the chosen one.
+    act(() => result.current.setMode("Main Auto"));
+    act(() => result.current.run());
+    expect(socket.commands()).toEqual(["auth", "init"]);
+    expect(last(socket.sent)).toEqual({ type: "init", opMode: "Main Auto" });
+    // The initialized OpMode stops first; START waits for INIT.
+    act(() => socket.receive({ type: "lifecycle", opMode: "Other Auto", phase: "stopped" }));
+    expect(socket.commands()).toEqual(["auth", "init"]);
+    act(() => socket.receive({ type: "lifecycle", opMode: "Main Auto", phase: "init" }));
+    expect(socket.commands()).toEqual(["auth", "init", "start"]);
+    act(() => socket.receive({ type: "robot", opMode: "Main Auto", phase: "running", elapsed: 1.5, pose: { x: 10, y: 20, heading: 0 }, velocity: { x: 0, y: 0, heading: 0 }, voltage: 12,
+      devices: { claw: { type: "servo", position: 0.8 }, lift_motor: { type: "motor", power: 1, position: 400 } } }));
+    expect(result.current.devices).toEqual({ claw: { type: "servo", position: 0.8 }, lift_motor: { type: "motor", power: 1, position: 400 } });
+    // Another lifecycle start clears them with the rest of the run.
+    act(() => socket.receive({ type: "lifecycle", opMode: "Main Auto", phase: "init" }));
+    expect(result.current.devices).toEqual({});
+    expect(socket.commands()).toEqual(["auth", "init", "start"]);
+  });
+
   it("files a Lumière Live run's time under the program it ran", () => {
     const { result, sockets } = setup({ source: "robot", host: "10.0.0.5", live: { secret: "s".repeat(64), program: null } });
     act(() => result.current.open());

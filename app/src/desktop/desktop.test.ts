@@ -2,7 +2,7 @@ import type { Channel } from "@tauri-apps/api/core";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CancelledError, createRobotProject, installToolchain, runTool, type JobEvent, type RunEvent } from "./backend";
-import { readyPort, simulatorGradleArgs, startSimulator } from "./robotProject";
+import { explainLaunchFailure, launchStage, readyPort, simulatorGradleArgs, startSimulator } from "./robotProject";
 
 type Call = { cmd: string; args: Record<string, unknown> };
 
@@ -130,5 +130,31 @@ describe("desktop simulator", () => {
     channel<RunEvent>().onmessage({ event: "stderr", line: "Constants.java:12: error: ';' expected" });
     channel<RunEvent>().onmessage({ event: "exit", code: 1, cancelled: false });
     await expect(starting).rejects.toThrow(/exit code 1[\s\S]*';' expected/);
+  });
+});
+
+describe("simulator launch feedback", () => {
+  it("tells when the build has reached the simulator", () => {
+    expect(launchStage("> Task :TeamCode:compileDebugJavaWithJavac")).toBeNull();
+    expect(launchStage("> Task :TeamCode:testDebugUnitTest")).toBe("starting");
+  });
+
+  it("explains a failed launch from the build output it carries", () => {
+    // A virtual Control Hub running the same project holds its build files open on Windows.
+    const locked = explainLaunchFailure([
+      "The simulator did not start (Gradle exit code 1).",
+      "> Task :FtcRobotController:bundleLibRuntimeToJarDebug FAILED",
+      "Execution failed for task ':FtcRobotController:bundleLibRuntimeToJarDebug'.",
+      "> java.nio.file.FileSystemException: C:\\robot\\classes.jar: The process cannot access the file because it is being used by another process",
+    ].join("\n"));
+    expect(locked.summary).toBe("The simulator did not start (Gradle exit code 1).");
+    expect(locked.detail).toMatch(/being used by another process/);
+    expect(locked.hint).toMatch(/virtual Control Hub/);
+    const compile = explainLaunchFailure(["The simulator did not start (Gradle exit code 1).", "MainAuto.java:12: error: cannot find symbol", "1 error"].join("\n"));
+    expect(compile.detail).toBe("MainAuto.java:12: error: cannot find symbol");
+    expect(compile.hint).toMatch(/doesn't compile/);
+    const other = explainLaunchFailure(["The simulator did not start (Gradle exit code 1).", "* What went wrong:", "Something odd happened."].join("\n"));
+    expect(other.detail).toBe("Something odd happened.");
+    expect(explainLaunchFailure("The simulator was stopped.").hint).toBe("Try launching again.");
   });
 });

@@ -28,6 +28,44 @@ export function simulatorGradleArgs(configPath?: string): string[] {
   return args;
 }
 
+/** Where a simulator launch is: saving and deploying the code, building it with Gradle, or starting the simulator. */
+export type LaunchStage = "saving" | "building" | "starting";
+
+/** The stage a Gradle output line shows the launch has reached, or null when it shows none. */
+export function launchStage(line: string): LaunchStage | null {
+  return /Task :TeamCode:testDebugUnitTest\b|RunSimulator/.test(line) ? "starting" : null;
+}
+
+/** Why a simulator launch failed, in words: what happened, the line that says why, and what to do. */
+export interface LaunchFailure {
+  summary: string;
+  /** The build output line that shows the cause, when one does. */
+  detail?: string;
+  hint: string;
+}
+
+/** Explains a launch error: the simulator's own message plus the last Gradle lines it carries. */
+export function explainLaunchFailure(message: string): LaunchFailure {
+  const lines = message.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const summary = lines[0] ?? "The simulator did not start.";
+  const rest = lines.slice(1);
+  const find = (pattern: RegExp) => rest.find((line) => pattern.test(line));
+  const clip = (line?: string) => (line && line.length > 240 ? `${line.slice(0, 237)}…` : line);
+  const locked = find(/being used by another process|cannot access the file/i);
+  if (locked) {
+    return { summary, detail: clip(locked), hint: "Another program has this robot project's build files open, such as a running virtual Control Hub, Android Studio or another build. Close it, then launch again." };
+  }
+  const compile = find(/\.java:\d+: error:/) ?? find(/^error:/i) ?? find(/Compilation failed/i);
+  if (compile) return { summary, detail: clip(compile), hint: "Your robot code doesn't compile. Fix the error, or use Check on the Build tab to see each error at its line." };
+  const noEntry = find(/No tests found for given includes/i);
+  if (noEntry) return { summary, detail: clip(noEntry), hint: "This robot project has no simulator entry point (RunSimulator). Projects that Lumière creates have one." };
+  const sdk = find(/SDK location not found|ANDROID_HOME|sdk\.dir/i);
+  if (sdk) return { summary, detail: clip(sdk), hint: "The Android SDK wasn't found. Install the build tools from the Code tab." };
+  const wrong = rest.findIndex((line) => /What went wrong/i.test(line));
+  const cause = wrong >= 0 ? rest[wrong + 1] : find(/FAILED|Exception/);
+  return { summary, detail: clip(cause), hint: rest.length ? "The build output has the full log." : "Try launching again." };
+}
+
 /** The port from the simulator's ready line, or null for any other output line. */
 export function readyPort(line: string): number | null {
   const match = READY.exec(line);

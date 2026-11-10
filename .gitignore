@@ -29,6 +29,8 @@ app/src-tauri/icons/flame-source.png
 # Gradle / Android
 .gradle/
 **/build/
+# The virtual hub's own build output (dev/virtual-hardware), kept apart from the normal one.
+**/build-virtual-hub/
 local.properties
 *.iml
 .kotlin/

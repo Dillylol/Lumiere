@@ -44,6 +44,12 @@ the robot project is written. With `--pedro <version>`, the init script also res
 `core` and `revhub` at that version, for the robot project only. A local robot-library build keeps
 its own Pedro version, as a published library would.
 
+Every project in the run, the local robot library included, builds into `build-virtual-hub/` instead
+of `build/` (ignored by git). The hub keeps the jars it runs from open, which locks them on Windows.
+With its own folder, the desktop app's simulator and builds, Android Studio and `sim-run.mjs` can
+rebuild the same project while the hub runs. Before this, a simulator launch failed after about 10 s
+with "the process cannot access the file because it is being used by another process".
+
 ## Usage
 
 The first run creates `work/robot-project` (ignored by git) from the quickstart, using this

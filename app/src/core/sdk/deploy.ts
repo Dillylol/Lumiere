@@ -6,6 +6,7 @@
 import { DEFAULT_CONSTANTS_CLASS, defaultJavaPackage, generateJava, javaPackageDirectory, LIVE_CLASS, TEAMCODE_JAVA_ROOT, type JavaTarget, type LiveTarget } from "../codegen/java/generate";
 import { ownershipOf, planWrites, type WritePlanEntry } from "../codegen/java/ownership";
 import type { Diagnostic } from "../ir/validate";
+import { LIVE_OPMODE_NAME } from "../live/program";
 import type { Project } from "../ir/types";
 import type { FtcProjectInspection } from "./ftcProject";
 
@@ -156,6 +157,8 @@ export function planDeploy(
     }
     const replaced = new Set([...generatedPaths, ...removals.map((removal) => removal.path)]);
     const generatedNames = new Set(deployed.programs.map((program) => program.name.trim().toLowerCase()));
+    // Another package's Lumière Live, such as another Lumière project's, would be listed twice too.
+    if (settings.live) generatedNames.add(LIVE_OPMODE_NAME.toLowerCase());
     for (const opMode of inspection.opModes) {
       if (replaced.has(opMode.path) || opMode.disabled || !generatedNames.has(opMode.name.trim().toLowerCase())) continue;
       warnings.push(`TeamCode already has an OpMode named "${opMode.name}" (${opMode.path}). The Driver Station would list two with the same name.`);

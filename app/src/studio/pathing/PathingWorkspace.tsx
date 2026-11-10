@@ -210,6 +210,11 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
   const offPath = ownOpMode && actual && plannedPoints.length ? Math.min(...plannedPoints.map((point) => Math.hypot(point.x - actual.x, point.y - actual.y))) : undefined;
   // The routine steps the plan has running now: at playback's time, or at the run's time for this program's own run.
   const activeIds = estimate && (session ? started && estimate.activeStepIds(session.elapsed) : !atStart && estimate.activeStepIds(elapsed)) || undefined;
+  // The plan's mechanism states at the time shown: the playhead, or the clock of this program's own run.
+  const planned = estimate && project.subsystems.length
+    ? session ? (started ? estimate.mechanismStates(Math.min(session.elapsed, duration)) : undefined)
+      : estimate.mechanismStates(atStart ? 0 : Math.min(elapsed, duration))
+    : undefined;
   const run: RunOverlay | undefined = session && {
     actual,
     target: session.target,
@@ -322,7 +327,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
         ? <button type="button" className="pv-restore" aria-label={`Show ${leftLabel}`} title={`Show ${leftLabel}`} onClick={() => setLeftHidden(false)}><PanelLeft/></button>
         : develop && auto && estimate
           ? <LayersPanel project={project} program={auto} estimate={estimate} selectedPathId={selection.pathId} overlayIds={overlayIds}
-            robotPose={shownPose} speed={speed} activeIds={activeIds}
+            robotPose={shownPose} speed={speed} activeIds={activeIds} planned={planned}
             onSelectPath={(pathId) => setSelection({ pathId })} onAddPath={addFromTool}
             onMovePath={(pathId, by) => commit(movePath(auto, pathId, by))}
             onToggleOverlay={(id) => setOverlayIds((ids) => (ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id].slice(-4)))}
@@ -349,7 +354,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
             onField={setField} onCustomImage={() => imageInput.current?.click()} onCommit={commit} onSelect={setSelection} onOpenRobot={onOpenRobot}
             onHide={() => setRightHidden(true)}/>
           : <TelemetryPanel session={session} project={project} program={program} estimated={preview && auto ? { pose: shownPose, speed } : undefined}
-            offPath={offPath} onHide={() => setRightHidden(true)}/>}
+            offPath={offPath} planned={planned} onHide={() => setRightHidden(true)}/>}
     </div>
   </div>;
 }

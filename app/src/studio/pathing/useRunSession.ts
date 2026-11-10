@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient,
   type ConnectionStatus, type GamepadStateMessage, type OpModeInfo, type Phase, type Point, type PoseMessage,
-  LIVE_OPMODE_NAME, readLiveReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
+  LIVE_OPMODE_NAME, readDeviceReports, readLiveReport, type DeviceReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
 } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
@@ -91,6 +91,8 @@ export interface RunSession {
   /** Where the robot has driven since START. */
   trail: Point[];
   telemetry: string[];
+  /** Simulator: each device's outputs, by configured name. Empty until the simulator reports them. */
+  devices: Record<string, DeviceReport>;
   data: Record<string, unknown>;
   loopMs?: number;
   follower?: string;
@@ -111,6 +113,8 @@ export interface RunSession {
   disconnect(): void;
   init(): void;
   start(): void;
+  /** Simulator: INIT the chosen OpMode, then START it once the simulator reports it initialized. */
+  run(): void;
   stop(): void;
 }
 
@@ -138,6 +142,9 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const [route, setRoute] = useState<[number, number][]>();
   const [trail, setTrail] = useState<Point[]>([]);
   const [telemetry, setTelemetry] = useState<string[]>([]);
+  const [devices, setDevices] = useState<Record<string, DeviceReport>>({});
+  /** Set by Run: START follows as soon as the simulator reports the OpMode initialized. */
+  const autoStart = useRef(false);
   const [live, setLive] = useState<LiveReport>();
   const [liveError, setLiveError] = useState<string>();
   const liveReport = useRef<LiveReport | undefined>(undefined);
@@ -198,7 +205,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   }, []);
 
   /** What one OpMode run reported; cleared at INIT. */
-  const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail(); };
+  const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setDevices({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail(); };
   const clearLive = () => {
     liveSent.current = { auth: false, failed: false, revision: null };
     liveReport.current = undefined;
@@ -232,6 +239,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   };
   const clearStream = () => {
     clearLive();
+    autoStart.current = false;
     runStart.current = null;
     setHello(undefined); setModes([]); setMode(""); setActive(null); setPhase("idle");
     setElapsed(0); setPose(undefined); setTelemetry([]); clearRun();
@@ -271,6 +279,9 @@ export function useRunSession(options: RunSessionOptions): RunSession {
         if (robot) setPose(undefined);
         if (!liveReport.current) setLive(undefined);
       }
+      // Run: START follows INIT. A previous OpMode's "stopped" can come in between, so only INIT or a start ends the wait.
+      if (autoStart.current && message.phase === "init" && !robot) { autoStart.current = false; client.current?.start(); }
+      if (message.phase === "running") autoStart.current = false;
       setPhase(message.phase);
       if (robot) time(message.phase);
     } else if (message.type === "robot") {
@@ -280,6 +291,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       if (next) showPose(next);
       if (Number.isFinite(message.elapsed)) setElapsed(message.elapsed * 1000);
       if (typeof message.localizer === "string") setLocalizer(message.localizer.slice(0, 80));
+      if (message.devices) setDevices(readDeviceReports(message.devices));
     } else if (message.type === "state") {
       const next = finite(message.pose);
       if (next && streamSource.current === "robot") showPose(next);
@@ -434,7 +446,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     source,
     status: !linked ? "Disconnected" : connection === "open" ? "Connected" : opened ? "Reconnecting…" : "Connecting…",
     linked, connected: connection === "open", finding, hello, modes, mode, setMode, phase, active,
-    pose, localizer, target, route, trail, telemetry, data, loopMs, follower, elapsed, limit, setLimit,
+    pose, localizer, target, route, trail, telemetry, devices, data, loopMs, follower, elapsed, limit, setLimit,
     keyboard,
     setKeyboard: (on) => { keys.current.clear(); setKeyboardState(on); },
     press: (button, down) => { screen.current = { ...screen.current, [button]: down }; },
@@ -444,6 +456,12 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     live, liveError,
     init: () => { if (mode) client.current?.initOpMode(mode); },
     start: () => { client.current?.start(); },
-    stop: () => { client.current?.stop(); },
+    run: () => {
+      const stream = client.current;
+      if (!stream || robot || !mode || phase === "running") return;
+      if (phase === "init" && active === mode) { stream.start(); return; }
+      autoStart.current = stream.initOpMode(mode);
+    },
+    stop: () => { autoStart.current = false; client.current?.stop(); },
   };
 }

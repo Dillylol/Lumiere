@@ -50,3 +50,11 @@ if (gradle.parent == null) {
         }
     }
 }
+
+// Every build in the run, the robot project and an included local robot library alike, builds into its
+// own folder. A running hub keeps the jars it runs from open, which on Windows locks them; with its own
+// folder, the desktop app's simulator and builds, Android Studio and sim-run.mjs can still rebuild the
+// project's normal output while the hub runs.
+allprojects { project ->
+    project.layout.buildDirectory = project.layout.projectDirectory.dir('build-virtual-hub')
+}

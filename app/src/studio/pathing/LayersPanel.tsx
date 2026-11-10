@@ -67,6 +67,8 @@ export interface LayersPanelProps {
   speed: number;
   /** Routine steps running at playback's time. */
   activeIds?: string[];
+  /** The state the plan has each mechanism in at playback's time, by mechanism id. */
+  planned?: Record<string, string>;
   onSelectPath(pathId: string): void;
   onAddPath(): void;
   onMovePath(pathId: string, by: number): void;
@@ -75,7 +77,7 @@ export interface LayersPanelProps {
 }
 
 /** Paths, overlays of other programs, the robot's pose and the routine: the Visualizer's Layers panel. */
-export function LayersPanel({ project, program, estimate, selectedPathId, overlayIds, robotPose, speed, activeIds, onSelectPath, onAddPath, onMovePath, onToggleOverlay, onHide }: LayersPanelProps) {
+export function LayersPanel({ project, program, estimate, selectedPathId, overlayIds, robotPose, speed, activeIds, planned, onSelectPath, onAddPath, onMovePath, onToggleOverlay, onHide }: LayersPanelProps) {
   const others = project.programs.filter((item): item is AutonomousProgram => item.kind === "autonomous" && item.id !== program.id);
   const readouts = [
     { label: "X", value: robotPose.x.toFixed(1), unit: "in" },
@@ -122,6 +124,12 @@ export function LayersPanel({ project, program, estimate, selectedPathId, overla
         <dl className="pv-readouts" aria-label="Robot pose">
           {readouts.map(({ label, value, unit }) => <div key={label}><dt>{label}</dt><dd>{value}<span>{unit}</span></dd></div>)}
         </dl>
+        {planned && project.subsystems.length > 0 && <dl className="pv-pairs" aria-label="Planned mechanism states">
+          {project.subsystems.map((subsystem) => <div key={subsystem.id}>
+            <dt>{subsystem.name}</dt>
+            <dd>{subsystem.states.find((state) => state.id === planned[subsystem.id])?.name ?? "Not set yet"}</dd>
+          </div>)}
+        </dl>}
       </Section>
 
       <Section title="Routine" count={program.routine.length}>

@@ -313,3 +313,26 @@ button.pv-run-button.stop:not(:disabled) { background: color-mix(in srgb, var(--
 .pv-live-result.bad { border-color: color-mix(in srgb, var(--danger) 65%, var(--border)); }
 .pv-live-result p { margin: 0; }
 .pv-live-result ul, .pv-live-notes { margin: 4px 0 0; padding-left: 18px; }
+
+/* A simulator launch as it goes, and what the program's mechanisms are doing. */
+.pv-launch { display: grid; gap: 6px; margin: 4px 0 8px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 8px; background: var(--pv-well); }
+.pv-launch-steps { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+.pv-launch-steps li { display: flex; align-items: baseline; gap: 6px; }
+.pv-launch-steps li::before { content: ""; flex-shrink: 0; width: 8px; height: 8px; border: 1px solid var(--muted); border-radius: 50%; }
+.pv-launch-steps li.done::before { border-color: var(--mint); background: var(--mint); }
+.pv-launch-steps li.current { color: var(--text); font-weight: 600; }
+.pv-launch-steps li.current::before { border-color: var(--accent); background: var(--accent); animation: pv-pulse 1.2s ease-in-out infinite; }
+.pv-launch-time { color: var(--muted); font-family: var(--pv-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
+.pv-launch-line { display: block; overflow: hidden; color: var(--muted); font: 11px/1.4 var(--pv-mono); text-overflow: ellipsis; white-space: nowrap; }
+.pv-live-result .pv-launch-line { margin: 4px 0; white-space: normal; overflow-wrap: anywhere; }
+@keyframes pv-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .pv-launch-steps li.current::before { animation: none; } }
+.pv-mechanisms { display: grid; gap: 8px; margin: 0; padding: 0 4px; font-size: 12px; }
+.pv-mechanisms > div { display: grid; gap: 2px; }
+.pv-mechanisms dt { color: var(--text); font-weight: 600; }
+.pv-mechanisms dd { display: grid; gap: 2px; margin: 0; }
+.pv-mech-now { color: var(--text); font-family: var(--pv-mono); }
+.pv-mech-plan { color: var(--muted); font-family: var(--pv-mono); }
+.pv-mechanisms ul, .pv-other-devices ul { margin: 2px 0 0; padding-left: 14px; color: var(--muted); font: 11px/1.5 var(--pv-mono); overflow-wrap: anywhere; }
+.pv-other-devices { margin-top: 8px; padding: 0 4px; font-size: 12px; color: var(--muted); }
+.pv-other-devices summary { cursor: pointer; }

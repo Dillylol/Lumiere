@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
-import { PanelLeft, PanelRight, Plug, Square } from "lucide-react";
-import { LIVE_OPMODE_NAME, type LiveProgram, type Pose, type Program, type Project, type ScannedDevice, type ScannedPedro } from "../../core";
-import type { DesktopSimulator } from "../../desktop/robotProject";
+import { useEffect, useState, type ReactNode } from "react";
+import { PanelLeft, PanelRight, Play, Plug, Square } from "lucide-react";
+import { describeReport, LIVE_OPMODE_NAME, pedroDevices, readMechanisms, type LiveProgram, type Pose, type Program, type Project, type ScannedDevice, type ScannedPedro } from "../../core";
+import type { DesktopSimulator, LaunchFailure } from "../../desktop/robotProject";
+import type { SimulatorStartup } from "../useDesktop";
 import { RunComparison } from "../RunComparison";
 import { isRunTimingKey } from "../runTimings";
 import { Section } from "./LayersPanel";
@@ -28,6 +29,13 @@ export interface RunEnvironment {
   onRobotSetup(): void;
   /** Lumière Live: this computer's pairing secret, when Live runs are on. */
   live?: { secret: string };
+  /** Desktop: a simulator launch in progress. */
+  startup?: SimulatorStartup | null;
+  /** Desktop: why the last simulator launch failed. */
+  startupError?: LaunchFailure | null;
+  dismissStartupError?(): void;
+  /** Opens the build output under the workspace. */
+  showOutput?(): void;
 }
 
 const FOLLOWER = new Map([["follow", "Following a path"], ["hold", "Holding position"], ["manual", "Manual drive"], ["idle", "Idle"]]);
@@ -55,6 +63,40 @@ function kinematicsLine(kinematics: Drivetrain["kinematics"]) {
 function Status({ session }: { session: RunSession }) {
   const state = session.connected ? "on" : session.linked ? "waiting" : "off";
   return <p className="pv-status" role="status"><i className={`pv-status-dot ${state}`} aria-hidden="true"/>{session.status}</p>;
+}
+
+/** What to do next once the simulator is connected. */
+function readyText(session: RunSession) {
+  if (session.phase === "running") return `Running "${session.active ?? session.mode}". STOP ends it, and the match timer stops it.`;
+  if (session.phase === "init") return `"${session.active ?? session.mode}" is initialized. Press START.`;
+  if (!session.mode) return "Choose an OpMode to run.";
+  return `Ready: press RUN, or INIT, then START, under the field.`;
+}
+
+const LAUNCH_STAGES: { stage: SimulatorStartup["stage"]; label: string }[] = [
+  { stage: "saving", label: "Saving and deploying your code" },
+  { stage: "building", label: "Building it with Gradle" },
+  { stage: "starting", label: "Starting the simulator" },
+];
+
+/** A simulator launch as it goes: each stage, the time so far and the latest build line. */
+function LaunchProgress({ startup }: { startup: SimulatorStartup }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const current = LAUNCH_STAGES.findIndex((item) => item.stage === startup.stage);
+  const seconds = Math.max(0, Math.floor((now - startup.startedAt) / 1000));
+  return <div className="pv-launch" role="status" aria-label="Simulator startup">
+    <ol className="pv-launch-steps">
+      {LAUNCH_STAGES.map((item, index) => <li key={item.stage} className={index < current ? "done" : index === current ? "current" : undefined}>
+        {item.label}{index === current && <span className="pv-launch-time"> · {seconds} s</span>}
+      </li>)}
+    </ol>
+    {startup.line && <code className="pv-launch-line" title={startup.line}>{startup.line}</code>}
+    <p className="pv-note">The first launch can take several minutes while Gradle downloads and compiles. Later launches are quicker.</p>
+  </div>;
 }
 
 /** The estimate's label: whose numbers it uses. */
@@ -171,12 +213,23 @@ export function RunPanel({ mode, session, project, program, env, routine, livePr
       </Section> : session.source === "simulator" ? <>
         <Section title="Simulator">
           <Status session={session}/>
+          {env.startup && <LaunchProgress startup={env.startup}/>}
+          {env.startupError && <div className="pv-live-result bad" role="alert">
+            <p><strong>{env.startupError.summary}</strong></p>
+            {env.startupError.detail && <code className="pv-launch-line">{env.startupError.detail}</code>}
+            <p>{env.startupError.hint}</p>
+            <div className="pv-actions">
+              {env.showOutput && <button type="button" onClick={env.showOutput}>Show build output</button>}
+              {env.dismissStartupError && <button type="button" onClick={env.dismissStartupError}>Dismiss</button>}
+            </div>
+          </div>}
           <div className="pv-actions">
             {session.linked
               ? <button type="button" onClick={session.disconnect}>Disconnect</button>
               : <button type="button" className="primary" disabled={!!env.busy || !env.canLaunch} onClick={session.open}><Plug/>Launch simulator</button>}
             {env.busy && <button type="button" onClick={env.cancel}>Cancel startup</button>}
           </div>
+          {session.connected && <p className="pv-note" role="status">{readyText(session)}</p>}
           {env.simulatorSetup}
         </Section>
         <Section title="OpMode">
@@ -241,11 +294,13 @@ export interface TelemetryPanelProps {
   estimated?: { pose: Pose; speed: number };
   /** How far the reported pose is from the planned path, in inches. */
   offPath?: number;
+  /** The state the plan has each mechanism in at the time shown, by mechanism id. */
+  planned?: Record<string, string>;
   onHide(): void;
 }
 
 /** The right panel in Simulate and Robot: what the simulator or robot reports, and how runs compare. */
-export function TelemetryPanel({ session, project, program, estimated, offPath, onHide }: TelemetryPanelProps) {
+export function TelemetryPanel({ session, project, program, estimated, offPath, planned, onHide }: TelemetryPanelProps) {
   const pose = session ? session.pose : estimated?.pose;
   const values = session ? Object.entries(session.data).filter(([key]) => !isRunTimingKey(key)) : [];
   const readouts = [
@@ -272,6 +327,7 @@ export function TelemetryPanel({ session, project, program, estimated, offPath, 
           <li><i className="follower" aria-hidden="true"/>The follower's path and target</li>
         </ul>}
       </Section>
+      <MechanismsSection project={project} session={session} planned={planned}/>
       {session && <Section title="Follower">
         <dl className="pv-pairs">
           <div><dt>Loop time</dt><dd>{session.loopMs === undefined ? "Not reported" : `${session.loopMs.toFixed(1)} ms`}</dd></div>
@@ -295,6 +351,41 @@ export function TelemetryPanel({ session, project, program, estimated, offPath, 
   </aside>;
 }
 
+/**
+ * Each mechanism's state: what the simulator's devices show now, and what the plan has at the same time.
+ * Devices the team's code drives outside any mechanism are listed too, except Pedro Pathing's own.
+ */
+function MechanismsSection({ project, session, planned }: { project: Project; session?: RunSession; planned?: Record<string, string> }) {
+  const reports = session?.source === "simulator" ? session.devices : {};
+  const live = Object.keys(reports).length > 0;
+  if (!live && !(planned && project.subsystems.length)) return null;
+  const readings = readMechanisms(project.subsystems, reports);
+  const stateName = (subsystemId: string, stateId?: string | null) =>
+    project.subsystems.find((item) => item.id === subsystemId)?.states.find((item) => item.id === stateId)?.name;
+  const modeled = new Set(project.subsystems.flatMap((item) => item.devices.map((device) => device.name.trim())));
+  const pedro = new Set(pedroDevices(project.robot).map((device) => device.name));
+  const others = Object.entries(reports).filter(([name]) => !modeled.has(name) && !pedro.has(name));
+  const kindOf = (type: string) => (type === "servo" || type === "crservo" ? type : "motor");
+  return <Section title="Mechanisms" count={project.subsystems.length || undefined}>
+    {project.subsystems.length
+      ? <dl className="pv-mechanisms" aria-label="Mechanism states">
+        {readings.map(({ subsystem, stateId, devices }) => <div key={subsystem.id}>
+          <dt>{subsystem.name}</dt>
+          <dd>
+            {live && <span className="pv-mech-now">{stateName(subsystem.id, stateId) ?? "No state matches"}</span>}
+            {planned && <span className="pv-mech-plan">Plan: {stateName(subsystem.id, planned[subsystem.id]) ?? "not set yet"}</span>}
+            {live && <ul>{devices.map(({ device, report }) => <li key={device.id}>{device.name}: {describeReport(device, report)}</li>)}</ul>}
+          </dd>
+        </div>)}
+      </dl>
+      : <p className="pv-note">Add mechanisms on the Robot page to see their states here.</p>}
+    {others.length > 0 && <details className="pv-other-devices">
+      <summary>Other devices ({others.length})</summary>
+      <ul>{others.map(([name, report]) => <li key={name}>{name}: {describeReport({ kind: kindOf(report.type), reversed: false }, report)}</li>)}</ul>
+    </details>}
+  </Section>;
+}
+
 export interface RunBarProps {
   session: RunSession;
   /** The match length the track shows, in milliseconds. */
@@ -309,6 +400,7 @@ export function RunBar({ session, limitMs, markers }: RunBarProps) {
   const simulator = session.source === "simulator";
   return <div className="pv-playback pv-runbar">
     {simulator && <>
+      <button type="button" className="pv-run-button go" title="INIT, then START" disabled={!session.connected || !session.mode || session.phase === "running"} onClick={session.run}><Play/>RUN</button>
       <button type="button" className="pv-run-button" disabled={!session.connected || !session.mode || session.phase === "running"} onClick={session.init}>INIT</button>
       <button type="button" className="pv-run-button go" disabled={!session.connected || session.phase !== "init"} onClick={session.start}>START</button>
     </>}
