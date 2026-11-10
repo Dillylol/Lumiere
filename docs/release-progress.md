@@ -1,9 +1,9 @@
 # Release progress
 
 Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
-continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.2.0 is tagged from this record.
+continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.3.0 is tagged from this record.
 
-## Unreleased
+## Version 0.3.0
 
 - **Lumière Pathing Visualizer:** [Pathing](pathing.md) replaces Paths and the embedded Visualizer. It is a credited React rebuild of the Pedro Pathing Visualizer that edits programs directly: drags are single undo steps, all heading rules are editable, mirroring works on the data, and the routine is timed on a timeline with playback. `.pp` import and export remain.
 - **Robot profile:** project format 3 reads drive motors, the localizer, speeds and decelerations from the linked project's Pedro 3 constants class, and stores the robot's configured hardware. Conflicts between the two show in Problems. Version 2 projects upgrade on load, with a `.v2.bak` copy on desktop.
@@ -16,7 +16,6 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
   - **Tested** on a modernized team robot with three dead wheels and an IMU. Its autonomous ran end
     to end with the follower's pose matching the simulated robot. The virtual hub passes 18/18 on
     that robot and on the quickstart.
-  - **Release:** needs a robot-library release before teams get it.
 - **Pedro Pathing's devices are identified, not asked for:**
   - **Robot side:** the hardware scan's manifest names every device the team's Pedro constants give
     Pedro Pathing (drive motors, dead wheels, IMU, Pinpoint, OTOS or OctoQuad). It uses Pedro's own
@@ -29,7 +28,6 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
   - **Fixes:** the manifest no longer drops names that differ only in case. Sensors and other devices
     are listed, but Lumière does nothing with them yet. The simulator and virtual hub can list
     analog, camera and custom-driver devices without simulating them.
-  - **Release:** the manifest part needs a robot-library release.
 - **Lumière Live: autonomous programs run from this computer without rebuilding the robot code:**
   - **Pairing:** turning on Live runs on the Robot page pairs this computer with a random secret kept on this computer only.
     - Deploys, and the Code page, then add a generated `LumiereLive.java` carrying the secret's SHA-256, the team's Pedro constants class and the mechanism power limit (0.6 unless set on the Robot page).
@@ -58,7 +56,7 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
     - **Virtual hub:** 26/26 checks on the quickstart and on the modernized team robot, including the run, the cap, and stops on silence (1.0 s), on disconnect, on a motor leaving its travel, and on Driver Station STOP.
     - **Parity (new `--parity` mode):** on that robot, Lumière Live ran its real autonomous like the deployed OpMode. Routine times were within 0.3%, the routes and end poses within the simulator's own run-to-run variation (about an inch at most), and all 16 mechanism output changes matched.
     - **In the app:** on the virtual hub with that robot, the app paired, sent the autonomous, and the check passed. START ran it to the finish in 23.5 to 23.6 s, filed under the program in the run comparison. With the app's page hidden, its timers ran once a second but its pings stayed at most 347 ms apart, and the run held until STOP.
-  - **Release:** needs a robot-library release.
+  - **Robot library:** teams need robot library 0.3.0 for Lumière Live. Deploy warns when TeamCode uses an older one.
 - **Simulate and Robot inside Pathing:** Pathing has Develop, Simulate and Robot modes, and the Simulate tab is gone. Runs are drawn against the plan: the plan fades, a ghost robot shows where the estimate puts the robot, and the robot's trail, follower path and distance off the plan are shown. TeleOp programs open in Simulate. The desktop simulator's controls are covered by unit tests with a fake stream; they have not yet been run in the desktop app.
 
 ## Version 0.2.0
@@ -114,7 +112,7 @@ continuous integration, or release decisions. Versions 0.1.1 and 0.1.2 are relea
 | P4 Code generation and quickstart | Done | Golden Java compiles against the real libraries and runs in simulation. Quickstart = official SDK download + overlay. |
 | P5 App experience | Workspace built and validated | `app/src/studio`: projects, visual routines, TeleOp bindings, mechanisms, path editor, generated Java, preview and desktop simulator, robot tools. |
 | P6 Desktop | Backend and editor done | Toolchain detection and install, project creation, Gradle/adb runner, build-output problems, simulator launcher. Editor logic in `src/core`: OpMode discovery, AutoTune paste, and Java completions. |
-| P7 Release | 0.1.1 and 0.1.2 released; 0.2.0 tagged | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
+| P7 Release | 0.1.1, 0.1.2 and 0.2.0 released; 0.3.0 tagged | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
 
 ## Verification record
 
