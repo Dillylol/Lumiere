@@ -109,7 +109,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
 
   // Both connections belong to the workspace, so switching modes keeps them; leaving Pathing or the program closes them.
   const simulator = useRunSession({ source: "simulator", projectId: project.id, programName: program.name, onLog: env.onLog,
-    launch: env.launch, cancel: env.cancel, canLaunch: env.canLaunch });
+    launch: env.launch, cancel: env.cancel, canLaunch: env.canLaunch, hardware: project.robot.hardware });
   // Lumière Live gets the program a deploy would generate, so it waits until the project has no errors.
   const liveProgram = useMemo(() => {
     if (!env.live || program.kind !== "autonomous" || hasErrors(validateProject(project))) return null;

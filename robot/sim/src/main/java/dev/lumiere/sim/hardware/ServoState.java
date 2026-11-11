@@ -38,8 +38,14 @@ public final class ServoState {
         return direction == Servo.Direction.REVERSE ? 1 - scaled : scaled;
     }
 
+    /** A continuous servo's power in the direction it physically turns, after its configured direction. */
     public double power() {
         double sign = crDirection == DcMotorSimple.Direction.REVERSE ? -1 : 1;
-        return Math.max(-1, Math.min(1, power)) * sign;
+        return commandedPower() * sign;
+    }
+
+    /** A continuous servo's power as the OpMode set it, before its direction, as {@code CRServo.getPower()} reports it. */
+    public double commandedPower() {
+        return Math.max(-1, Math.min(1, power));
     }
 }

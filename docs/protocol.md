@@ -129,7 +129,8 @@ connected.
 
 Sent by robot library 0.4.0 and later about ten times a second while any OpMode is initialized or
 running, and only while a client is connected. Each configured motor and continuous servo has its
-power, and each servo its position, as the SDK last sent them, by configured name.
+power, and each servo its position, by configured name, as the OpMode set them: what the device's
+own getter reports, before its direction and a servo's scale range.
 
 ```json
 {
@@ -175,6 +176,7 @@ The simulated robot's true state, about 30 times per second.
 ```
 
 - **Velocity:** field frame, in inches per second; `heading` is in radians per second.
+- **Devices:** powers and positions as the OpMode set them, as in `devices`, and each motor's encoder count as its `position`.
 - **Unset servos:** a servo that has not been commanded has `position: null`.
 - **`localizer`:** once the OpMode has a Pedro Pathing follower, the class name of the localizer the
   simulation stands in for, such as `ThreeWheelIMULocalizer`.

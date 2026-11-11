@@ -1,6 +1,6 @@
 # Release progress
 
-Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
+Updated 2026-11-11. This record separates what has been verified locally from what still waits on hardware,
 continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.0 and 0.3.1 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack.
 
 ## Unreleased (0.4.0)
@@ -37,6 +37,32 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.
   - **Virtual hub:** 29 contract checks, including new ones for format 2 limits and timed actions, a Race cutting a timed action short, a format 1 program still running, and an OpMode without `Session` reporting its pose and devices.
   - **Parity, 6 of 6:** Bjorn's "Lumiere Red Goal", with a timed Feeder action in place of Feed, wait, Stop, a timed Grip1 action set directly, and power limits on Intake and Grip1. Deployed and Live took 23.96 s and 23.94 s, ended 0.18 in apart, and made the same 18 output changes on 6 devices. It ran on a copy of Bjorn without the walkthrough's second Lumière Live.
 - **Fixed in the dev tools:** `--parity` had failed since 0.3.1 with "from is not defined", left over from the INIT-race fix in its recorder.
+- **Found by testing the web app against the virtual hub on Bjorn before release, and fixed:**
+  - **Device readings on a Control Hub.** The robot library read each output from the SDK's records, then applied the device's direction. That was wrong in three cases:
+    - **goBILDA motors:** their motor type turns counter-clockwise, so the SDK inverts their direction, and the reading had the wrong sign.
+    - **A motor running to a position:** the SDK reports its power without a sign.
+    - **A reversed servo with a narrowed range:** at 0.3 within 0.1–0.5, it read 1.0.
+
+    Each reading is now what the device's own getter reports. A new test checks every case against the FTC SDK's own device classes, and fails on the old code.
+  - **Mechanism states in Robot mode.** The Feeder, with a reversed grip, and any mechanism with a power limit showed "No state matches". Now:
+    - **Every report gives a power as the OpMode set it,** before the device's direction, as the SDK's getters do. The simulator's reports gave it after.
+    - **A state matches a power cut to its device's limit:** Intake "In" asks for 1 and runs at 0.7.
+    - **Robot mode reads states from the robot's `devices` messages,** and says when a motor driving to a target can't be judged, since a robot reports no encoder counts.
+    - **A simulator from robot library 0.3 still reads right.** It gave a reversed continuous servo's power after its direction; the app turns that back, by the simulator's version in its hello.
+  - **The robot's power limit notes keep the sign:** "Out" asks for −1, which is cut to −0.7.
+  - **Smaller fixes:**
+    - A new Motor, Servo or Continuous servo action starts on a device no mechanism drives.
+    - Problems lists errors first, then warnings, then notes.
+    - The travel checkbox names its device for screen readers.
+    - A heading just under 360° shows as 0°.
+    - Screen-reader-only labels in the hardware table no longer make the page scroll.
+    - Pathing's top bar takes two rows on a phone instead of running off the screen.
+    - In the light theme, primary buttons such as "Preview program" have light text, which their dark-brown background needs.
+  - **Checked:**
+    - Device readings, by the new SDK test.
+    - The Mechanisms panel during a Live run on the virtual hub: Feeder "Feed" for 1.2 s, then "Stop", and Intake "In" at 0.7.
+    - Every workspace at phone width (375 px).
+    - The light and high-contrast themes, by accessibility checks on the hardware list and a Motor action.
 
 ## Version 0.3.1
 

@@ -73,9 +73,11 @@ function Routine({project,program,onChange,focusStep}:{project:Project;program:A
  useEffect(()=>{if(focusStep)setSelected(focusStep.id);},[focusStep]);
  // A new action starts on the first mechanism that has states; with none, mechanism actions cannot be added yet.
  const ready=project.subsystems.find(s=>s.states.length);
- // A device action starts on the first device of its kind. Once the robot has been scanned, a kind it doesn't have can't be added.
+ // A device action starts on the first device of its kind that no mechanism drives, or the first of its kind.
+ // Once the robot has been scanned, a kind it doesn't have can't be added.
  const hardware=hardwareList(project);
- const firstOf=(kind:DeviceKind)=>hardware.find(d=>d.kind===kind)?.name;
+ const owned=new Set(project.subsystems.flatMap(s=>s.devices.map(d=>d.name.trim())));
+ const firstOf=(kind:DeviceKind)=>{const ofKind=hardware.filter(d=>d.kind===kind);return (ofKind.find(d=>!owned.has(d.name))??ofKind[0])?.name;};
  const unavailable=(kind:DeviceKind)=>!!project.robot.scan&&!firstOf(kind);
  const modify=(steps:Step[],id:string,fn:(s:Step)=>Step):Step[]=>steps.map(s=>s.id===id?fn(s):"steps"in s?{...s,steps:modify(s.steps,id,fn)}:s);
  const find=(steps:Step[]):Step|undefined=>{for(const s of steps){if(s.id===selected)return s;if("steps"in s){const f=find(s.steps);if(f)return f;}}};const chosen=find(program.routine);

@@ -8,11 +8,16 @@ async function seriousViolations(page: Page) {
     .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`);
 }
 
-/** Neither the page nor any workspace panel scrolls sideways. */
+/**
+ * Neither the page nor any workspace panel scrolls sideways, and the page itself doesn't scroll at all:
+ * the workbench is one screen tall, and its panels scroll inside it.
+ */
 async function expectNoHorizontalScroll(page: Page) {
   const overflowing = await page.evaluate(() => {
     const panels = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".workbench-surface, .editor-scroll, .flow-canvas, .properties")];
-    return panels.filter((panel) => panel.scrollWidth - panel.clientWidth > 1).map((panel) => panel.className || panel.tagName);
+    const sideways = panels.filter((panel) => panel.scrollWidth - panel.clientWidth > 1).map((panel) => panel.className || panel.tagName);
+    const page = document.documentElement.scrollHeight - document.documentElement.clientHeight > 1 ? ["the page scrolls down"] : [];
+    return [...sideways, ...page];
   });
   expect(overflowing).toEqual([]);
 }
@@ -73,4 +78,18 @@ test("a device's settings live in the hardware list, and actions set it directly
   await expect(page.getByLabel("intake power limit")).toHaveValue("0.6");
   await expect(intake.getByRole("button", { name: "Remove intake" })).toHaveCount(0);
   expect(await seriousViolations(page)).toEqual([]);
+
+  // The light and high-contrast themes keep the hardware list and the action's settings readable.
+  for (const theme of ["light", "contrast"]) {
+    await page.evaluate((value) => localStorage.setItem("lumiere-theme", value), theme);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await workspace.getByRole("button", { name: "Robot", exact: true }).click();
+    await expect(page.getByLabel("intake power limit")).toHaveValue("0.6");
+    expect(await seriousViolations(page), `${theme}: Robot`).toEqual([]);
+    await workspace.getByRole("button", { name: "Build", exact: true }).click();
+    await page.locator(".flow-steps").first().getByText("intake: power 0.9").click();
+    await expect(properties.getByRole("heading", { name: "Motor" })).toBeVisible();
+    expect(await seriousViolations(page), `${theme}: Build`).toEqual([]);
+  }
 });

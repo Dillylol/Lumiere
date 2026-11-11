@@ -14,7 +14,7 @@ export function NumberField({label,value,onChange,min,max,step=1,integer=false,h
  const clamp=(n:number)=>{const whole=integer?Math.round(n):n;return Math.min(max??Infinity,Math.max(min??-Infinity,whole));};
  const commit=()=>{if(draft===undefined)return;const n=Number(draft);if(draft.trim()!==""&&Number.isFinite(n)){const next=clamp(n);if(next!==value)onChange(next);}setDraft(undefined);};
  const invalid=draft!==undefined&&!valid(Number(draft.trim()===""?NaN:draft));
- return <label>{hideLabel?<span className="sr-only">{label}</span>:label}<input type="number" value={draft??(Number.isFinite(value)?value:0)} min={min} max={max} step={step} aria-invalid={invalid||undefined}
+ return <label className={hideLabel?"hidden-label":undefined}>{hideLabel?<span className="sr-only">{label}</span>:label}<input type="number" value={draft??(Number.isFinite(value)?value:0)} min={min} max={max} step={step} aria-invalid={invalid||undefined}
   onChange={e=>{setDraft(e.target.value);const n=e.target.valueAsNumber;if(valid(n))onChange(n);}}
   onBlur={commit} onKeyDown={e=>{if(e.key==="Enter")commit();}}/></label>;
 }

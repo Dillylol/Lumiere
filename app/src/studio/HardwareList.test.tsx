@@ -78,7 +78,7 @@ describe("the hardware list", () => {
     project.subsystems.push(lift);
     const seen: { project?: Project } = {};
     render(<Harness initial={project} panel="hardware" seen={seen}/>);
-    await userEvent.click(screen.getByRole("checkbox", { name: "Limit" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Limit lift's travel" }));
     expect(seen.project?.robot.hardware?.[0].travel).toEqual({ minTicks: -100, maxTicks: 1100 });
     expect(screen.getByLabelText("lift highest ticks")).toHaveValue(1100);
   });
@@ -119,6 +119,19 @@ describe("mechanisms and device actions", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Runs at 0.6: intake's power limit.");
     await userEvent.selectOptions(screen.getByLabelText("Control"), "target");
     expect(screen.getByLabelText("Target ticks")).toBeInTheDocument();
+  });
+
+  it("starts a device action on a device no mechanism drives", async () => {
+    const project = scannedProject();
+    project.robot.hardware = [{ name: "intake", kind: "motor", reversed: false }, { name: "lift", kind: "motor", reversed: false }];
+    const intake = createSubsystem("Intake");
+    intake.devices.push(createDevice("intake", "motor"));
+    project.subsystems.push(intake);
+    const seen: { project?: Project } = {};
+    render(<Harness initial={project} panel="build" seen={seen}/>);
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Add action" }), "device:motor");
+    const auto = seen.project!.programs[0];
+    expect(auto.kind === "autonomous" && auto.routine[0]).toMatchObject({ kind: "device", device: "lift", deviceKind: "motor" });
   });
 
   it("lets a name be typed before the robot is scanned", async () => {

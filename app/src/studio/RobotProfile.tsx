@@ -119,7 +119,7 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
     <h3>Robot hardware</h3>
     <HardwareList project={project} onChange={onChange}/>
     {scan && <p className="profile-note">
-      The robot's configuration last changed {when(scan.scannedAt)}.
+      The configuration last changed {when(scan.scannedAt)}.
       {scan.pedro && <> The robot reads Pedro Pathing's devices from <code>{scan.pedro.constants.split(".").slice(-2).join(".")}</code>.</>}
     </p>}
   </section>;

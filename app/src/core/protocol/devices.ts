@@ -1,16 +1,18 @@
 /**
- * What a simulator's device report says about the robot's mechanisms: each mechanism's state, judged
- * from its devices' outputs, and each device's values in words.
+ * What a simulator's or robot's device report says about the robot's mechanisms: each mechanism's state,
+ * judged from its devices' outputs, and each device's values in words.
  */
+import { limitPower } from "../ir/hardware";
 import type { Device, DeviceKind, HardwareDevice, Output, Subsystem } from "../ir/types";
+import { olderLibrary } from "../sdk/deploy";
 
-/** One device as the simulator reports it, keyed by its configured name. */
+/** One device as a simulator or robot reports it, keyed by its configured name. */
 export interface DeviceReport {
   /** `motor`, `servo` or `crservo`. */
   type: string;
-  /** Motor power as the OpMode set it; a continuous servo's power after its direction. */
+  /** A motor's or continuous servo's power, as the OpMode set it. */
   power?: number;
-  /** A servo's position as the OpMode set it (null before the first), or a motor's encoder count. */
+  /** A servo's position as the OpMode set it (null before the first), or a motor's encoder count (simulator only). */
   position?: number | null;
 }
 
@@ -19,8 +21,7 @@ export interface MechanismReading {
   subsystem: Subsystem;
   /** The state whose outputs all match the devices, or null when none does. */
   stateId: string | null;
-  /** Each device, whether the hardware list has it reversed, and its report. */
-  devices: { device: Device; reversed: boolean; report?: DeviceReport }[];
+  devices: { device: Device; report?: DeviceReport }[];
 }
 
 const POWER_TOLERANCE = 0.02;
@@ -44,15 +45,24 @@ export function readDeviceReports(value: unknown): Record<string, DeviceReport> 
   return reports;
 }
 
-function matches({ device, reversed, report }: MechanismReading["devices"][number], output: Output): boolean {
+/**
+ * A simulator before 0.4.0 (the robot library version its hello gives) reported a continuous servo's power
+ * after its direction. This turns a reversed one's, by the hardware list, back to the power the OpMode set,
+ * as every report gives it now.
+ */
+export function fromSimulator(reports: Record<string, DeviceReport>, library: string | undefined, hardware: HardwareDevice[] = []): Record<string, DeviceReport> {
+  if (!library || !olderLibrary(library, "0.4.0")) return reports;
+  const reversed = new Set(hardware.filter((device) => device.kind === "crservo" && device.reversed).map((device) => device.name));
+  return Object.fromEntries(Object.entries(reports).map(([name, report]) =>
+    [name, report.type === "crservo" && report.power !== undefined && reversed.has(name) ? { ...report, power: -report.power } : report]));
+}
+
+/** Whether a report shows an output, with its power cut to the device's limit as Lumière's code sends it. */
+function matches(report: DeviceReport | undefined, output: Output, limit: number): boolean {
   if (!report) return false;
   switch (output.kind) {
-    case "power": {
-      if (report.power === undefined) return false;
-      // A continuous servo reports its power after its direction, so a reversed one reads negated.
-      const commanded = device.kind === "crservo" && reversed ? -report.power : report.power;
-      return Math.abs(commanded - output.value) <= POWER_TOLERANCE;
-    }
+    case "power":
+      return report.power !== undefined && Math.abs(report.power - limitPower(output.value, limit)) <= POWER_TOLERANCE;
     case "position":
       return typeof report.position === "number" && Math.abs(report.position - output.value) <= POSITION_TOLERANCE;
     case "target":
@@ -63,18 +73,22 @@ function matches({ device, reversed, report }: MechanismReading["devices"][numbe
 /**
  * Which state each mechanism is in, judged from its devices' outputs. A state matches when all its
  * outputs do; when several match, the one setting the most devices wins. A motor driving to a target
- * matches once it is there. `hardware` is the robot's hardware list, for each device's direction.
+ * matches once it is there, which only the simulator can tell, since a robot reports no encoder counts.
+ * `hardware` is the robot's hardware list: Lumière's code cuts each power to its device's limit.
  */
 export function readMechanisms(subsystems: Subsystem[], reports: Record<string, DeviceReport>, hardware: HardwareDevice[] = []): MechanismReading[] {
-  const reversed = new Set(hardware.filter((device) => device.reversed).map((device) => device.name));
+  const limits = new Map(hardware.map((device) => [device.name, device.powerLimit ?? 1]));
   return subsystems.map((subsystem) => {
-    const devices = subsystem.devices.map((device) => ({ device, reversed: reversed.has(device.name.trim()), report: reports[device.name.trim()] }));
+    const devices = subsystem.devices.map((device) => ({ device, report: reports[device.name.trim()] }));
     const byId = new Map(devices.map((item) => [item.device.id, item]));
     let best: { id: string; size: number } | null = null;
     for (const state of subsystem.states) {
       const outputs = Object.entries(state.outputs).filter(([deviceId]) => byId.has(deviceId));
       if (!outputs.length) continue;
-      if (!outputs.every(([deviceId, output]) => matches(byId.get(deviceId)!, output))) continue;
+      if (!outputs.every(([deviceId, output]) => {
+        const item = byId.get(deviceId)!;
+        return matches(item.report, output, limits.get(item.device.name.trim()) ?? 1);
+      })) continue;
       if (!best || outputs.length > best.size) best = { id: state.id, size: outputs.length };
     }
     return { subsystem, stateId: best?.id ?? null, devices };
@@ -82,11 +96,11 @@ export function readMechanisms(subsystems: Subsystem[], reports: Record<string, 
 }
 
 /** A device's reported values in words, such as "power 0.60 · 1240 ticks". */
-export function describeReport(device: { kind: DeviceKind; reversed: boolean }, report: DeviceReport | undefined): string {
+export function describeReport(device: { kind: DeviceKind }, report: DeviceReport | undefined): string {
   if (!report) return "Not reported";
   const power = (value: number) => `power ${value.toFixed(2)}`;
   if (device.kind === "servo") return typeof report.position === "number" ? `position ${report.position.toFixed(2)}` : "position not set";
-  if (device.kind === "crservo") return report.power === undefined ? "Not reported" : power(device.reversed ? -report.power : report.power);
+  if (device.kind === "crservo") return report.power === undefined ? "Not reported" : power(report.power);
   const parts = [report.power === undefined ? "" : power(report.power), typeof report.position === "number" ? `${Math.round(report.position)} ticks` : ""];
   return parts.filter(Boolean).join(" · ") || "Not reported";
 }

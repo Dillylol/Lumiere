@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.LastKnown;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
 
 /**
@@ -62,30 +63,37 @@ public final class DeviceOutputs {
             String driver = controller == null ? "" : controller.getClass().getName();
             if ("motor".equals(type)) {
                 if (!driver.startsWith(LYNX_MOTORS)) return null;
-                Double power = known(field(Array.get(field(controller, "motors"), port - first(controller, "apiMotorFirst")), "lastKnownPower"));
-                return power == null ? null : signed(device, power);
+                Object motor = Array.get(field(controller, "motors"), port - first(controller, "apiMotorFirst"));
+                Object power = known(field(motor, "lastKnownPower"));
+                if (!(power instanceof Double)) return null;
+                // As DcMotorImpl.getPower() turns it back: unsigned while running to a position, and otherwise in
+                // the motor's operational direction, which a counter-clockwise motor type (goBILDA's) inverts.
+                if (known(field(motor, "lastKnownMode")) == DcMotor.RunMode.RUN_TO_POSITION) return Math.abs((Double) power);
+                return call(device, "getOperationalDirection") == DcMotorSimple.Direction.REVERSE ? -(Double) power : (Double) power;
             }
             if (!driver.startsWith(LYNX_SERVOS)) return null;
-            Double position = known(Array.get(field(controller, "lastKnownCommandedPosition"), port - first(controller, "apiServoFirst")));
-            if (position == null) return null;
-            // A continuous servo's power is its position from -1 to 1, as CRServoImpl turns it back.
-            if ("crservo".equals(type)) return signed(device, position * 2 - 1);
-            double shown = ((Servo) device).getDirection() == Servo.Direction.REVERSE ? 1 - position : position;
+            Object commanded = known(Array.get(field(controller, "lastKnownCommandedPosition"), port - first(controller, "apiServoFirst")));
+            if (!(commanded instanceof Double)) return null;
+            double position = (Double) commanded;
+            // A continuous servo's power is its position from -1 to 1 in its direction, as CRServoImpl turns it back.
+            if ("crservo".equals(type)) {
+                double power = position * 2 - 1;
+                return ((DcMotorSimple) device).getDirection() == DcMotorSimple.Direction.REVERSE ? -power : power;
+            }
+            // As ServoImpl.getPosition() turns it back: out of the servo's scale range first, then in its direction.
             double min = (Double) field(device, "limitPositionMin"), max = (Double) field(device, "limitPositionMax");
-            return max > min ? Math.max(0, Math.min(1, (shown - min) / (max - min))) : shown;
+            double unscaled = max > min ? (position - min) / (max - min) : position;
+            double shown = ((Servo) device).getDirection() == Servo.Direction.REVERSE ? 1 - unscaled : unscaled;
+            return Math.max(0, Math.min(1, shown));
         } catch (ReflectiveOperationException | ClassCastException | NullPointerException | IndexOutOfBoundsException e) {
             return null;
         }
     }
 
-    private static double signed(HardwareDevice device, double power) {
-        return ((DcMotorSimple) device).getDirection() == DcMotorSimple.Direction.REVERSE ? -power : power;
-    }
-
+    /** A record's value, or null when the SDK has none. */
     @SuppressWarnings("unchecked")
-    private static Double known(Object record) {
-        Object value = record instanceof LastKnown ? ((LastKnown<Object>) record).getNonTimedValue() : null;
-        return value instanceof Double ? (Double) value : null;
+    private static Object known(Object record) {
+        return record instanceof LastKnown ? ((LastKnown<Object>) record).getNonTimedValue() : null;
     }
 
     /** A driver's first port number, or 0 when it doesn't say. */
@@ -95,6 +103,20 @@ public final class DeviceOutputs {
         } catch (ReflectiveOperationException | RuntimeException e) {
             return 0;
         }
+    }
+
+    /** Calls a method without arguments that the target's class or a superclass declares, public or not. */
+    private static Object call(Object target, String name) throws ReflectiveOperationException {
+        for (Class<?> c = target.getClass(); c != null; c = c.getSuperclass()) {
+            try {
+                Method method = c.getDeclaredMethod(name);
+                method.setAccessible(true);
+                return method.invoke(target);
+            } catch (NoSuchMethodException e) {
+                // Look in the superclass.
+            }
+        }
+        throw new NoSuchMethodException(name);
     }
 
     private static Object field(Object target, String name) throws ReflectiveOperationException {

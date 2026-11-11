@@ -83,7 +83,8 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  const undo=()=>{const p=history.past[history.past.length-1];if(p){setHistory({past:history.past.slice(0,-1),future:[project,...history.future]});onUpdate(p);}};
  const redo=()=>{const p=history.future[0];if(p){setHistory({past:[...history.past,project],future:history.future.slice(1)});onUpdate(p);}};
  const generation=useMemo(()=>generateJava(project,desktop.target??(liveTarget?{live:liveTarget}:undefined)),[project,desktop.target?.javaPackage,desktop.target?.constantsClass,liveTarget]);const generated=generation.ok?generation.files:[];
- const problems=useMemo(()=>validateProject(project),[project]);const build=useMemo(()=>parseBuildOutput(output,desktop.folder),[output,desktop.folder]);
+ // Errors first, then warnings, then notes, each in the order they were found.
+ const problems=useMemo(()=>{const rank={error:0,warning:1,info:2};return [...validateProject(project)].sort((a,b)=>rank[a.severity]-rank[b.severity]);},[project]);const build=useMemo(()=>parseBuildOutput(output,desktop.folder),[output,desktop.folder]);
  const [bottom, setBottom] = useState<"problems" | "output" | null>();
  const problemCount = problems.length + build.problems.length;
  const openPanel = bottom === undefined ? (problemCount > 0 ? "problems" : null) : bottom;

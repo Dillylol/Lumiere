@@ -304,6 +304,13 @@ button.pv-run-button.stop:not(:disabled) { background: color-mix(in srgb, var(--
   .pv-stage { height: min(calc(100vw - 40px), 560px); }
   .pv-topbar { gap: 6px; padding: 0 8px; }
 }
+@media (max-width: 480px) {
+  /* Phones: two rows instead of running off the screen, the name, File and Export, then the modes. */
+  .pv-topbar { flex-wrap: wrap; height: auto; min-height: 50px; padding: 6px 8px; }
+  .pv-brand { flex: 1 1 0; }
+  .pv-modes { order: 1; flex: 1 1 auto; grid-auto-columns: 1fr; }
+  .pv-topbar > .info-button { order: 1; }
+}
 
 /* Lumière Live in Robot mode: pairing, and what the robot found in the program this computer sent. */
 .pv-chip-line .pv-chip { padding: 0 8px; margin: 0 6px 4px 0; }

@@ -381,6 +381,17 @@ public class LiveRunnerTest {
         return Json.parseObject("{\"type\":\"program\",\"program\":" + LiveProgramTest.PROGRAM + "}");
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    public void aPowerLimitNoteKeepsThePowersSign() {
+        Map<String, Object> json = program2();
+        Map<String, Object> roller = LiveProgramTest.mechanism((Map<String, Object>) json.get("program"), 0);
+        ((List<Object>) roller.get("states")).add(Json.parseObject("{\"id\":\"back\",\"name\":\"Back\",\"outputs\":{\"g\":{\"kind\":\"power\",\"value\":-1}}}"));
+        accept(json);
+        String notes = last().get("notes").toString();
+        assertTrue(notes, notes.contains("\"Grip1\" in Roller is given power -1 in \"Back\"; its power limit cuts that to -0.5."));
+    }
+
     static Map<String, Object> program2() {
         return Json.parseObject("{\"type\":\"program\",\"program\":" + LiveProgramTest.PROGRAM_2 + "}");
     }

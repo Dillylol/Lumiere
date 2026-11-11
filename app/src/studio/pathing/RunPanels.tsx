@@ -41,7 +41,8 @@ export interface RunEnvironment {
 
 const FOLLOWER = new Map([["follow", "Following a path"], ["hold", "Holding position"], ["manual", "Manual drive"], ["idle", "Idle"]]);
 const show = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value) ?? String(value));
-const degrees = (radians: number) => (((radians * 180) / Math.PI) % 360 + 360) % 360;
+/** A heading in whole degrees from 0 to 359, rounded first, so one just under 2π reads 0, not 360. */
+const degrees = (radians: number) => ((Math.round((radians * 180) / Math.PI) % 360) + 360) % 360;
 
 type Drivetrain = NonNullable<NonNullable<RunSession["hello"]>["drivetrain"]>;
 
@@ -368,11 +369,13 @@ export function TelemetryPanel({ session, project, program, estimated, offPath, 
 }
 
 /**
- * Each mechanism's state: what the simulator's devices show now, and what the plan has at the same time.
- * Devices the team's code drives outside any mechanism are listed too, except Pedro Pathing's own.
+ * Each mechanism's state: what the devices show now, from the simulator or a robot (robot library 0.4.0
+ * reports every OpMode's device outputs), and what the plan has at the same time. Devices the team's code
+ * drives outside any mechanism are listed too, except Pedro Pathing's own. A robot reports no encoder
+ * counts, so a state with an encoder target can't be matched there.
  */
 function MechanismsSection({ project, session, planned }: { project: Project; session?: RunSession; planned?: Record<string, string> }) {
-  const reports = session?.source === "simulator" ? session.devices : {};
+  const reports = session?.devices ?? {};
   const live = Object.keys(reports).length > 0;
   if (!live && !(planned && project.subsystems.length)) return null;
   const readings = readMechanisms(project.subsystems, reports, project.robot.hardware);
@@ -382,22 +385,27 @@ function MechanismsSection({ project, session, planned }: { project: Project; se
   const pedro = new Set(pedroDevices(project.robot).map((device) => device.name));
   const others = Object.entries(reports).filter(([name]) => !modeled.has(name) && !pedro.has(name));
   const kindOf = (type: string) => (type === "servo" || type === "crservo" ? type : "motor");
+  /** Without encoder counts (a robot's reports), a mechanism whose states drive to targets can't be judged. */
+  const unknowable = (subsystem: Project["subsystems"][number], devices: { device: { id: string }; report?: { position?: number | null } }[]) =>
+    subsystem.states.some((state) => Object.entries(state.outputs).some(([id, output]) =>
+      output.kind === "target" && typeof devices.find((item) => item.device.id === id)?.report?.position !== "number"));
   return <Section title="Mechanisms" count={project.subsystems.length || undefined}>
     {project.subsystems.length
       ? <dl className="pv-mechanisms" aria-label="Mechanism states">
         {readings.map(({ subsystem, stateId, devices }) => <div key={subsystem.id}>
           <dt>{subsystem.name}</dt>
           <dd>
-            {live && <span className="pv-mech-now">{stateName(subsystem.id, stateId) ?? "No state matches"}</span>}
+            {live && <span className="pv-mech-now">{stateName(subsystem.id, stateId)
+              ?? (unknowable(subsystem, devices) ? "Not known: the robot reports no encoder counts" : "No state matches")}</span>}
             {planned && <span className="pv-mech-plan">Plan: {stateName(subsystem.id, planned[subsystem.id]) ?? "not set yet"}</span>}
-            {live && <ul>{devices.map(({ device, reversed, report }) => <li key={device.id}>{device.name}: {describeReport({ kind: device.kind, reversed }, report)}</li>)}</ul>}
+            {live && <ul>{devices.map(({ device, report }) => <li key={device.id}>{device.name}: {describeReport({ kind: device.kind }, report)}</li>)}</ul>}
           </dd>
         </div>)}
       </dl>
       : <p className="pv-note">Add mechanisms on the Robot page to see their states here.</p>}
     {others.length > 0 && <details className="pv-other-devices">
       <summary>Other devices ({others.length})</summary>
-      <ul>{others.map(([name, report]) => <li key={name}>{name}: {describeReport({ kind: kindOf(report.type), reversed: false }, report)}</li>)}</ul>
+      <ul>{others.map(([name, report]) => <li key={name}>{name}: {describeReport({ kind: kindOf(report.type) }, report)}</li>)}</ul>
     </details>}
   </Section>;
 }

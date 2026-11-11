@@ -94,11 +94,12 @@ final class HardwareCheck {
                                 + travel.minTicks + " to " + travel.maxTicks + " ticks.");
                     }
                 }
-                double power = "target".equals(output.kind) ? output.power : "power".equals(output.kind) ? Math.abs(output.value) : 0;
-                if (power > device.powerLimit + 1e-9) {
+                // The power as asked, with its sign; a target's power has none, as the motor turns whichever way the target is.
+                double power = "target".equals(output.kind) ? output.power : "power".equals(output.kind) ? output.value : 0;
+                if (Math.abs(power) > device.powerLimit + 1e-9) {
                     result.notes.add(program.format < 2
                             ? where + " runs at power " + format(power) + " " + use.source + "; Lumière Live limits mechanisms to " + format(device.powerLimit) + "."
-                            : where + " is given power " + format(power) + " " + use.source + "; its power limit cuts that to " + format(device.powerLimit) + ".");
+                            : where + " is given power " + format(power) + " " + use.source + "; its power limit cuts that to " + format(Math.copySign(device.powerLimit, power)) + ".");
                 }
             }
 

@@ -106,7 +106,7 @@ export function HardwareList({ project, onChange }: { project: Project; onChange
             <td>{device.kind === "servo" ? "—" : <NumberField label={`${device.name} power limit`} hideLabel value={device.powerLimit ?? 1} min={0.05} max={1} step={0.05}
               onChange={(limit) => { const { powerLimit: _unset, ...rest } = device; set(limit >= 1 ? rest : { ...rest, powerLimit: limit }); }}/>}</td>
             <td>{device.kind === "motor" && (targets.length > 0 || device.travel) ? <div className="travel-cell">
-              <label className="check"><input type="checkbox" checked={!!device.travel}
+              <label className="check"><input type="checkbox" aria-label={`Limit ${device.name}'s travel`} checked={!!device.travel}
                 onChange={(event) => { const { travel: _unset, ...rest } = device; set(event.target.checked ? { ...rest, travel: defaultTravel(targets) } : rest); }}/>Limit</label>
               {device.travel && <>
                 <NumberField label={`${device.name} lowest ticks`} hideLabel integer min={-1_000_000} max={1_000_000} value={device.travel.minTicks}

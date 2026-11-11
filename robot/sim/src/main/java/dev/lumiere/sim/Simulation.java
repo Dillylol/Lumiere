@@ -229,7 +229,8 @@ public final class Simulation implements AutoCloseable {
         for (ServoState servo : hardware.servos()) {
             Map<String, Object> entry = new TreeMap<>();
             entry.put("type", servo.continuous ? "crservo" : "servo");
-            if (servo.continuous) entry.put("power", round(servo.power()));
+            // As the OpMode set it, like a motor's power and like a robot's devices report.
+            if (servo.continuous) entry.put("power", round(servo.commandedPower()));
             else entry.put("position", Double.isNaN(servo.position()) ? null : round(servo.position()));
             outputs.put(servo.name, entry);
         }

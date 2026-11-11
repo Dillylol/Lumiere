@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   findRobot, fromBrowserGamepad, robotStreamUrl, StreamClient,
   type ConnectionStatus, type GamepadStateMessage, type OpModeInfo, type Phase, type Point, type PoseMessage,
-  LIVE_OPMODE_NAME, readDeviceReports, readLiveReport, type DeviceReport, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
+  fromSimulator, LIVE_OPMODE_NAME, readDeviceReports, readLiveReport, type DeviceReport, type HardwareDevice, type LiveProgram, type LiveReport, type ScannedDevice, type ScannedPedro, type ServerMessage, type SocketFactory,
 } from "../../core";
 import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
@@ -66,6 +66,8 @@ export interface RunSessionOptions {
   /** Simulator: cancels a startup in progress. */
   cancel?(): void;
   canLaunch?: boolean;
+  /** Simulator: the robot's hardware list, to read a simulator from before robot library 0.4.0. */
+  hardware?: HardwareDevice[];
   /** Robot: the Control Hub's address. */
   host?: string;
   onHost?(host: string): void;
@@ -202,6 +204,8 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const phaseNow = useRef<Phase>("idle");
   const trailNow = useRef<Point[]>([]);
   const streamSource = useRef<Hello["source"]>(source);
+  /** The robot library version the stream's hello gave. */
+  const library = useRef<string | undefined>(undefined);
   const keys = useRef(new Set<string>());
   const screen = useRef<GamepadStateMessage>({});
 
@@ -299,6 +303,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const receive = (message: ServerMessage) => {
     if (message.type === "hello") {
       setHello(message);
+      library.current = typeof message.library === "string" ? message.library : undefined;
       streamSource.current = message.source === "simulator" ? "simulator" : "robot";
     } else if (message.type === "manifest") {
       const list = Array.isArray(message.opModes) ? message.opModes.filter((item) => item && typeof item.name === "string" && typeof item.flavor === "string") : [];
@@ -332,7 +337,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       if (next) showPose(next);
       if (Number.isFinite(message.elapsed)) setElapsed(message.elapsed * 1000);
       if (typeof message.localizer === "string") setLocalizer(message.localizer.slice(0, 80));
-      const reports = message.devices ? readDeviceReports(message.devices) : undefined;
+      const reports = message.devices ? fromSimulator(readDeviceReports(message.devices), library.current, latest.current.hardware) : undefined;
       if (reports) setDevices(reports);
       if (next && message.phase === "running") sample(message.elapsed * 1000, next, reports);
     } else if (message.type === "state") {
