@@ -1,7 +1,22 @@
 # Release progress
 
 Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
-continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0 and 0.3.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.3.1 is tagged from this record.
+continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.0 and 0.3.1 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack.
+
+## Unreleased (0.4.0)
+
+- **One hardware list, with each device's settings.** The Robot page lists every motor, servo and continuous servo: the ones the robot reported, the ones the project uses, and ones added by name before the robot is scanned. Each has its direction, a **power limit** (motors and continuous servos; unset means 1) and, for motors that take encoder targets, a **travel range**. Every use of a device follows them.
+  - **Pedro Pathing's devices** stay out of the list, in their own tables. A motor on a dead wheel's port stays in it, with a note that it takes power, not targets.
+  - **Project format 4.** Format 3 projects upgrade on load: each mechanism device's direction and travel move into the list. The desktop app keeps the original beside it as `.v3.bak` until it is saved. Upgraded projects generate the same Java as before, byte for byte (the golden files are unchanged).
+- **Mechanisms are optional.** They group devices from the list into named states. A device is picked from the robot's configuration once it has been scanned, and typed before that. A device can now be removed from a mechanism.
+- **Motor, Servo and Continuous servo actions** in Build set one device directly: a power, a servo position, or a motor's encoder target (the action finishes when the motor gets there).
+- **Power limits in the generated Java.** Each power is cut to its device's limit when the code is generated, with a comment giving the power asked for. Devices set directly become fields of the autonomous class, set up the way mechanism devices are.
+- **Problems:**
+  - **Errors:** an action without a device; an output its device can't take; two uses that disagree on a device's kind; an action on Pedro's drive motor or a target on a dead wheel's port; a target outside the motor's travel.
+  - **Notes:** a power above the device's limit ("runs at 0.7"), and an action that sets a device a mechanism also owns.
+  - **Warnings,** as before: a device not in the robot's last-reported configuration, or configured as another kind.
+- **Checked:** unit tests for the upgrade, the list, validation, generation and the editors; browser tests for the hardware list and a Motor action within its limit; a new golden project, `direct-devices`, built in a quickstart against the FTC SDK and run headless in the simulator (the intake asked for 0.9 runs at 0.7, the reversed lift reaches its 1200-tick target).
+- **Not yet:** durations on actions, and Lumière Live with direct actions and per-device limits. Until then, Lumière Live refuses a program with Motor or Servo actions, and still caps mechanisms at its own power limit.
 
 ## Version 0.3.1
 

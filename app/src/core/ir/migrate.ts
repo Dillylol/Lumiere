@@ -1,6 +1,40 @@
 import { createAutonomous, createDevice, createProject, createState, createSubsystem, createTeleOp, DEFAULT_ROBOT, newId, pathColor } from "./create";
 import type { AtomicPath, AutonomousProgram, Project, Subsystem } from "./types";
 
+/** Upgrades a stored version 2 or 3 project to the current version, and returns anything else unchanged. */
+export function migrateProject(value: unknown): unknown {
+  return migrateVersion3(migrateVersion2(value));
+}
+
+/**
+ * Upgrades a stored version 3 project to version 4, and returns anything else unchanged.
+ *
+ * Version 3 kept each device's settings in its mechanism. They move to the robot's hardware list, one
+ * entry per device name, so the device keeps its direction and travel. When two mechanisms named the
+ * same device (which version 3 already reported as an error), the first one's settings are kept.
+ */
+export function migrateVersion3(value: unknown): unknown {
+  if (!isObject(value) || value.version !== 3) return value;
+  const robot = isObject(value.robot) ? value.robot : {};
+  const hardware: Json[] = [];
+  const named = new Set<string>();
+  const subsystems = Array.isArray(value.subsystems) ? value.subsystems.map((subsystem) => {
+    if (!isObject(subsystem) || !Array.isArray(subsystem.devices)) return subsystem;
+    const devices = subsystem.devices.map((device) => {
+      if (!isObject(device)) return device;
+      const { reversed, travel, ...rest } = device;
+      const name = typeof device.name === "string" ? device.name.trim() : "";
+      if (name && !named.has(name)) {
+        named.add(name);
+        hardware.push({ name, kind: device.kind, reversed: reversed === true, ...(travel === undefined ? {} : { travel }) });
+      }
+      return rest;
+    });
+    return { ...subsystem, devices };
+  }) : value.subsystems;
+  return { ...value, version: 4, robot: hardware.length ? { ...robot, hardware } : robot, subsystems };
+}
+
 /**
  * Upgrades a stored version 2 project to version 3, and returns anything else unchanged.
  *

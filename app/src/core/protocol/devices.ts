@@ -2,7 +2,7 @@
  * What a simulator's device report says about the robot's mechanisms: each mechanism's state, judged
  * from its devices' outputs, and each device's values in words.
  */
-import type { Device, Output, Subsystem } from "../ir/types";
+import type { Device, DeviceKind, HardwareDevice, Output, Subsystem } from "../ir/types";
 
 /** One device as the simulator reports it, keyed by its configured name. */
 export interface DeviceReport {
@@ -19,7 +19,8 @@ export interface MechanismReading {
   subsystem: Subsystem;
   /** The state whose outputs all match the devices, or null when none does. */
   stateId: string | null;
-  devices: { device: Device; report?: DeviceReport }[];
+  /** Each device, whether the hardware list has it reversed, and its report. */
+  devices: { device: Device; reversed: boolean; report?: DeviceReport }[];
 }
 
 const POWER_TOLERANCE = 0.02;
@@ -43,13 +44,13 @@ export function readDeviceReports(value: unknown): Record<string, DeviceReport> 
   return reports;
 }
 
-function matches(device: Device, output: Output, report: DeviceReport | undefined): boolean {
+function matches({ device, reversed, report }: MechanismReading["devices"][number], output: Output): boolean {
   if (!report) return false;
   switch (output.kind) {
     case "power": {
       if (report.power === undefined) return false;
       // A continuous servo reports its power after its direction, so a reversed one reads negated.
-      const commanded = device.kind === "crservo" && device.reversed ? -report.power : report.power;
+      const commanded = device.kind === "crservo" && reversed ? -report.power : report.power;
       return Math.abs(commanded - output.value) <= POWER_TOLERANCE;
     }
     case "position":
@@ -62,17 +63,18 @@ function matches(device: Device, output: Output, report: DeviceReport | undefine
 /**
  * Which state each mechanism is in, judged from its devices' outputs. A state matches when all its
  * outputs do; when several match, the one setting the most devices wins. A motor driving to a target
- * matches once it is there.
+ * matches once it is there. `hardware` is the robot's hardware list, for each device's direction.
  */
-export function readMechanisms(subsystems: Subsystem[], reports: Record<string, DeviceReport>): MechanismReading[] {
+export function readMechanisms(subsystems: Subsystem[], reports: Record<string, DeviceReport>, hardware: HardwareDevice[] = []): MechanismReading[] {
+  const reversed = new Set(hardware.filter((device) => device.reversed).map((device) => device.name));
   return subsystems.map((subsystem) => {
-    const devices = subsystem.devices.map((device) => ({ device, report: reports[device.name.trim()] }));
+    const devices = subsystem.devices.map((device) => ({ device, reversed: reversed.has(device.name.trim()), report: reports[device.name.trim()] }));
     const byId = new Map(devices.map((item) => [item.device.id, item]));
     let best: { id: string; size: number } | null = null;
     for (const state of subsystem.states) {
       const outputs = Object.entries(state.outputs).filter(([deviceId]) => byId.has(deviceId));
       if (!outputs.length) continue;
-      if (!outputs.every(([deviceId, output]) => matches(byId.get(deviceId)!.device, output, byId.get(deviceId)!.report))) continue;
+      if (!outputs.every(([deviceId, output]) => matches(byId.get(deviceId)!, output))) continue;
       if (!best || outputs.length > best.size) best = { id: state.id, size: outputs.length };
     }
     return { subsystem, stateId: best?.id ?? null, devices };
@@ -80,7 +82,7 @@ export function readMechanisms(subsystems: Subsystem[], reports: Record<string, 
 }
 
 /** A device's reported values in words, such as "power 0.60 · 1240 ticks". */
-export function describeReport(device: Pick<Device, "kind" | "reversed">, report: DeviceReport | undefined): string {
+export function describeReport(device: { kind: DeviceKind; reversed: boolean }, report: DeviceReport | undefined): string {
   if (!report) return "Not reported";
   const power = (value: number) => `power ${value.toFixed(2)}`;
   if (device.kind === "servo") return typeof report.position === "number" ? `position ${report.position.toFixed(2)}` : "position not set";

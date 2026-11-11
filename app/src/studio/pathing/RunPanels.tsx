@@ -179,7 +179,7 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
   const untraveled = env.live && liveProgram ? motorsWithoutTravel(liveProgram) : [];
   return <Section title={LIVE_OPMODE_NAME}>
     {body}
-    {untraveled.length > 0 && <p className="pv-note">Give {untraveled.join(", ")} a travel range on the Robot page (Mechanisms). {LIVE_OPMODE_NAME} refuses encoder targets without one.</p>}
+    {untraveled.length > 0 && <p className="pv-note">Give {untraveled.join(", ")} a travel range in the Robot page's hardware list. {LIVE_OPMODE_NAME} refuses encoder targets without one.</p>}
     {session.liveError && <p className="pv-live-result bad" role="alert">{session.liveError}</p>}
     {env.live && <p className="pv-note">Before competitions, turn Live runs off and deploy, so {LIVE_OPMODE_NAME} leaves the robot code.</p>}
   </Section>;
@@ -370,7 +370,7 @@ function MechanismsSection({ project, session, planned }: { project: Project; se
   const reports = session?.source === "simulator" ? session.devices : {};
   const live = Object.keys(reports).length > 0;
   if (!live && !(planned && project.subsystems.length)) return null;
-  const readings = readMechanisms(project.subsystems, reports);
+  const readings = readMechanisms(project.subsystems, reports, project.robot.hardware);
   const stateName = (subsystemId: string, stateId?: string | null) =>
     project.subsystems.find((item) => item.id === subsystemId)?.states.find((item) => item.id === stateId)?.name;
   const modeled = new Set(project.subsystems.flatMap((item) => item.devices.map((device) => device.name.trim())));
@@ -385,7 +385,7 @@ function MechanismsSection({ project, session, planned }: { project: Project; se
           <dd>
             {live && <span className="pv-mech-now">{stateName(subsystem.id, stateId) ?? "No state matches"}</span>}
             {planned && <span className="pv-mech-plan">Plan: {stateName(subsystem.id, planned[subsystem.id]) ?? "not set yet"}</span>}
-            {live && <ul>{devices.map(({ device, report }) => <li key={device.id}>{device.name}: {describeReport(device, report)}</li>)}</ul>}
+            {live && <ul>{devices.map(({ device, reversed, report }) => <li key={device.id}>{device.name}: {describeReport({ kind: device.kind, reversed }, report)}</li>)}</ul>}
           </dd>
         </div>)}
       </dl>

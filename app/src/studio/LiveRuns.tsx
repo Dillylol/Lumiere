@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { LIVE_DEFAULT_POWER_CAP, LIVE_OPMODE_NAME } from "../core";
 import { createLivePairing, type LivePairing } from "./livePairing";
-import { NumberField } from "./ProgramEditor";
+import { NumberField } from "./NumberField";
 
 /**
  * Live runs on the Robot page. Turning them on pairs this computer with the Lumière Live OpMode that
@@ -46,7 +46,7 @@ export function LiveRunsPanel({ pairing, onPairing, desktop }: { pairing: LivePa
       <ol className="profile-note live-steps">
         <li>{desktop ? "Deploy and install the robot code once" : "Download the generated code from Code, add it to TeamCode, and install it once"}, and again after changing the power limit. The Driver Station then lists {LIVE_OPMODE_NAME}.</li>
         <li>On the Driver Station, choose {LIVE_OPMODE_NAME} and press INIT. With Pathing → Robot connected, this computer sends the autonomous you have open, and the robot reports what it found. Press START on the Driver Station to run it.</li>
-        <li>Keep Pathing → Robot open during the run. Motors that take encoder targets need a travel range (Mechanisms, below).</li>
+        <li>Keep Pathing → Robot open during the run. Motors that take encoder targets need a travel range (Robot hardware, below).</li>
         <li>Only this computer is paired. Turning Live runs off and deploying again removes {LIVE_OPMODE_NAME}; remove it before competitions.</li>
       </ol>
     </> : <p className="profile-note">Off. Deploys from this computer leave {LIVE_OPMODE_NAME} out of the robot code.</p>}

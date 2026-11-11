@@ -7,7 +7,7 @@ import {
   type Project,
   type Step,
 } from "./types";
-import { migrateVersion2 } from "./migrate";
+import { migrateProject } from "./migrate";
 
 const finite = z.number().finite();
 const id = z.string().min(1).max(100);
@@ -76,10 +76,21 @@ const pathDoc = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const output = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("power"), value: z.number().min(-1).max(1) }),
+  z.object({ kind: z.literal("position"), value: z.number().min(0).max(1) }),
+  z.object({ kind: z.literal("target"), ticks: z.number().int().min(-1_000_000).max(1_000_000), power: z.number().min(0).max(1) }),
+]);
+const deviceKind = z.enum(["motor", "servo", "crservo"]);
+const deviceName = z.string().max(60);
+const ticks = z.number().int().min(-1_000_000).max(1_000_000);
+
 export const stepSchema: z.ZodType<Step> = z.lazy(() => z.discriminatedUnion("kind", [
   z.object({ id, kind: z.literal("path"), pathId: ref }),
   z.object({ id, kind: z.literal("wait"), ms: z.number().finite().min(0).max(600_000) }),
   z.object({ id, kind: z.literal("state"), subsystemId: ref, stateId: ref }),
+  // The device may be empty while the team has not chosen one, like the references above.
+  z.object({ id, kind: z.literal("device"), device: deviceName, deviceKind, output }),
   z.object({ id, kind: z.literal("together"), steps: z.array(stepSchema).max(50) }),
   z.object({ id, kind: z.literal("race"), steps: z.array(stepSchema).max(50) }),
 ]));
@@ -130,25 +141,10 @@ const program = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const output = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("power"), value: z.number().min(-1).max(1) }),
-  z.object({ kind: z.literal("position"), value: z.number().min(0).max(1) }),
-  z.object({ kind: z.literal("target"), ticks: z.number().int().min(-1_000_000).max(1_000_000), power: z.number().min(0).max(1) }),
-]);
-
 const subsystem = z.object({
   id,
   name,
-  devices: z.array(z.object({
-    id,
-    name: z.string().max(60),
-    kind: z.enum(["motor", "servo", "crservo"]),
-    reversed: z.boolean(),
-    travel: z.object({
-      minTicks: z.number().int().min(-1_000_000).max(1_000_000),
-      maxTicks: z.number().int().min(-1_000_000).max(1_000_000),
-    }).optional(),
-  })).max(20),
+  devices: z.array(z.object({ id, name: deviceName, kind: deviceKind })).max(20),
   states: z.array(z.object({
     id,
     name,
@@ -201,24 +197,32 @@ export const projectSchema: z.ZodType<Project> = z.object({
         devices: z.array(z.object({ role: z.string().min(1).max(40), name: z.string().max(80) })).max(40),
       }).optional(),
     }).optional(),
+    hardware: z.array(z.object({
+      name: deviceName.min(1),
+      kind: deviceKind,
+      reversed: z.boolean(),
+      powerLimit: z.number().gt(0).max(1).optional(),
+      travel: z.object({ minTicks: ticks, maxTicks: ticks }).optional(),
+    })).max(100).optional(),
   }),
   subsystems: z.array(subsystem).max(30),
   programs: z.array(program).max(50),
 }) as z.ZodType<Project>;
 
 /**
- * Parses and checks the structure of a stored project, upgrading a version 2 project first.
+ * Parses and checks the structure of a stored project, upgrading a version 2 or 3 project first.
  * Throws a ZodError when it is invalid.
  */
 export function parseProject(value: unknown): Project {
-  return projectSchema.parse(migrateVersion2(value));
+  return projectSchema.parse(migrateProject(value));
 }
 
 /** Like {@link parseProject}, but returns a readable message instead of throwing. */
 export function safeParseProject(value: unknown): { ok: true; project: Project } | { ok: false; error: string } {
-  const result = projectSchema.safeParse(migrateVersion2(value));
+  const upgraded = migrateProject(value);
+  const result = projectSchema.safeParse(upgraded);
   if (result.success) return { ok: true, project: result.data };
-  return { ok: false, error: describeIssue(result.error.issues[0], value) };
+  return { ok: false, error: describeIssue(result.error.issues[0], upgraded) };
 }
 
 /** What a field is called on screen, by its name in the project. */
@@ -229,7 +233,7 @@ const FIELD_NAMES: Record<string, string> = {
   widthInches: "width", lengthInches: "length", maxForwardVelocity: "forward speed", maxStrafeVelocity: "strafe speed",
   forwardDeceleration: "forward deceleration", strafeDeceleration: "strafe deceleration", acceleration: "acceleration",
   turnRateDeg: "turn rate", headingDeg: "heading", minTicks: "lowest travel", maxTicks: "highest travel", ticks: "target",
-  value: "value", power: "power",
+  value: "value", power: "power", device: "device", deviceKind: "device type", powerLimit: "power limit", kind: "type",
 };
 
 type Issue = { code: string; path: PropertyKey[]; message: string; origin?: string; minimum?: unknown; maximum?: unknown };
@@ -274,7 +278,7 @@ function describeIssue(issue: Issue, value: unknown): string {
       if (key === "programs") places.push(named(item, `program ${next + 1}`));
       else if (key === "subsystems") places.push(`mechanism ${named(item, String(next + 1))}`);
       else if (key === "states") places.push(`state ${named(item, String(next + 1))}`);
-      else if (key === "devices") places.push(`device ${named(item, String(next + 1))}`);
+      else if (key === "devices" || key === "hardware") places.push(`device ${named(item, String(next + 1))}`);
       else if (key === "paths" || key === "segments") places.push(`${key === "paths" ? "path" : "segment"} ${named(item, String(next + 1))}`);
       else if (key === "bindings") places.push(`button ${next + 1}`);
       else places.push(`${FIELD_NAMES[String(key)] ?? String(key)} ${next + 1}`);

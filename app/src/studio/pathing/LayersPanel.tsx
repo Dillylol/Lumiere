@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Eye, EyeOff, PanelLeft, Plus } from "lucide-react";
-import { AUTONOMOUS_PERIOD_MS, type AutonomousProgram, type Pose, type Project, type RoutineEstimate, type Step } from "../../core";
+import { AUTONOMOUS_PERIOD_MS, describeDeviceStep, type AutonomousProgram, type Pose, type Project, type RoutineEstimate, type Step } from "../../core";
 
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
 
@@ -28,6 +28,7 @@ function stepLabel(step: Step, program: AutonomousProgram, project: Project): st
       const subsystem = project.subsystems.find((item) => item.id === step.subsystemId);
       return `${subsystem?.name ?? "Mechanism"}: ${subsystem?.states.find((item) => item.id === step.stateId)?.name ?? "state"}`;
     }
+    case "device": return describeDeviceStep(step);
     case "together": return `Together (${step.steps.length})`;
     case "race": return `Race (${step.steps.length})`;
   }

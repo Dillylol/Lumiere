@@ -1,6 +1,6 @@
 import { openDB } from "idb";
 import { BRAND } from "../brand";
-import { createAutonomous, createProject, importVisualizer, isVersion1Project, migrateVersion1, parseProject, type Project } from "../core";
+import { PROJECT_VERSION, createAutonomous, createProject, importVisualizer, isVersion1Project, migrateVersion1, parseProject, type Project } from "../core";
 import { isDesktop } from "../desktop/backend";
 import { createProjectStore } from "../storage/projectStore";
 
@@ -55,6 +55,15 @@ export function saveRobotHost(projectId: string, host: string) {
     if (host.trim()) localStorage.setItem(robotHostKey(projectId), host.trim());
   } catch { /* The address then falls back to the default next time. */ }
 }
+/**
+ * The backup file name for a stored project that loading will upgrade, such as `Robot.ftcproj.v3.bak`
+ * for a version 3 file, or null when the project is already current.
+ */
+export function backupName(fileName: string, stored: unknown): string | null {
+  const version = (stored as { version?: unknown } | null)?.version;
+  return typeof version === "number" && version >= 2 && version < PROJECT_VERSION ? `${fileName}.v${version}.bak` : null;
+}
+
 export async function listProjects(): Promise<{ projects: Project[]; warnings: string[] }> {
   const warnings: string[] = [];
   const projects: Project[] = [];
@@ -66,9 +75,10 @@ export async function listProjects(): Promise<{ projects: Project[]; warnings: s
       try {
         const text = await fs.readTextFile(`projects-v2/${entry.name}`, opts);
         const stored: unknown = JSON.parse(text);
-        // Saving rewrites a version 2 file as version 3, which older Lumière versions cannot open.
-        // Keep the original beside it until then; once saved, the file is no longer version 2.
-        if ((stored as { version?: unknown } | null)?.version === 2) await fs.writeTextFile(`projects-v2/${entry.name}.v2.bak`, text, opts);
+        // Saving rewrites an older file in the current version, which older Lumière versions cannot open.
+        // Keep the original beside it (such as `.v3.bak`) until then; once saved, the file is current.
+        const backup = backupName(entry.name, stored);
+        if (backup) await fs.writeTextFile(`projects-v2/${backup}`, text, opts);
         projects.push(parseProject(stored));
       }
       catch { warnings.push(`Could not read ${entry.name}. The original file is still available.`); }

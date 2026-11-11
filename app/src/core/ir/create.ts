@@ -101,7 +101,7 @@ export function createSubsystem(name: string): Subsystem {
 }
 
 export function createDevice(name: string, kind: DeviceKind): Device {
-  return { id: newId("device"), name, kind, reversed: false };
+  return { id: newId("device"), name, kind };
 }
 
 export function createState(name: string): MechanismState {

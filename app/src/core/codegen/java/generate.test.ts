@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import awkward from "../../../../../fixtures/projects/awkward-names.json";
+import direct from "../../../../../fixtures/projects/direct-devices.json";
 import sample from "../../../../../fixtures/projects/sample-robot.json";
 import { parseProject } from "../../ir/schema";
 import type { Project } from "../../ir/types";
@@ -18,6 +19,7 @@ const update = (globalThis as { process?: { env: Record<string, string | undefin
 const projects: [string, Project][] = [
   ["sample-robot", parseProject(sample)],
   ["awkward-names", parseProject(awkward)],
+  ["direct-devices", parseProject(direct)],
 ];
 
 describe("Java generation", () => {

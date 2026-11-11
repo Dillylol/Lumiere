@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import sample from "../../../../fixtures/projects/sample-robot.json";
 import { createAutonomous, createLine, createProject, createTeleOp } from "./create";
 import { describeProjectError, parseProject, safeParseProject } from "./schema";
-import type { AutonomousProgram, Project, TeleOpProgram } from "./types";
+import type { AutonomousProgram, DeviceStep, Project, TeleOpProgram } from "./types";
 import { actionNumber, describeLocation, validateProject } from "./validate";
 
 const codes = (project: Project) => validateProject(project).map((item) => `${item.severity}:${item.code}`);
@@ -126,7 +126,7 @@ describe("validateProject", () => {
 
   it("reports mechanism problems", () => {
     const project = load();
-    project.subsystems[1].devices.push({ id: "dup", name: "claw", kind: "motor", reversed: false });
+    project.subsystems[1].devices.push({ id: "dup", name: "claw", kind: "motor" });
     project.subsystems[0].states[0].outputs.device_claw = { kind: "power", value: 1 };
     project.subsystems[2].initialStateId = "missing";
     const found = codes(project);
@@ -173,8 +173,8 @@ describe("robot profile checks", () => {
     project.robot.drivetrain = drivetrain;
     project.robot.localizer = { kind: "pinpoint", name: "pinpoint" };
     const claw = { id: "claw", name: "Claw", devices: [
-      { id: "servo", name: "claw", kind: "servo" as const, reversed: false },
-      { id: "lift", name: "lift", kind: "motor" as const, reversed: false },
+      { id: "servo", name: "claw", kind: "servo" as const },
+      { id: "lift", name: "lift", kind: "motor" as const },
     ], states: [], initialStateId: null };
     project.subsystems.push(claw);
     project.robot.scan = { scannedAt: "2026-11-07T10:00:00Z", devices: [
@@ -183,7 +183,7 @@ describe("robot profile checks", () => {
       { name: "claw", type: "motor" },
     ] };
     expect(scanned(project).map((item) => item.code)).toEqual([
-      "robot.drive.type", "robot.localizer.missing", "robot.device.type", "robot.device.missing",
+      "robot.device.type", "robot.device.missing", "robot.drive.type", "robot.localizer.missing",
     ]);
     expect(scanned(project).find((item) => item.code === "robot.device.missing")?.location).toEqual({ subsystemId: "claw", deviceId: "lift" });
   });
@@ -195,7 +195,7 @@ describe("robot profile checks", () => {
       { role: "leftEncoder", name: "intake" }, { role: "rightEncoder", name: "lift" }, { role: "strafeEncoder", name: "turret" },
     ] };
     // A motor sharing its port with a dead wheel may be given power, but not an encoder target.
-    const motor = (id: string, name: string) => ({ id, name, kind: "motor" as const, reversed: false });
+    const motor = (id: string, name: string) => ({ id, name, kind: "motor" as const });
     project.subsystems.push(
       { id: "intake", name: "Intake", devices: [motor("i", "intake")], states: [{ id: "on", name: "On", outputs: { i: { kind: "power", value: 1 } } }], initialStateId: null },
       { id: "turret", name: "Turret", devices: [motor("t", "turret")], states: [{ id: "c", name: "Center", outputs: { t: { kind: "target", ticks: 0, power: 0.5 } } }], initialStateId: null },
@@ -221,7 +221,7 @@ describe("robot profile checks", () => {
 
   it("uses the robot's report for Pedro devices when the project has not read the constants", () => {
     const project = createProject("Browser");
-    project.subsystems.push({ id: "m", name: "Lift", devices: [{ id: "d", name: "lf", kind: "motor", reversed: false }], states: [], initialStateId: null });
+    project.subsystems.push({ id: "m", name: "Lift", devices: [{ id: "d", name: "lf", kind: "motor" }], states: [], initialStateId: null });
     project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: [{ name: "lf", type: "motor" }], pedro: {
       constants: "org.firstinspires.ftc.teamcode.pedro.Constants", localizer: "pinpoint",
       devices: [{ role: "frontLeft", name: "lf" }, { role: "pinpoint", name: "odo" }],
@@ -231,23 +231,24 @@ describe("robot profile checks", () => {
 
   it("keeps encoder targets within a motor's travel, and travel ranges on motors", () => {
     const project = createProject("Travel");
-    const lift = { id: "l", name: "lift", kind: "motor" as const, reversed: false, travel: { minTicks: 0, maxTicks: 1800 } };
-    const claw = { id: "c", name: "claw", kind: "servo" as const, reversed: false, travel: { minTicks: 0, maxTicks: 10 } };
-    project.subsystems.push({ id: "m", name: "Lift", devices: [lift, claw], initialStateId: null, states: [
+    const lift = { name: "lift", kind: "motor" as const, reversed: false, travel: { minTicks: 0, maxTicks: 1800 } };
+    project.robot.hardware = [lift, { name: "claw", kind: "servo", reversed: false, travel: { minTicks: 0, maxTicks: 10 } }];
+    project.subsystems.push({ id: "m", name: "Lift", devices: [{ id: "l", name: "lift", kind: "motor" }, { id: "c", name: "claw", kind: "servo" }], initialStateId: null, states: [
       { id: "up", name: "Up", outputs: { l: { kind: "target", ticks: 2000, power: 0.8 } } },
       { id: "down", name: "Down", outputs: { l: { kind: "target", ticks: 0, power: 0.5 } } },
     ] });
-    const found = validateProject(project).filter((item) => item.code.startsWith("device.travel") || item.code === "state.output.travel");
-    expect(found.map((item) => `${item.severity}:${item.code}`)).toEqual(["error:device.travel", "error:state.output.travel"]);
-    expect(found[0].message).toBe(`"claw" is a servo; only motors have a travel range.`);
-    expect(found[1].message).toBe(`"Up" sends "lift" to 2000 ticks, outside its travel of 0 to 1800.`);
+    const found = validateProject(project).filter((item) => item.code === "hardware.travel" || item.code === "state.output.travel");
+    expect(found.map((item) => `${item.severity}:${item.code}`)).toEqual(["error:state.output.travel", "error:hardware.travel"]);
+    expect(found[0].message).toBe(`"Up" sends "lift" to 2000 ticks, outside its travel of 0 to 1800.`);
+    expect(found[1].message).toBe(`"claw" is a servo; only motors have a travel range.`);
+    expect(found[1].location).toEqual({ robot: true, hardware: "claw" });
     lift.travel = { minTicks: 100, maxTicks: 100 };
     expect(validateProject(project).some((item) => item.message.includes("from a lower number of ticks to a higher one"))).toBe(true);
   });
 
   it("matches names the way the robot does, ignoring spaces at either end", () => {
     const project = createProject("Spaces");
-    project.subsystems.push({ id: "c", name: "Claw", devices: [{ id: "s", name: " claw ", kind: "servo", reversed: false }], states: [], initialStateId: null });
+    project.subsystems.push({ id: "c", name: "Claw", devices: [{ id: "s", name: " claw ", kind: "servo" }], states: [], initialStateId: null });
     project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: [{ name: "claw", type: "servo" }] };
     const codes = validateProject(project).map((item) => item.code);
     expect(codes).toContain("device.name.spaces");
@@ -257,7 +258,90 @@ describe("robot profile checks", () => {
   it("skips hardware checks until the robot has been scanned, but still catches a device used twice", () => {
     const project = createProject("Unscanned");
     project.robot.drivetrain = drivetrain;
-    project.subsystems.push({ id: "intake", name: "Intake", devices: [{ id: "d", name: "left_front_drive", kind: "motor", reversed: false }], states: [], initialStateId: null });
+    project.subsystems.push({ id: "intake", name: "Intake", devices: [{ id: "d", name: "left_front_drive", kind: "motor" }], states: [], initialStateId: null });
     expect(scanned(project).map((item) => item.code)).toEqual(["robot.device.drive"]);
+  });
+});
+
+describe("devices set directly, and the hardware list", () => {
+  const withRoutine = (...routine: AutonomousProgram["routine"]) => {
+    const project = createProject("Direct");
+    const auto = createAutonomous("Auto");
+    auto.routine = routine;
+    project.programs.push(auto);
+    return { project, auto };
+  };
+  const motor = (id: string, device: string, output: DeviceStep["output"]): DeviceStep => ({ id, kind: "device", device, deviceKind: "motor", output });
+
+  it("asks for a device, and an output its kind takes", () => {
+    const { project } = withRoutine(
+      { id: "a", kind: "device", device: "", deviceKind: "servo", output: { kind: "position", value: 0.5 } },
+      { id: "b", kind: "device", device: "spin", deviceKind: "crservo", output: { kind: "position", value: 0.5 } },
+    );
+    const found = validateProject(project).filter((item) => item.code.startsWith("step.device"));
+    expect(found.map((item) => [item.code, item.message])).toEqual([
+      ["step.device.unset", "Choose the servo this action sets."],
+      ["step.device.output", "A continuous servo can't be given a position."],
+    ]);
+    expect(describeLocation(project, found[0].location)).toBe("Auto · action 1");
+  });
+
+  it("notes when a power limit cuts an action's or a state's power", () => {
+    const { project } = withRoutine(motor("a", "intake", { kind: "power", value: -0.9 }), motor("b", "lift", { kind: "target", ticks: 100, power: 0.5 }));
+    project.robot.hardware = [{ name: "intake", kind: "motor", reversed: false, powerLimit: 0.7 }, { name: "lift", kind: "motor", reversed: false, powerLimit: 0.6 }];
+    project.subsystems.push({ id: "m", name: "Roller", devices: [{ id: "d", name: "intake", kind: "motor" }], initialStateId: null,
+      states: [{ id: "s", name: "Out", outputs: { d: { kind: "power", value: 1 } } }] });
+    const notes = validateProject(project).filter((item) => item.code === "device.power.limit");
+    expect(notes.map((item) => item.message)).toEqual([
+      `"Out" gives "intake" power 1. Its power limit is 0.7, so it runs at 0.7.`,
+      `This action gives "intake" power -0.9. Its power limit is 0.7, so it runs at -0.7.`,
+    ]);
+    expect(notes.every((item) => item.severity === "info")).toBe(true);
+    // The mechanism also owns the intake, which is fine, but worth saying.
+    expect(codes(project)).toContain("info:step.device.mechanism");
+  });
+
+  it("keeps an action's encoder target inside the motor's travel", () => {
+    const { project } = withRoutine(motor("a", "lift", { kind: "target", ticks: 2000, power: 0.5 }));
+    project.robot.hardware = [{ name: "lift", kind: "motor", reversed: false, travel: { minTicks: 0, maxTicks: 1800 } }];
+    expect(codes(project)).toContain("error:step.device.travel");
+  });
+
+  it("requires every use of a device to agree on what it is", () => {
+    const { project } = withRoutine({ id: "a", kind: "device", device: "claw", deviceKind: "crservo", output: { kind: "power", value: 1 } });
+    project.robot.hardware = [{ name: "claw", kind: "servo", reversed: false }];
+    expect(validateProject(project).find((item) => item.code === "device.kind")?.message)
+      .toBe(`"claw" is used as a continuous servo, but the hardware list has it as a servo.`);
+
+    // Without an entry, two uses that disagree are reported too.
+    const other = withRoutine(motor("a", "arm", { kind: "power", value: 1 }), { id: "b", kind: "device", device: "arm", deviceKind: "servo", output: { kind: "position", value: 0 } });
+    expect(validateProject(other.project).filter((item) => item.code === "device.kind").map((item) => item.message)[0])
+      .toBe(`"arm" is used as a motor and as a servo. Use it as one kind of device everywhere.`);
+  });
+
+  it("keeps actions off Pedro's drive motors, and warns about devices missing from the robot", () => {
+    const { project } = withRoutine(motor("a", "lf", { kind: "power", value: 1 }), motor("b", "ghost", { kind: "power", value: 1 }));
+    project.robot.drivetrain = {
+      frontLeft: { name: "lf", reversed: true }, frontRight: { name: "rf", reversed: false },
+      backLeft: { name: "lb", reversed: true }, backRight: { name: "rb", reversed: false },
+    };
+    project.robot.scan = { scannedAt: "2026-11-10T10:00:00Z", devices: ["lf", "rf", "lb", "rb"].map((name) => ({ name, type: "motor" })) };
+    const found = validateProject(project).filter((item) => item.code.startsWith("robot.device"));
+    expect(found.map((item) => [item.severity, item.code, item.message])).toEqual([
+      ["error", "robot.device.drive", `"lf" is a drive motor. Pedro Pathing drives it, so an action can't.`],
+      ["warning", "robot.device.missing", `"ghost" is not in the robot's configuration.`],
+    ]);
+    expect(found[0].location).toEqual({ programId: project.programs[0].id, stepId: "a" });
+  });
+
+  it("warns when a group sets one device twice, and checks the hardware list's own entries", () => {
+    const { project } = withRoutine({ id: "g", kind: "together", steps: [motor("a", "intake", { kind: "power", value: 1 }), motor("b", "intake", { kind: "power", value: 0 })] });
+    project.robot.hardware = [
+      { name: "intake", kind: "motor", reversed: false },
+      { name: "intake", kind: "motor", reversed: true },
+      { name: "claw", kind: "servo", reversed: false, powerLimit: 0.5 },
+    ];
+    expect(codes(project)).toEqual(expect.arrayContaining(["warning:step.group.device", "error:hardware.duplicate", "error:hardware.limit"]));
+    expect(describeLocation(project, { robot: true, hardware: "claw" })).toBe(`Robot hardware "claw"`);
   });
 });

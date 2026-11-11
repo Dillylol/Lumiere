@@ -1,0 +1,77 @@
+{
+  "format": "ftc-robot-project",
+  "version": 4,
+  "id": "project_direct",
+  "name": "Direct Devices",
+  "createdAt": "2026-11-10T00:00:00.000Z",
+  "updatedAt": "2026-11-10T00:00:00.000Z",
+  "robot": {
+    "widthInches": 18,
+    "lengthInches": 18,
+    "maxForwardVelocity": 60,
+    "maxStrafeVelocity": 50,
+    "forwardDeceleration": 40,
+    "strafeDeceleration": 50,
+    "acceleration": 150,
+    "turnRateDeg": 180,
+    "hardware": [
+      { "name": "intake", "kind": "motor", "reversed": false, "powerLimit": 0.7 },
+      { "name": "lift", "kind": "motor", "reversed": true, "powerLimit": 0.8, "travel": { "minTicks": -100, "maxTicks": 1500 } },
+      { "name": "kicker", "kind": "servo", "reversed": true },
+      { "name": "spinner", "kind": "crservo", "reversed": true, "powerLimit": 0.5 },
+      { "name": "roller", "kind": "crservo", "reversed": false, "powerLimit": 0.6 }
+    ]
+  },
+  "subsystems": [
+    {
+      "id": "mech_roller",
+      "name": "Roller",
+      "devices": [{ "id": "device_roller", "name": "roller", "kind": "crservo" }],
+      "states": [
+        { "id": "state_roller_spin", "name": "Spin", "outputs": { "device_roller": { "kind": "power", "value": 1 } } },
+        { "id": "state_roller_stop", "name": "Stop", "outputs": { "device_roller": { "kind": "power", "value": 0 } } }
+      ],
+      "initialStateId": "state_roller_stop"
+    }
+  ],
+  "programs": [
+    {
+      "id": "auto_direct",
+      "kind": "autonomous",
+      "name": "Direct Auto",
+      "group": "",
+      "preselectTeleOp": null,
+      "start": { "x": 9, "y": 72, "headingDeg": 0 },
+      "paths": [
+        {
+          "id": "path_out",
+          "name": "Out",
+          "color": "#2f80ed",
+          "kind": "atomic",
+          "end": { "x": 40, "y": 72 },
+          "controlPoints": [],
+          "heading": { "type": "constant", "degrees": 0 }
+        }
+      ],
+      "routine": [
+        {
+          "id": "step_1",
+          "kind": "together",
+          "steps": [
+            { "id": "step_1a", "kind": "path", "pathId": "path_out" },
+            { "id": "step_1b", "kind": "device", "device": "intake", "deviceKind": "motor", "output": { "kind": "power", "value": 0.9 } },
+            { "id": "step_1c", "kind": "state", "subsystemId": "mech_roller", "stateId": "state_roller_spin" }
+          ]
+        },
+        { "id": "step_2", "kind": "device", "device": "lift", "deviceKind": "motor", "output": { "kind": "target", "ticks": 1200, "power": 1 } },
+        { "id": "step_3", "kind": "device", "device": "kicker", "deviceKind": "servo", "output": { "kind": "position", "value": 0.6 } },
+        { "id": "step_4", "kind": "device", "device": "spinner", "deviceKind": "crservo", "output": { "kind": "power", "value": 1 } },
+        { "id": "step_5", "kind": "wait", "ms": 500 },
+        { "id": "step_6", "kind": "device", "device": "lift", "deviceKind": "motor", "output": { "kind": "power", "value": -0.2 } },
+        { "id": "step_7", "kind": "device", "device": "intake", "deviceKind": "motor", "output": { "kind": "power", "value": 0 } },
+        { "id": "step_8", "kind": "device", "device": "spinner", "deviceKind": "crservo", "output": { "kind": "power", "value": 0 } },
+        { "id": "step_9", "kind": "state", "subsystemId": "mech_roller", "stateId": "state_roller_stop" }
+      ]
+    }
+  ]
+}

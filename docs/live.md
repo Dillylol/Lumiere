@@ -8,7 +8,7 @@ It is for trying and tuning autonomous programs. Turn it off before competitions
 
 1. On the **Robot** page, find **Lumière Live** and turn on **Live runs from this computer**. This pairs this computer with the robot code you deploy next. The pairing secret stays on this computer; the robot code carries only its fingerprint.
 2. Set the **Mechanism power limit**. Every mechanism motor and continuous servo is capped at it. The default, 0.6, is meant for first tests; raise it once the program behaves.
-3. Give every motor that takes encoder targets a **travel range** under **Mechanisms**: the lowest and highest ticks it may reach, counted from where it is at INIT. Lumière Live refuses encoder targets without one.
+3. Give every motor that takes encoder targets a **travel range** in the Robot page's **hardware list**: the lowest and highest ticks it may reach, counted from where it is at INIT. Lumière Live refuses encoder targets without one.
 4. **Deploy** and install the robot code (in the browser, download the generated code from **Code**). The Driver Station then lists **Lumière Live**.
 
 Lumière Live needs robot library 0.3.0 or newer. Deploy warns when TeamCode uses an older one.

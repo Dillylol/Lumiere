@@ -18,8 +18,12 @@ export {
   pathColor,
 } from "./ir/create";
 export { validateProject, hasErrors, buttonLabel, describeLocation, actionNumber, AUTONOMOUS_PERIOD_MS, type Diagnostic, type DiagnosticLocation, type Severity } from "./ir/validate";
-export { isVersion1Project, migrateVersion1, migrateVersion2, type Migration } from "./ir/migrate";
+export { isVersion1Project, migrateProject, migrateVersion1, migrateVersion2, migrateVersion3, type Migration } from "./ir/migrate";
 export { physicalRobot, type PhysicalRobot } from "./ir/robot";
+export {
+  DEVICE_KINDS, defaultOutput, describeDeviceStep, describeOutput, deviceKindLabel, deviceKindTitle, deviceUses, hardwareEntry, hardwareList,
+  isDeviceKind, limitPower, outputKinds, powerLimitOf, useOutputs, withHardware, withoutHardware, type DeviceUse,
+} from "./ir/hardware";
 export { DRIVE_ROLES, ENCODER_ROLES, localizerLabel, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType, type OwnedDevice } from "./ir/pedro";
 
 export {

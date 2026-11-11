@@ -5,7 +5,9 @@ import { describeReport, readDeviceReports, readMechanisms } from "./devices";
 
 const project = () => parseProject(structuredClone(sample));
 const stateOf = (reports: Parameters<typeof readMechanisms>[1], name: string) => {
-  const reading = readMechanisms(project().subsystems, reports).find((item) => item.subsystem.name === name)!;
+  // The sample is a version 3 project: upgrading it moves the intake's reversed servo into the hardware list.
+  const sampleProject = project();
+  const reading = readMechanisms(sampleProject.subsystems, reports, sampleProject.robot.hardware).find((item) => item.subsystem.name === name)!;
   return reading.subsystem.states.find((state) => state.id === reading.stateId)?.name ?? null;
 };
 

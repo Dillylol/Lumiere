@@ -2,18 +2,11 @@ import {
   DRIVE_MOTOR_POSITIONS, DRIVE_ROLES, ENCODER_ROLES, ROBOT_LIMITS, SIZING_CUBE_INCHES, localizerLabel, pedroDevices, pedroRoleLabel, pedroRoleType,
   type DriveMotorPosition, type LocalizerDevice, type OwnedDevice, type Project, type RobotProfile,
 } from "../core";
-import { NumberField } from "./ProgramEditor";
+import { HardwareList, typeLabel } from "./HardwareList";
+import { NumberField } from "./NumberField";
 
 const POSITION_LABELS: Record<DriveMotorPosition, string> = { frontLeft: "Front left", frontRight: "Front right", backLeft: "Back left", backRight: "Back right" };
-const KIND_LABELS: Record<string, string> = {
-  motor: "Motor", servo: "Servo", crservo: "Continuous servo", imu: "IMU", voltage: "Voltage sensor",
-  pinpoint: "goBILDA Pinpoint", otos: "SparkFun OTOS", octoquad: "OctoQuad", camera: "Camera", digital: "Digital channel",
-  touch: "Touch sensor", color: "Color sensor", distance: "Distance sensor", analog: "Analog input",
-};
-/** Devices mechanisms can drive. Anything else is listed so the team sees it, but Lumière does nothing with it. */
-const DRIVABLE = new Set(["motor", "servo", "crservo"]);
 const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-const typeLabel = (type: string) => KIND_LABELS[type] ?? `${type} (custom driver)`;
 type Field = { key: keyof typeof ROBOT_LIMITS; label: string; unit: string };
 const OWN_FIELDS: Field[] = [
   { key: "widthInches", label: "Width", unit: "in" },
@@ -27,15 +20,6 @@ const PEDRO_FIELDS: Field[] = [
   { key: "forwardDeceleration", label: "Forward coast deceleration", unit: "in/s²" },
   { key: "strafeDeceleration", label: "Strafe coast deceleration", unit: "in/s²" },
 ];
-
-/** What uses each configured device: Pedro Pathing (drive motors, dead wheels, the localizer) or mechanisms. */
-function usesOf(project: Project, pedro: OwnedDevice[]): Map<string, string[]> {
-  const uses = new Map<string, string[]>();
-  const add = (name: string, use: string) => uses.set(name, [...(uses.get(name) ?? []), use]);
-  for (const device of pedro) add(device.name, capitalized(pedroRoleLabel(device.role)));
-  for (const subsystem of project.subsystems) for (const device of subsystem.devices) add(device.name.trim(), subsystem.name || "Mechanism");
-  return uses;
-}
 
 /** A localizer device's row: the constants' details when the project read them. */
 function localizerDetails(robot: RobotProfile, device: OwnedDevice): LocalizerDevice | undefined {
@@ -58,7 +42,6 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
   const scan = robot.scan;
   const configured = scan ? new Map(scan.devices.map((device) => [device.name, device.type])) : undefined;
   const pedro = pedroDevices(robot);
-  const uses = usesOf(project, pedro);
   const localizerKind = robot.localizer?.kind ?? scan?.pedro?.localizer ?? undefined;
   const localizerDevices = pedro.filter((device) => !DRIVE_ROLES.has(device.role));
   const set = (key: keyof RobotProfile, value: number) => onChange({ ...project, robot: { ...robot, [key]: value } });
@@ -134,19 +117,10 @@ export function RobotProfilePanel({ project, onChange, linked }: { project: Proj
     </>}
 
     <h3>Robot hardware</h3>
-    {scan ? <>
-      <table>
-        <thead><tr><th scope="col">Device</th><th scope="col">Type</th><th scope="col">Used by</th></tr></thead>
-        <tbody>{scan.devices.map((device) => <tr key={`${device.name}\0${device.type}`}>
-          <td>{device.name}</td><td>{typeLabel(device.type)}</td>
-          <td>{uses.get(device.name)?.join(", ") ?? (DRIVABLE.has(device.type) ? "—" : "Listed only")}</td>
-        </tr>)}</tbody>
-      </table>
-      <p className="profile-note">
-        The robot's configuration, as it last reported it. It last changed {when(scan.scannedAt)}.
-        {" "}Lumière lists sensors and other devices it doesn't drive, but does nothing with them yet.
-        {scan.pedro && <> The robot reads Pedro Pathing's devices from <code>{scan.pedro.constants.split(".").slice(-2).join(".")}</code>.</>}
-      </p>
-    </> : <p className="profile-note">Connect to the robot from Pathing → Robot to read its configured hardware and check it against this project.</p>}
+    <HardwareList project={project} onChange={onChange}/>
+    {scan && <p className="profile-note">
+      The robot's configuration last changed {when(scan.scannedAt)}.
+      {scan.pedro && <> The robot reads Pedro Pathing's devices from <code>{scan.pedro.constants.split(".").slice(-2).join(".")}</code>.</>}
+    </p>}
   </section>;
 }

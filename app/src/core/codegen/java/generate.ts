@@ -3,15 +3,20 @@ import { resolvePath } from "../../geometry/paths";
 import { toDegrees } from "../../geometry/curves";
 import { hasErrors, validateProject, type Diagnostic } from "../../ir/validate";
 import { physicalRobot } from "../../ir/robot";
+import { hardwareEntry, limitPower, powerLimitOf } from "../../ir/hardware";
 import type {
   AtomicPath,
   AutonomousProgram,
   Binding,
+  Device,
+  DeviceKind,
   GamepadButton,
+  HardwareDevice,
   Heading,
   PathDoc,
   Point,
   Project,
+  RobotProfile,
   Step,
   Subsystem,
   TeleOpProgram,
@@ -145,7 +150,7 @@ export function generateJava(project: Project, target: JavaTarget = {}): Generat
   };
 
   emit("RobotPose", robotPoseSource(packageName));
-  for (const names of subsystems.values()) emit(names.className, subsystemSource(packageName, names));
+  for (const names of subsystems.values()) emit(names.className, subsystemSource(packageName, names, project.robot));
   for (const program of project.programs) {
     const className = programClasses.get(program.id)!;
     if (program.kind === "autonomous") emit(className, autonomousSource(packageName, className, program, project, subsystems, constants));
@@ -244,15 +249,38 @@ function robotPoseSource(packageName: string): string {
   return w.toString();
 }
 
-function subsystemSource(packageName: string, names: SubsystemNames): string {
+/** The Java class a device kind is read from the hardware map as. */
+const DEVICE_CLASS: Record<DeviceKind, string> = { motor: "DcMotor", servo: "Servo", crservo: "CRServo" };
+
+/** The statements that set up a device after reading it from the hardware map: direction, braking, and an encoder reset for targets. */
+function deviceSetup(field: string, kind: DeviceKind, settings: HardwareDevice | undefined, takesTargets: boolean): string[] {
+  const lines: string[] = [];
+  if (settings?.reversed) lines.push(kind === "servo" ? `${field}.setDirection(Servo.Direction.REVERSE);` : `${field}.setDirection(DcMotorSimple.Direction.REVERSE);`);
+  if (kind === "motor") {
+    lines.push(`${field}.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);`);
+    if (takesTargets) lines.push(`${field}.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);`);
+  }
+  return lines;
+}
+
+/**
+ * A power as the generated code sends it: cut to the device's limit. `note` says what was asked for when
+ * the limit cut it, for a comment beside the call.
+ */
+function limitedPower(robot: RobotProfile, deviceName: string, power: number): { value: string; note: string | null } {
+  const limited = limitPower(power, powerLimitOf(robot, deviceName));
+  return { value: javaNumber(limited), note: limited === power ? null : `${javaNumber(power)}, cut to the power limit on the Robot page` };
+}
+
+function subsystemSource(packageName: string, names: SubsystemNames, robot: RobotProfile): string {
   const { subsystem, className, states } = names;
   const w = new Writer();
   const deviceScope = new NameScope(["state", "hardwareMap", "set", "command", "initialize", "isBusy", "State", className]);
-  const devices = subsystem.devices.map((device) => ({ device, field: deviceScope.claim(camelCase(device.name, device.kind)) }));
+  const devices = subsystem.devices.map((device) => ({ device, field: deviceScope.claim(camelCase(device.name, device.kind)), settings: hardwareEntry(robot, device.name) }));
   const targetMotors = new Set(subsystem.states.flatMap((state) => Object.entries(state.outputs).filter(([, output]) => output.kind === "target").map(([deviceId]) => deviceId)));
   const regular = ["com.pedropathing.ivy.Command", "com.qualcomm.robotcore.hardware.HardwareMap"];
   if (devices.some(({ device }) => device.kind === "motor")) regular.push("com.qualcomm.robotcore.hardware.DcMotor");
-  if (devices.some(({ device }) => device.reversed && device.kind !== "servo")) regular.push("com.qualcomm.robotcore.hardware.DcMotorSimple");
+  if (devices.some(({ device, settings }) => settings?.reversed && device.kind !== "servo")) regular.push("com.qualcomm.robotcore.hardware.DcMotorSimple");
   if (devices.some(({ device }) => device.kind === "servo")) regular.push("com.qualcomm.robotcore.hardware.Servo");
   if (devices.some(({ device }) => device.kind === "crservo")) regular.push("com.qualcomm.robotcore.hardware.CRServo");
 
@@ -265,23 +293,13 @@ function subsystemSource(packageName: string, names: SubsystemNames): string {
       if (constants.length) w.line(`${constants.join(", ")}`);
     });
     w.line();
-    for (const { device, field } of devices) {
-      const type = device.kind === "motor" ? "DcMotor" : device.kind === "servo" ? "Servo" : "CRServo";
-      w.line(`private final ${type} ${field};`);
-    }
+    for (const { device, field } of devices) w.line(`private final ${DEVICE_CLASS[device.kind]} ${field};`);
     w.line("private State state = null;").line();
 
     w.block(`public ${className}(HardwareMap hardwareMap)`, () => {
-      for (const { device, field } of devices) {
-        const type = device.kind === "motor" ? "DcMotor" : device.kind === "servo" ? "Servo" : "CRServo";
-        w.line(`${field} = hardwareMap.get(${type}.class, ${javaString(device.name)});`);
-        if (device.reversed) {
-          w.line(device.kind === "servo" ? `${field}.setDirection(Servo.Direction.REVERSE);` : `${field}.setDirection(DcMotorSimple.Direction.REVERSE);`);
-        }
-        if (device.kind === "motor") {
-          w.line(`${field}.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);`);
-          if (targetMotors.has(device.id)) w.line(`${field}.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);`);
-        }
+      for (const { device, field, settings } of devices) {
+        w.line(`${field} = hardwareMap.get(${DEVICE_CLASS[device.kind]}.class, ${javaString(device.name)});`);
+        deviceSetup(field, device.kind, settings, targetMotors.has(device.id)).forEach((line) => w.line(line));
       }
     });
     w.line();
@@ -307,11 +325,13 @@ function subsystemSource(packageName: string, names: SubsystemNames): string {
                 w.line(`${field}.setPosition(${javaNumber(output.value)});`);
               } else if (output.kind === "power") {
                 if (device.kind === "motor" && targetMotors.has(device.id)) w.line(`${field}.setMode(DcMotor.RunMode.RUN_USING_ENCODER);`);
-                w.line(`${field}.setPower(${javaNumber(output.value)});`);
+                const power = limitedPower(robot, device.name, output.value);
+                w.line(`${field}.setPower(${power.value});${power.note ? ` // ${power.note}` : ""}`);
               } else {
                 w.line(`${field}.setTargetPosition(${Math.round(output.ticks)});`);
                 w.line(`${field}.setMode(DcMotor.RunMode.RUN_TO_POSITION);`);
-                w.line(`${field}.setPower(${javaNumber(output.power)});`);
+                const power = limitedPower(robot, device.name, output.power);
+                w.line(`${field}.setPower(${power.value});${power.note ? ` // ${power.note}` : ""}`);
               }
             }
             w.line("break;");
@@ -446,6 +466,24 @@ function autonomousSource(
   const mechanisms = project.subsystems.filter((subsystem) => usedSubsystems.has(subsystem.id) || subsystem.initialStateId).map((subsystem) => subsystems.get(subsystem.id)!);
   const mechanismFields = new Map(mechanisms.map((names) => [names.subsystem.id, members.claim(names.field)]));
 
+  // Devices the routine sets directly are fields of the OpMode, set up the way mechanisms set up theirs.
+  const direct = new Map<string, { kind: DeviceKind; field: string; targets: boolean }>();
+  const collectDevices = (steps: Step[]) => steps.forEach((step) => {
+    if (step.kind === "device") {
+      const name = step.device.trim();
+      const known = direct.get(name);
+      if (known) known.targets ||= step.output.kind === "target";
+      else direct.set(name, { kind: step.deviceKind, field: members.claim(camelCase(name, step.deviceKind)), targets: step.output.kind === "target" });
+    }
+    if (step.kind === "together" || step.kind === "race") collectDevices(step.steps);
+  });
+  collectDevices(program.routine);
+  const directDevices = [...direct.entries()].map(([name, device]) => ({ name, ...device, settings: hardwareEntry(project.robot, name) }));
+  const runToTarget = directDevices.some((device) => device.targets) ? members.claim("runToTarget") : null;
+  for (const device of directDevices) regular.add(`com.qualcomm.robotcore.hardware.${DEVICE_CLASS[device.kind]}`);
+  if (directDevices.some((device) => device.settings?.reversed && device.kind !== "servo")) regular.add("com.qualcomm.robotcore.hardware.DcMotorSimple");
+  if (runToTarget) regular.add("com.qualcomm.robotcore.hardware.DcMotor");
+
   const pathBodies: string[][] = [];
   for (const { doc, start, end } of paths) {
     const body: string[] = [];
@@ -495,6 +533,19 @@ function autonomousSource(
         const names = subsystems.get(step.subsystemId)!;
         return [`${mechanismFields.get(step.subsystemId)}.command(${names.className}.State.${names.states.get(step.stateId)})`];
       }
+      case "device": {
+        const name = step.device.trim();
+        const device = direct.get(name)!;
+        const output = step.output;
+        if (output.kind === "position") return [`instant(() -> ${device.field}.setPosition(${javaNumber(output.value)}))`];
+        const power = limitedPower(project.robot, name, output.kind === "power" ? output.value : output.power);
+        const value = `${power.value}${power.note ? ` /* ${power.note} */` : ""}`;
+        if (output.kind === "target") return [`${runToTarget}(${device.field}, ${Math.round(output.ticks)}, ${value})`];
+        // A motor that also takes targets runs on its encoder; power alone needs it back in its normal mode.
+        return [device.targets
+          ? `instant(() -> { ${device.field}.setMode(DcMotor.RunMode.RUN_USING_ENCODER); ${device.field}.setPower(${value}); })`
+          : `instant(() -> ${device.field}.setPower(${value}))`];
+      }
       case "together":
       case "race": {
         const children = step.steps.map(stepLines).filter((child): child is string[] => child !== null);
@@ -507,10 +558,17 @@ function autonomousSource(
   };
   const steps = program.routine.map(stepLines).filter((step): step is string[] => step !== null);
   const routine = joinWithCommas([...steps, ["instant(this::reportRoutineCompletion)"]]);
+  // The revision covers the settings of every device the OpMode drives. Mechanism devices carry theirs the way
+  // version 3 projects stored them, so upgrading a project leaves an unchanged program's revision as it was.
+  const withSettings = (device: Device) => {
+    const settings = hardwareEntry(project.robot, device.name);
+    return { ...device, reversed: settings?.reversed ?? false, ...(settings?.travel ? { travel: settings.travel } : {}), ...(settings?.powerLimit !== undefined ? { powerLimit: settings.powerLimit } : {}) };
+  };
   const revision = checksum(JSON.stringify({
     projectId: project.id, packageName, constants: constants.qualifiedName, program,
     // Only how the robot drives: syncing constants or scanning the robot must not change the revision.
-    robot: physicalRobot(project.robot), mechanisms: mechanisms.map(({ subsystem }) => subsystem),
+    robot: physicalRobot(project.robot), mechanisms: mechanisms.map(({ subsystem }) => ({ ...subsystem, devices: subsystem.devices.map(withSettings) })),
+    ...(directDevices.length ? { devices: directDevices.map(({ name, kind, settings }) => ({ name, kind, ...settings })) } : {}),
   }));
 
   const w = new Writer();
@@ -530,6 +588,7 @@ function autonomousSource(
     w.line("private Session session;");
     w.line("private long routineStartedNanos;");
     for (const names of mechanisms) w.line(`private ${names.className} ${mechanismFields.get(names.subsystem.id)};`);
+    for (const device of directDevices) w.line(`private ${DEVICE_CLASS[device.kind]} ${device.field};`);
     w.line();
 
     paths.forEach(({ doc, method }, index) => {
@@ -537,6 +596,22 @@ function autonomousSource(
       w.block(`private Path ${method}()`, () => pathBodies[index].forEach((line) => w.line(line)));
       w.line();
     });
+
+    if (runToTarget) {
+      w.line("/** Drives a motor to an encoder target at up to the given power, and finishes when it gets there. */");
+      w.block(`private Command ${runToTarget}(DcMotor motor, int ticks, double power)`, () => {
+        w.line("return Command.build()");
+        w.indent(() => w.indent(() => {
+          w.block(".setStart(() ->", () => {
+            w.line("motor.setTargetPosition(ticks);");
+            w.line("motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);");
+            w.line("motor.setPower(power);");
+          }, "})");
+          w.line(".setDone(() -> !motor.isBusy());");
+        }));
+      });
+      w.line();
+    }
 
     w.block("private Command routine()", () => {
       w.line("return sequential(");
@@ -555,6 +630,10 @@ function autonomousSource(
         const field = mechanismFields.get(names.subsystem.id);
         w.line(`${field} = new ${names.className}(hardwareMap);`);
         w.line(`${field}.initialize();`);
+      }
+      for (const device of directDevices) {
+        w.line(`${device.field} = hardwareMap.get(${DEVICE_CLASS[device.kind]}.class, ${javaString(device.name)});`);
+        deviceSetup(device.field, device.kind, device.settings, device.targets).forEach((line) => w.line(line));
       }
       w.line("session = Session.attach(this).follower(follower);");
     });

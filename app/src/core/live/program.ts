@@ -12,7 +12,8 @@ import { javaNumber } from "../codegen/java/names";
 import { checksum } from "../codegen/java/ownership";
 import { toDegrees } from "../geometry/curves";
 import { resolvePath } from "../geometry/paths";
-import type { AutonomousProgram, Device, Heading, MechanismState, Output, Point, Project, Step } from "../ir/types";
+import { hardwareEntry } from "../ir/hardware";
+import type { AutonomousProgram, DeviceKind, Heading, MechanismState, Output, Point, Project, Step } from "../ir/types";
 
 /** The program format this app sends. The robot library refuses formats newer than it reads. */
 export const LIVE_FORMAT = 1;
@@ -45,10 +46,19 @@ export interface LivePath {
   heading: Heading | null;
 }
 
+/** A mechanism's device with its settings from the robot's hardware list. */
+export interface LiveDevice {
+  id: string;
+  name: string;
+  kind: DeviceKind;
+  reversed: boolean;
+  travel?: { minTicks: number; maxTicks: number };
+}
+
 export interface LiveMechanism {
   id: string;
   name: string;
-  devices: Device[];
+  devices: LiveDevice[];
   states: MechanismState[];
   initialState: string | null;
 }
@@ -132,7 +142,11 @@ export function buildLiveProgram(project: Project, program: AutonomousProgram): 
   const mechanisms = project.subsystems
     .filter((subsystem) => used.has(subsystem.id) || subsystem.initialStateId)
     .map((subsystem): LiveMechanism => ({
-      id: subsystem.id, name: subsystem.name, devices: subsystem.devices, initialState: subsystem.initialStateId,
+      id: subsystem.id, name: subsystem.name, initialState: subsystem.initialStateId,
+      devices: subsystem.devices.map((device) => {
+        const settings = hardwareEntry(project.robot, device.name);
+        return { ...device, reversed: settings?.reversed ?? false, ...(settings?.travel ? { travel: settings.travel } : {}) };
+      }),
       states: subsystem.states.map((state) => ({ ...state, outputs: Object.fromEntries(Object.entries(state.outputs).map(([id, out]) => [id, output(out)])) })),
     }));
 
@@ -147,6 +161,7 @@ function liveSteps(steps: Step[]): LiveStep[] {
     if (step.kind === "path") result.push({ kind: "path", path: step.pathId });
     else if (step.kind === "wait") result.push({ kind: "wait", ms: java(step.ms) });
     else if (step.kind === "state") result.push({ kind: "state", mechanism: step.subsystemId, state: step.stateId });
+    else if (step.kind === "device") throw new Error(`${LIVE_OPMODE_NAME} can't run Motor, Servo and continuous servo actions yet.`);
     else {
       const children = liveSteps(step.steps);
       if (children.length) result.push({ kind: step.kind, steps: children });

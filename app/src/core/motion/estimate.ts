@@ -202,6 +202,10 @@ export function estimateRoutine(program: AutonomousProgram, project: Pick<Projec
         duration = hasTarget(step.subsystemId, step.stateId) ? TARGET_STATE_ESTIMATE_MS : 0;
         stateChanges.push({ at: start, subsystemId: step.subsystemId, stateId: step.stateId });
         break;
+      case "device":
+        // Like a mechanism state: a power or position is set at once, and an encoder target takes a while.
+        duration = step.output.kind === "target" ? TARGET_STATE_ESTIMATE_MS : 0;
+        break;
       case "together":
       case "race": {
         const firstRun = runs.length;

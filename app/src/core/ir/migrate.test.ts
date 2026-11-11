@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createProject } from "./create";
-import { isVersion1Project, migrateVersion1, migrateVersion2 } from "./migrate";
+import { isVersion1Project, migrateProject, migrateVersion1, migrateVersion2, migrateVersion3 } from "./migrate";
 import { parseProject } from "./schema";
 import type { AutonomousProgram } from "./types";
 import { validateProject } from "./validate";
@@ -61,7 +61,7 @@ describe("version 2 upgrade", () => {
   it("turns the preview speed and acceleration into the robot profile, keeping preview timing", () => {
     const stored = { ...createProject("Old"), version: 2, robot: { widthInches: 16, lengthInches: 17, maxVelocity: 40, maxAcceleration: 50 } };
     const project = parseProject(stored);
-    expect(project.version).toBe(3);
+    expect(project.version).toBe(4);
     expect(project.robot).toEqual({
       widthInches: 16, lengthInches: 17,
       maxForwardVelocity: 40, maxStrafeVelocity: 40,
@@ -75,5 +75,44 @@ describe("version 2 upgrade", () => {
     expect(migrateVersion2(current)).toBe(current);
     expect(migrateVersion2(null)).toBeNull();
     expect(migrateVersion2("text")).toBe("text");
+  });
+});
+
+describe("version 3 upgrade", () => {
+  const version3 = () => ({
+    ...createProject("Three"),
+    version: 3,
+    subsystems: [
+      { id: "lift", name: "Lift", initialStateId: null, states: [], devices: [
+        { id: "l", name: " lift ", kind: "motor", reversed: true, travel: { minTicks: 0, maxTicks: 1800 } },
+        { id: "u", name: "", kind: "servo", reversed: false },
+      ] },
+      // Version 3 already reported a device in two mechanisms as an error; the first one's settings win.
+      { id: "other", name: "Other", initialStateId: null, states: [], devices: [{ id: "o", name: "lift", kind: "motor", reversed: false }] },
+    ],
+  });
+
+  it("moves each device's settings into the robot's hardware list", () => {
+    const project = parseProject(version3());
+    expect(project.version).toBe(4);
+    expect(project.robot.hardware).toEqual([{ name: "lift", kind: "motor", reversed: true, travel: { minTicks: 0, maxTicks: 1800 } }]);
+    expect(project.subsystems[0].devices).toEqual([{ id: "l", name: " lift ", kind: "motor" }, { id: "u", name: "", kind: "servo" }]);
+    expect(project.subsystems[1].devices).toEqual([{ id: "o", name: "lift", kind: "motor" }]);
+  });
+
+  it("upgrades version 2 through version 3, and leaves version 4 alone", () => {
+    const stored = { ...version3(), version: 2, robot: { widthInches: 16, lengthInches: 17, maxVelocity: 40, maxAcceleration: 50 } };
+    const project = parseProject(stored);
+    expect(project.version).toBe(4);
+    expect(project.robot.maxForwardVelocity).toBe(40);
+    expect(project.robot.hardware?.[0]).toMatchObject({ name: "lift", reversed: true });
+    const current = createProject("Four");
+    expect(migrateVersion3(current)).toBe(current);
+    expect(migrateProject(current)).toBe(current);
+  });
+
+  it("keeps a project without devices free of a hardware list", () => {
+    const project = parseProject({ ...createProject("Bare"), version: 3 });
+    expect(project.robot.hardware).toBeUndefined();
   });
 });

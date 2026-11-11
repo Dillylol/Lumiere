@@ -3,7 +3,7 @@
  * real run is compared against. Each program keeps one recording, which counts only while the plan it ran
  * (the program, its mechanisms and the robot) is unchanged.
  */
-import { checksum, physicalRobot, type AutonomousProgram, type DeviceReport, type Pose, type Project } from "../core";
+import { checksum, deviceUses, physicalRobot, type AutonomousProgram, type DeviceReport, type Pose, type Project } from "../core";
 import type { RunSample } from "./pathing/useRunSession";
 
 export interface RecordedSample {
@@ -31,17 +31,18 @@ export interface SimulatedRun {
 const CHANGED = "lumiere:simulated-runs";
 const key = (projectId: string, programId: string) => `lumiere-simulated-run:${projectId}:${programId}`;
 
-/** What a simulated run depends on: the program's start, paths and routine, the mechanisms, and how the robot drives. */
+/** What a simulated run depends on: the program's start, paths and routine, the mechanisms, the device settings, and how the robot drives. */
 export function planFingerprint(project: Project, program: AutonomousProgram): string {
-  return checksum(JSON.stringify({ start: program.start, paths: program.paths, routine: program.routine, subsystems: project.subsystems, robot: physicalRobot(project.robot) }));
+  const { hardware } = project.robot;
+  return checksum(JSON.stringify({ start: program.start, paths: program.paths, routine: program.routine, subsystems: project.subsystems, robot: physicalRobot(project.robot), ...(hardware ? { hardware } : {}) }));
 }
 
 /**
  * Turns a finished run's samples into a recording: up to a second past the routine's end, keeping only
- * the program's mechanism devices so the recording stays small.
+ * the devices the project's mechanisms and actions use, so the recording stays small.
  */
 export function recordRun(project: Project, program: AutonomousProgram, samples: RunSample[], routineMs: number, opMode = program.name): SimulatedRun {
-  const devices = new Set(project.subsystems.flatMap((subsystem) => subsystem.devices.map((device) => device.name.trim())));
+  const devices = new Set(deviceUses(project).keys());
   const kept = samples.filter((item) => item.t <= routineMs + 1000).map((item): RecordedSample => {
     const own = item.devices ? Object.fromEntries(Object.entries(item.devices).filter(([name]) => devices.has(name))) : {};
     return { t: item.t, x: item.x, y: item.y, heading: item.heading, ...(Object.keys(own).length ? { devices: own } : {}) };

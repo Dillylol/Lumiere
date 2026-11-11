@@ -35,17 +35,25 @@ test("reads the robot's configured hardware into the robot profile", async ({ pa
   ] } }));
 
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
-  await expect(profile.getByRole("row", { name: /^claw Servo —$/ })).toBeVisible();
+  // The hardware list has the robot's motors and servos, with settings; Pedro Pathing's drive motor is not in it.
+  const hardware = profile.getByRole("table", { name: "Robot hardware" });
+  await expect(hardware.getByRole("rowheader")).toHaveText(["claw"]);
+  const claw = hardware.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "claw" }) });
+  await expect(claw.getByRole("cell").first()).toHaveText("Servo");
+  await expect(claw).toContainText("Configured");
+  await claw.getByRole("checkbox", { name: "claw reversed" }).check();
   // The robot names the devices Pedro Pathing drives; sensors are listed but not used.
-  await expect(profile.getByRole("row", { name: /^left_front_drive Motor Front left drive motor$/ })).toBeVisible();
-  await expect(profile.getByRole("row", { name: /^ranger Analog input Listed only$/ })).toBeVisible();
-  await expect(profile.getByRole("row", { name: /^vl53l1x vl53l1x \(custom driver\) Listed only$/ })).toBeVisible();
+  const others = profile.getByRole("table", { name: "Other devices" });
+  await expect(others.getByRole("row", { name: /^left_front_drive Motor Front left drive motor \(Pedro Pathing\)$/ })).toBeVisible();
+  await expect(others.getByRole("row", { name: /^ranger Analog input Listed only$/ })).toBeVisible();
+  await expect(others.getByRole("row", { name: /^vl53l1x vl53l1x \(custom driver\) Listed only$/ })).toBeVisible();
   await expect(profile.getByRole("table", { name: "Localizer devices" }).getByRole("row", { name: /^Pinpoint localizer \(reported by the robot\) pinpoint — — Configured$/ })).toBeVisible();
-  await expect(profile).toContainText("It last changed");
+  await expect(profile).toContainText("configuration last changed");
   await expect(profile).toContainText("reads Pedro Pathing's devices from pedro.Constants");
 
-  // The scan is saved with the project.
+  // The scan and the claw's setting are saved with the project.
   await page.reload();
   await workspace.getByRole("button", { name: "Robot", exact: true }).click();
-  await expect(profile.getByRole("row", { name: /^pinpoint goBILDA Pinpoint Pinpoint localizer$/ })).toBeVisible();
+  await expect(others.getByRole("row", { name: /^pinpoint goBILDA Pinpoint Pinpoint localizer \(Pedro Pathing\)$/ })).toBeVisible();
+  await expect(hardware.getByRole("checkbox", { name: "claw reversed" })).toBeChecked();
 });

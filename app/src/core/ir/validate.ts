@@ -1,4 +1,5 @@
 import { resolvePath } from "../geometry/paths";
+import { deviceKindLabel, deviceUses, hardwareEntry, limitPower, outputKinds, powerLimitOf, useOutputs, type DeviceUse } from "./hardware";
 import { DRIVE_ROLES, ENCODER_ROLES, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType } from "./pedro";
 import { LIVE_OPMODE_NAME } from "../live/program";
 import {
@@ -6,12 +7,13 @@ import {
   FIELD_INCHES,
   type AutonomousProgram,
   type Binding,
+  type DeviceKind,
   type GamepadButton,
+  type Output,
   type PathDoc,
   type Point,
   type Project,
   type Step,
-  type Subsystem,
   type TeleOpProgram,
 } from "./types";
 
@@ -27,6 +29,8 @@ export interface DiagnosticLocation {
   bindingId?: string;
   /** The robot profile on the Robot page. */
   robot?: true;
+  /** A device in the Robot page's hardware list, by its configured name. */
+  hardware?: string;
 }
 
 export interface Diagnostic {
@@ -73,7 +77,8 @@ export function validateProject(project: Project): Diagnostic[] {
     }
   }
 
-  validateSubsystems(project.subsystems, add);
+  validateSubsystems(project, add);
+  validateHardware(project, add);
   validateRobot(project, add);
 
   for (const program of project.programs) {
@@ -108,27 +113,8 @@ function validateRobot(project: Project, add: Add) {
     add("info", "robot.constants.unreadable", `Lumière could not read ${robot.constants.unreadable.join(", ")} in Constants.java, so the profile keeps its own value.`, at);
   }
 
-  // Pedro Pathing drives these devices, so mechanisms must leave them alone.
-  const pedro = pedroDevices(robot);
-  for (const subsystem of project.subsystems) {
-    const mechanism = subsystem.name || "a mechanism";
-    for (const device of subsystem.devices) {
-      const where = { subsystemId: subsystem.id, deviceId: device.id };
-      const roles = pedro.filter((owned) => owned.name === device.name.trim()).map((owned) => owned.role);
-      if (roles.some((role) => DRIVE_ROLES.has(role))) {
-        add("error", "robot.device.drive", `"${device.name.trim()}" in ${mechanism} is a drive motor. Pedro Pathing drives it, so a mechanism can't.`, where);
-        continue;
-      }
-      const wheel = roles.find((role) => ENCODER_ROLES.has(role));
-      if (wheel && device.kind === "motor" && subsystem.states.some((state) => state.outputs[device.id]?.kind === "target")) {
-        add("error", "robot.device.odometry", `"${device.name.trim()}" in ${mechanism} has Pedro Pathing's ${pedroRoleLabel(wheel)} on its encoder port, so an encoder target would follow the dead wheel, and resetting the encoder would break localization. Give this motor power instead, or move the dead wheel to another port.`, where);
-      }
-      const other = roles.find((role) => !ENCODER_ROLES.has(role));
-      if (other) add("warning", "robot.device.pedro", `"${device.name.trim()}" in ${mechanism} is Pedro Pathing's ${pedroRoleLabel(other)}.`, where);
-    }
-  }
-
   if (!robot.scan) return;
+  const pedro = pedroDevices(robot);
   const configured = new Map(robot.scan.devices.map((device) => [device.name, device.type]));
   if (robot.drivetrain) {
     for (const position of DRIVE_MOTOR_POSITIONS) {
@@ -148,20 +134,84 @@ function validateRobot(project: Project, add: Add) {
   for (const mismatch of pedroMismatches(robot)) {
     add("warning", "robot.pedro.mismatch", `The project's Pedro constants name "${mismatch.constants}" as the ${pedroRoleLabel(mismatch.role)}, but the robot reports "${mismatch.robot}". Install the latest code on the robot, or relink the FTC SDK project to read its constants again.`, at);
   }
-  for (const subsystem of project.subsystems) {
-    for (const device of subsystem.devices) {
-      const type = configured.get(device.name.trim());
-      const where = { subsystemId: subsystem.id, deviceId: device.id };
-      if (type === undefined) add("warning", "robot.device.missing", `"${device.name}" in ${subsystem.name || "a mechanism"} is not in the robot's configuration.`, where);
-      else if (type !== device.kind) add("warning", "robot.device.type", `"${device.name}" is configured as ${type}, but ${subsystem.name || "its mechanism"} uses it as ${device.kind === "crservo" ? "a continuous servo" : `a ${device.kind}`}.`, where);
+}
+
+/** A device kind with its article, such as "a continuous servo". */
+const withArticle = (kind: DeviceKind) => `a ${deviceKindLabel(kind)}`;
+const useLocation = (use: DeviceUse): DiagnosticLocation => ("step" in use
+  ? { programId: use.programId, stepId: use.step.id }
+  : { subsystemId: use.subsystem.id, deviceId: use.deviceId });
+
+/**
+ * Checks the hardware list and every use of a device: mechanisms' devices and direct actions. A use must
+ * agree with the device's entry in the list, and may not drive Pedro Pathing's devices. Once the robot has
+ * been scanned, each used device is checked against the robot's configuration too; those are warnings,
+ * because the configuration may have changed since the scan.
+ */
+function validateHardware(project: Project, add: Add) {
+  const robot = project.robot;
+  const listed = new Set<string>();
+  for (const device of robot.hardware ?? []) {
+    const at = { robot: true, hardware: device.name } as const;
+    if (listed.has(device.name)) add("error", "hardware.duplicate", `"${device.name}" is in the hardware list twice.`, at);
+    listed.add(device.name);
+    if (device.travel && device.kind !== "motor") add("error", "hardware.travel", `"${device.name}" is ${withArticle(device.kind)}; only motors have a travel range.`, at);
+    else if (device.travel && device.travel.minTicks >= device.travel.maxTicks) add("error", "hardware.travel", `"${device.name}"'s travel must go from a lower number of ticks to a higher one.`, at);
+    if (device.powerLimit !== undefined && device.kind === "servo") add("error", "hardware.limit", `"${device.name}" is a servo, which is given positions, so it can't have a power limit.`, at);
+  }
+
+  // Pedro Pathing drives these devices, so mechanisms and actions must leave them alone.
+  const pedro = pedroDevices(robot);
+  const configured = robot.scan ? new Map(robot.scan.devices.map((device) => [device.name, device.type])) : undefined;
+  for (const [name, uses] of deviceUses(project)) {
+    const entry = hardwareEntry(robot, name);
+    const kinds = [...new Set(uses.map((use) => use.kind))];
+    const roles = pedro.filter((owned) => owned.name === name).map((owned) => owned.role);
+    const wheel = roles.find((role) => ENCODER_ROLES.has(role));
+    const other = roles.find((role) => !ENCODER_ROLES.has(role) && !DRIVE_ROLES.has(role));
+    for (const use of uses) {
+      const where = useLocation(use);
+      const user = "step" in use ? "this action" : use.subsystem.name || "its mechanism";
+      const subject = "step" in use ? `"${name}"` : `"${name}" in ${use.subsystem.name || "a mechanism"}`;
+      if (roles.some((role) => DRIVE_ROLES.has(role))) {
+        add("error", "robot.device.drive", `${subject} is a drive motor. Pedro Pathing drives it, so ${"step" in use ? "an action" : "a mechanism"} can't.`, where);
+        continue;
+      }
+      if (entry && entry.kind !== use.kind) {
+        add("error", "device.kind", `${subject} is used as ${withArticle(use.kind)}, but the hardware list has it as ${withArticle(entry.kind)}.`, where);
+      } else if (!entry && kinds.length > 1) {
+        add("error", "device.kind", `"${name}" is used as ${kinds.map(withArticle).join(" and as ")}. Use it as one kind of device everywhere.`, where);
+      }
+      if (wheel && use.kind === "motor" && useOutputs(use).some((output) => output.kind === "target")) {
+        add("error", "robot.device.odometry", `${subject} has Pedro Pathing's ${pedroRoleLabel(wheel)} on its encoder port, so an encoder target would follow the dead wheel, and resetting the encoder would break localization. Give this motor power instead, or move the dead wheel to another port.`, where);
+      }
+      if (other) add("warning", "robot.device.pedro", `${subject} is Pedro Pathing's ${pedroRoleLabel(other)}.`, where);
+      if (!configured) continue;
+      const type = configured.get(name);
+      if (type === undefined) add("warning", "robot.device.missing", `${subject} is not in the robot's configuration.`, where);
+      else if (type !== use.kind) add("warning", "robot.device.type", `"${name}" is configured as ${type}, but ${user} uses it as ${withArticle(use.kind)}.`, where);
     }
   }
 }
 
-function validateSubsystems(subsystems: Subsystem[], add: Add) {
+/** A number as a note shows it: up to two decimal places. */
+const shown = (value: number) => String(Math.round(value * 100) / 100);
+
+/**
+ * A note when an output's power is above its device's limit, which cuts it. `source` says what gives the
+ * power, such as `"Out"` for a state.
+ */
+function limitNote(project: Project, deviceName: string, output: Output, source: string, where: DiagnosticLocation, add: Add) {
+  const power = output.kind === "power" ? output.value : output.kind === "target" ? output.power : 0;
+  const limit = powerLimitOf(project.robot, deviceName);
+  if (Math.abs(power) <= limit) return;
+  add("info", "device.power.limit", `${source} gives "${deviceName.trim()}" power ${shown(power)}. Its power limit is ${shown(limit)}, so it runs at ${shown(limitPower(power, limit))}.`, where);
+}
+
+function validateSubsystems(project: Project, add: Add) {
   const subsystemNames = new Set<string>();
   const hardwareOwners = new Map<string, string>();
-  for (const subsystem of subsystems) {
+  for (const subsystem of project.subsystems) {
     const at = { subsystemId: subsystem.id };
     const name = subsystem.name.trim();
     if (!name) add("error", "subsystem.name.empty", "Give this mechanism a name.", at);
@@ -179,11 +229,6 @@ function validateSubsystems(subsystems: Subsystem[], add: Add) {
       }
       if (hardwareName !== device.name) {
         add("warning", "device.name.spaces", `"${hardwareName}" has spaces at the start or end of its name. The robot ignores them; remove them so the name matches the configuration exactly.`, where);
-      }
-      if (device.travel && (device.kind !== "motor" || device.travel.minTicks >= device.travel.maxTicks)) {
-        add("error", "device.travel", device.kind !== "motor"
-          ? `"${hardwareName}" is a ${device.kind === "servo" ? "servo" : "continuous servo"}; only motors have a travel range.`
-          : `"${hardwareName}"'s travel must go from a lower number of ticks to a higher one.`, where);
       }
       if (deviceNames.has(hardwareName)) add("error", "device.name.duplicate", `"${hardwareName}" is listed twice in this mechanism.`, where);
       deviceNames.add(hardwareName);
@@ -207,11 +252,13 @@ function validateSubsystems(subsystems: Subsystem[], add: Add) {
           add("error", "state.output.device", `State "${stateName}" sets a device that is no longer in this mechanism.`, where);
           continue;
         }
-        const allowed = device.kind === "servo" ? ["position"] : device.kind === "crservo" ? ["power"] : ["power", "target"];
-        if (!allowed.includes(output.kind)) {
+        const travel = hardwareEntry(project.robot, device.name)?.travel;
+        if (!outputKinds(device.kind).includes(output.kind)) {
           add("error", "state.output.kind", `A ${device.kind === "crservo" ? "continuous rotation servo" : device.kind} cannot be given a ${output.kind}.`, { ...where, deviceId });
-        } else if (output.kind === "target" && device.travel && (output.ticks < device.travel.minTicks || output.ticks > device.travel.maxTicks)) {
-          add("error", "state.output.travel", `"${state.name}" sends "${device.name}" to ${output.ticks} ticks, outside its travel of ${device.travel.minTicks} to ${device.travel.maxTicks}.`, { ...where, deviceId });
+        } else if (output.kind === "target" && travel && (output.ticks < travel.minTicks || output.ticks > travel.maxTicks)) {
+          add("error", "state.output.travel", `"${state.name}" sends "${device.name}" to ${output.ticks} ticks, outside its travel of ${travel.minTicks} to ${travel.maxTicks}.`, { ...where, deviceId });
+        } else {
+          limitNote(project, device.name, output, `"${stateName || "This state"}"`, { ...where, deviceId }, add);
         }
       }
     }
@@ -253,6 +300,7 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
   const visit = (steps: Step[], group: "together" | "race" | null) => {
     const groupPaths: string[] = [];
     const groupSubsystems = new Map<string, number>();
+    const groupDevices = new Map<string, number>();
     for (const step of steps) {
       const where = { ...at, stepId: step.id };
       switch (step.kind) {
@@ -280,6 +328,28 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
           groupSubsystems.set(step.subsystemId, (groupSubsystems.get(step.subsystemId) ?? 0) + 1);
           break;
         }
+        case "device": {
+          const kind = deviceKindLabel(step.deviceKind);
+          const name = step.device.trim();
+          if (!name) {
+            add("error", "step.device.unset", `Choose the ${kind} this action sets.`, where);
+            break;
+          }
+          if (!outputKinds(step.deviceKind).includes(step.output.kind)) {
+            add("error", "step.device.output", `A ${kind} can't be given ${step.output.kind === "position" ? "a position" : step.output.kind === "target" ? "an encoder target" : "power"}.`, where);
+            break;
+          }
+          const travel = hardwareEntry(project.robot, name)?.travel;
+          if (step.output.kind === "target" && travel && (step.output.ticks < travel.minTicks || step.output.ticks > travel.maxTicks)) {
+            add("error", "step.device.travel", `This action sends "${name}" to ${step.output.ticks} ticks, outside its travel of ${travel.minTicks} to ${travel.maxTicks}.`, where);
+          } else {
+            limitNote(project, name, step.output, "This action", where, add);
+          }
+          const owner = project.subsystems.find((subsystem) => subsystem.devices.some((device) => device.name.trim() === name));
+          if (owner) add("info", "step.device.mechanism", `"${name}" is also part of ${owner.name.trim() || "a mechanism"}. This action sets it directly, without changing the mechanism's state.`, where);
+          groupDevices.set(name, (groupDevices.get(name) ?? 0) + 1);
+          break;
+        }
         case "together":
         case "race":
           if (!step.steps.length) add("warning", "step.group.empty", "This group has no steps.", where);
@@ -296,6 +366,9 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
           const subsystem = project.subsystems.find((item) => item.id === subsystemId);
           add("warning", "step.group.subsystem", `"${subsystem?.name ?? "A mechanism"}" is set more than once at the same time; only the last setting sticks.`, at);
         }
+      }
+      for (const [name, count] of groupDevices) {
+        if (count > 1) add("warning", "step.group.device", `"${name}" is set more than once at the same time; only the last setting sticks.`, at);
       }
     }
   };
@@ -401,6 +474,7 @@ export function describeLocation(project: Project, location: DiagnosticLocation)
   }
   const subsystem = location.subsystemId ? project.subsystems.find((item) => item.id === location.subsystemId) : undefined;
   if (subsystem) parts.push(`mechanism "${subsystem.name.trim() || "Unnamed"}"`);
+  if (location.hardware) parts.push(`Robot hardware "${location.hardware}"`);
   if (location.robot && !parts.length) parts.push("Robot profile");
   return parts.length ? parts.join(" · ") : undefined;
 }

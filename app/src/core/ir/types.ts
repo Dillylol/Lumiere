@@ -1,6 +1,8 @@
 /**
- * Project format version 3: the single source of truth for a team's robot program. Version 3 adds
+ * Project format version 4: the single source of truth for a team's robot program. Version 3 added
  * the robot profile read from the team's Pedro Pathing constants and the robot's hardware scan.
+ * Version 4 keeps each motor and servo's settings once, in the robot's hardware list, so mechanisms
+ * are optional groups of devices, and adds actions that set a motor or servo directly.
  *
  * Coordinates use Pedro Pathing field coordinates: inches from the bottom-left corner of the field
  * (0 to 144 on both axes), with heading 0 along +x and angles increasing counterclockwise. Headings
@@ -11,7 +13,7 @@
  */
 
 export const PROJECT_FORMAT = "ftc-robot-project";
-export const PROJECT_VERSION = 3;
+export const PROJECT_VERSION = 4;
 export const FIELD_INCHES = 144;
 
 export interface Point {
@@ -77,12 +79,18 @@ export type Step =
   | { id: string; kind: "path"; pathId: string }
   | { id: string; kind: "wait"; ms: number }
   | { id: string; kind: "state"; subsystemId: string; stateId: string }
+  /**
+   * Sets one motor, servo or continuous servo directly, without a mechanism. `device` names a device
+   * in the robot's hardware list; `deviceKind` is what the action uses it as, which must match it.
+   */
+  | { id: string; kind: "device"; device: string; deviceKind: DeviceKind; output: Output }
   /** Runs every child at once and finishes when all have finished. */
   | { id: string; kind: "together"; steps: Step[] }
   /** Runs every child at once and finishes as soon as the first one finishes. */
   | { id: string; kind: "race"; steps: Step[] };
 
 export type StepKind = Step["kind"];
+export type DeviceStep = Extract<Step, { kind: "device" }>;
 
 export interface AutonomousProgram {
   id: string;
@@ -144,17 +152,33 @@ export type Program = AutonomousProgram | TeleOpProgram;
 
 export type DeviceKind = "motor" | "servo" | "crservo";
 
-export interface Device {
-  id: string;
+/**
+ * A motor, servo or continuous servo on the robot, with its settings. Every mechanism and action that
+ * uses the device follows them, in deployed code and in Lumière Live.
+ */
+export interface HardwareDevice {
   /** The name in the Robot Controller configuration. */
   name: string;
   kind: DeviceKind;
   reversed: boolean;
   /**
+   * For a motor or continuous servo: the most power it is ever given, above 0 and at most 1. Larger
+   * powers are cut to it. Unset means 1.
+   */
+  powerLimit?: number;
+  /**
    * For a motor that takes encoder targets: the ticks it may travel between, counted from where it is at
    * INIT. Lumière Live needs it, refuses targets outside it, and stops the run if the motor leaves it.
    */
   travel?: { minTicks: number; maxTicks: number };
+}
+
+/** A device in a mechanism: the hardware device with this name, used as `kind`. */
+export interface Device {
+  id: string;
+  /** The name in the Robot Controller configuration, as in the robot's hardware list. */
+  name: string;
+  kind: DeviceKind;
 }
 
 export type Output =
@@ -277,6 +301,11 @@ export interface RobotProfile {
    * `scannedAt` is when that report last changed.
    */
   scan?: { devices: ScannedDevice[]; scannedAt: string; pedro?: ScannedPedro };
+  /**
+   * Settings for the robot's motors and servos, and devices added by name before the robot was
+   * scanned. A scanned device without an entry has the default settings (forward, no limit).
+   */
+  hardware?: HardwareDevice[];
 }
 
 export interface Project {

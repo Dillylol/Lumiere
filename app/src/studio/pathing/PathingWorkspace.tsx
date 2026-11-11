@@ -257,7 +257,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
   // The plan's mechanism states at the time shown: the playhead, or a compared run's clock. A simulated-run
   // ghost gives the states its devices were in.
   const ghostStates = (t: number) => (ghostRun
-    ? Object.fromEntries(readMechanisms(project.subsystems, recordedDevicesAt(ghostRun, t)).flatMap((reading) => (reading.stateId ? [[reading.subsystem.id, reading.stateId]] : [])))
+    ? Object.fromEntries(readMechanisms(project.subsystems, recordedDevicesAt(ghostRun, t), project.robot.hardware).flatMap((reading) => (reading.stateId ? [[reading.subsystem.id, reading.stateId]] : [])))
     : estimate?.mechanismStates(Math.min(t, duration)));
   const planned = estimate && project.subsystems.length
     ? session ? (started ? ghostStates(session.elapsed) : undefined)

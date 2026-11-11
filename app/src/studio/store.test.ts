@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createProject } from "../core";
-import { recovery, robotHost, saveRobotHost, stage } from "./store";
+import { backupName, recovery, robotHost, saveRobotHost, stage } from "./store";
 
 const RECOVERY_KEY = "studio-v2-recovery";
 
@@ -51,5 +51,14 @@ describe("robot address", () => {
     saveRobotHost("project-a", "10.0.0.5");
     saveRobotHost("project-a", "   ");
     expect(robotHost("project-a")).toBe("10.0.0.5");
+  });
+});
+
+describe("upgrade backups", () => {
+  it("keeps the original of a file that loading upgrades, named after its version", () => {
+    expect(backupName("Robot.ftcproj", { version: 3 })).toBe("Robot.ftcproj.v3.bak");
+    expect(backupName("Robot.ftcproj", { version: 2 })).toBe("Robot.ftcproj.v2.bak");
+    expect(backupName("Robot.ftcproj", { version: 4 })).toBeNull();
+    expect(backupName("Robot.ftcproj", null)).toBeNull();
   });
 });
