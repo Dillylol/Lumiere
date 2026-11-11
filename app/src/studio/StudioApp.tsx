@@ -46,6 +46,14 @@ export function Brand({ onBack }: { onBack?: () => void }) {
 }
 /** A message for an error. Problems in a project name the program, action or mechanism instead of the stored structure. */
 export function errorText(error: unknown, project?: unknown) { return describeProjectError(error, project); }
+/**
+ * The saved projects, merged with any created or imported before they finished loading, which come first.
+ * Replacing the list instead lost a project made in the first moments after the app opened.
+ */
+export function mergeLoadedProjects(current: Project[], loaded: Project[]): Project[] {
+  const loadedIds = new Set(loaded.map((project) => project.id));
+  return [...current.filter((project) => !loadedIds.has(project.id)), ...loaded];
+}
 export function starter(name: string, template: string): Project {
   const project = createProject(name);
   if (template === "teleop") project.programs.push(createTeleOp("Main TeleOp"));
@@ -85,7 +93,7 @@ function Studio() {
   const go = (value: string) => { location.hash = value; setRoute(value); };
   useEffect(() => { const fn=()=>setRoute(location.hash.slice(1)); window.addEventListener("hashchange",fn); return ()=>window.removeEventListener("hashchange",fn); },[]);
   useEffect(() => { document.documentElement.dataset.theme=theme; document.documentElement.style.colorScheme=theme === "light" ? "light" : "dark"; localStorage.setItem("lumiere-theme",theme); },[theme]);
-  useEffect(() => { let live=true; void listProjects().then(result=>{if(live){setProjects(result.projects);setNotice(result.warnings.join("\n"));setReady(true); for(const draft of Object.values(recovery())) pending.current.set(draft.id,draft);}}).catch(e=>{if(live){setNotice(errorText(e));setReady(true);}}); return ()=>{live=false;}; },[]);
+  useEffect(() => { let live=true; void listProjects().then(result=>{if(live){setProjects(items=>mergeLoadedProjects(items,result.projects));if(result.warnings.length)setNotice(current=>[current,...result.warnings].filter(Boolean).join("\n"));setReady(true); for(const draft of Object.values(recovery())) pending.current.set(draft.id,draft);}}).catch(e=>{if(live){setNotice(errorText(e));setReady(true);}}); return ()=>{live=false;}; },[]);
   const flush = () => {
     const drafts=[...pending.current.values()]; pending.current.clear();
     queue.current=queue.current.then(async()=>{for(const draft of drafts){try{await saveProject(draft);}catch(e){pending.current.set(draft.id,draft);setSaved("Save failed");setNotice(`Couldn't save "${draft.name}". ${errorText(e,draft)}`);return;}} if(!pending.current.size)setSaved("Saved");});
