@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import sample from "../../../../fixtures/projects/sample-robot.json";
 import { parseProject } from "../../core";
 import { RunPanel, TelemetryPanel, type RunEnvironment } from "./RunPanels";
@@ -12,7 +12,7 @@ const program = project.programs[0];
 function session(overrides: Partial<RunSession> = {}): RunSession {
   return {
     source: "simulator", status: "Disconnected", linked: false, connected: false, finding: false,
-    modes: [], mode: "", setMode: vi.fn(), phase: "idle", active: null, trail: [], telemetry: [], devices: {}, data: {},
+    modes: [], mode: "", setMode: vi.fn(), phase: "idle", active: null, trail: [], telemetry: [], devices: {}, history: [], data: {},
     elapsed: 0, limit: 30, setLimit: vi.fn(), keyboard: false, setKeyboard: vi.fn(), press: vi.fn(),
     open: vi.fn(), find: vi.fn(), disconnect: vi.fn(), init: vi.fn(), start: vi.fn(), run: vi.fn(), stop: vi.fn(),
     ...overrides,
@@ -27,6 +27,8 @@ function environment(overrides: Partial<RunEnvironment> = {}): RunEnvironment {
 }
 
 describe("Simulate panels", () => {
+  afterEach(cleanup);
+
   it("shows a launch as it goes, and why it failed", () => {
     const startup = { stage: "building" as const, line: "> Task :TeamCode:compileDebugJavaWithJavac", startedAt: Date.now() - 12_400 };
     const { rerender } = render(<RunPanel mode="simulate" session={session()} project={project} program={program}

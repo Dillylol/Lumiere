@@ -75,7 +75,7 @@ export { clampToFloor, FIELD_FLOOR_INCHES, FIELD_IMAGE_OVERHANG, GRID_SIZES, gri
 export { fitStroke, PEN_MAX_VERTICES } from "./pathing/pen";
 
 export { generateJava, GENERATED_PACKAGE, TEAMCODE_JAVA_ROOT, type GeneratedFile, type GenerationResult } from "./codegen/java/generate";
-export { ownershipOf, planWrites, type Ownership, type WritePlanEntry } from "./codegen/java/ownership";
+export { checksum, ownershipOf, planWrites, type Ownership, type WritePlanEntry } from "./codegen/java/ownership";
 export {
   parseBuildOutput,
   relativeToProject,

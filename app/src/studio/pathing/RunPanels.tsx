@@ -7,6 +7,7 @@ import { RunComparison } from "../RunComparison";
 import { isRunTimingKey } from "../runTimings";
 import { Section } from "./LayersPanel";
 import { SCREEN_BUTTONS, type RunSession } from "./useRunSession";
+import { DataPanel, type PlannedMotion } from "./DataPanel";
 
 /** What the workbench lends the run modes: the desktop simulator, the robot's address and deploys. */
 export interface RunEnvironment {
@@ -296,11 +297,17 @@ export interface TelemetryPanelProps {
   offPath?: number;
   /** The state the plan has each mechanism in at the time shown, by mechanism id. */
   planned?: Record<string, string>;
+  /** The run being compared with this program's plan: which OpMode, whether it is the program's own, and what the ghost is. */
+  comparison?: { opMode: string; own: boolean; ghost: string };
+  /** The plan at a time since START, for the graphs. */
+  planAt?(t: number): PlannedMotion | undefined;
+  /** How far a point is from the planned path, for the graphs. */
+  offPlanAt?(x: number, y: number): number;
   onHide(): void;
 }
 
 /** The right panel in Simulate and Robot: what the simulator or robot reports, and how runs compare. */
-export function TelemetryPanel({ session, project, program, estimated, offPath, planned, onHide }: TelemetryPanelProps) {
+export function TelemetryPanel({ session, project, program, estimated, offPath, planned, comparison, planAt, offPlanAt, onHide }: TelemetryPanelProps) {
   const pose = session ? session.pose : estimated?.pose;
   const values = session ? Object.entries(session.data).filter(([key]) => !isRunTimingKey(key)) : [];
   const readouts = [
@@ -326,8 +333,12 @@ export function TelemetryPanel({ session, project, program, estimated, offPath, 
           <li><i className="driven" aria-hidden="true"/>Where the robot drove</li>
           <li><i className="follower" aria-hidden="true"/>The follower's path and target</li>
         </ul>}
+        {comparison && <p className="pv-note" role="status">{comparison.own
+          ? `The ghost is ${comparison.ghost}.`
+          : `Comparing "${comparison.opMode}" with this program's plan, as if the robot started at its start pose. The ghost is ${comparison.ghost}.`}</p>}
       </Section>
       <MechanismsSection project={project} session={session} planned={planned}/>
+      {session && <DataPanel history={session.history} live={session.phase === "running"} planAt={planAt} offPlanAt={offPlanAt} planLabel={comparison?.ghost}/>}
       {session && <Section title="Follower">
         <dl className="pv-pairs">
           <div><dt>Loop time</dt><dd>{session.loopMs === undefined ? "Not reported" : `${session.loopMs.toFixed(1)} ms`}</dd></div>

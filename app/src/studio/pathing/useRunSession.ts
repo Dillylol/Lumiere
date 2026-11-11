@@ -8,6 +8,25 @@ import type { DesktopSimulator } from "../../desktop/robotProject";
 import { RunRecorder, saveRunTiming } from "../runTimings";
 
 export type RunSource = "simulator" | "robot";
+
+/** One moment of a run, kept ten times a second from START, for the graphs and the simulated-run ghost. */
+export interface RunSample {
+  /** Time since START, in milliseconds. */
+  t: number;
+  x: number;
+  y: number;
+  /** Radians. */
+  heading: number;
+  loopMs?: number;
+  /** Numeric Session.data values at that moment. */
+  data: Record<string, number>;
+  /** Simulator: each device's outputs. */
+  devices?: Record<string, DeviceReport>;
+}
+
+const SAMPLE_MS = 100;
+/** Five minutes of samples. */
+const HISTORY_LIMIT = 3000;
 export type Hello = Extract<ServerMessage, { type: "hello" }>;
 export const SCREEN_BUTTONS = ["a", "b", "x", "y"] as const;
 export type ScreenButton = typeof SCREEN_BUTTONS[number];
@@ -93,6 +112,8 @@ export interface RunSession {
   telemetry: string[];
   /** Simulator: each device's outputs, by configured name. Empty until the simulator reports them. */
   devices: Record<string, DeviceReport>;
+  /** The run so far, ten samples a second from START; cleared at INIT. */
+  history: RunSample[];
   data: Record<string, unknown>;
   loopMs?: number;
   follower?: string;
@@ -143,6 +164,20 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const [trail, setTrail] = useState<Point[]>([]);
   const [telemetry, setTelemetry] = useState<string[]>([]);
   const [devices, setDevices] = useState<Record<string, DeviceReport>>({});
+  const [history, setHistory] = useState<RunSample[]>([]);
+  const historyNow = useRef<RunSample[]>([]);
+  const latestData = useRef<Record<string, number>>({});
+  const latestLoop = useRef<number | undefined>(undefined);
+  /** Whether the OpMode is running, as the latest message said; React state lags behind a burst of messages. */
+  const runningNow = useRef(false);
+  /** Keeps a sample at most every SAMPLE_MS of run time. */
+  const sample = (t: number, pose: PoseMessage, reports?: Record<string, DeviceReport>) => {
+    const last = historyNow.current[historyNow.current.length - 1];
+    if (!Number.isFinite(t) || (last && t - last.t < SAMPLE_MS)) return;
+    const next: RunSample = { t, x: pose.x, y: pose.y, heading: pose.heading, loopMs: latestLoop.current, data: { ...latestData.current }, ...(reports ? { devices: reports } : {}) };
+    historyNow.current = [...historyNow.current.slice(-(HISTORY_LIMIT - 1)), next];
+    setHistory(historyNow.current);
+  };
   /** Set by Run: START follows as soon as the simulator reports the OpMode initialized. */
   const autoStart = useRef(false);
   const [live, setLive] = useState<LiveReport>();
@@ -205,7 +240,10 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   }, []);
 
   /** What one OpMode run reported; cleared at INIT. */
-  const clearRun = () => { setRoute(undefined); setTarget(undefined); setData({}); setDevices({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail(); };
+  const clearRun = () => {
+    setRoute(undefined); setTarget(undefined); setData({}); setDevices({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail();
+    historyNow.current = []; setHistory([]); latestData.current = {}; latestLoop.current = undefined;
+  };
   const clearLive = () => {
     liveSent.current = { auth: false, failed: false, revision: null };
     liveReport.current = undefined;
@@ -282,16 +320,19 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       // Run: START follows INIT. A previous OpMode's "stopped" can come in between, so only INIT or a start ends the wait.
       if (autoStart.current && message.phase === "init" && !robot) { autoStart.current = false; client.current?.start(); }
       if (message.phase === "running") autoStart.current = false;
+      runningNow.current = message.phase === "running";
       setPhase(message.phase);
       if (robot) time(message.phase);
     } else if (message.type === "robot") {
       // The simulator's `robot` pose is the true pose; `state.pose` is the follower's estimate, used only for a hub.
-      if (PHASES.includes(message.phase)) setPhase(message.phase);
+      if (PHASES.includes(message.phase)) { setPhase(message.phase); runningNow.current = message.phase === "running"; }
       const next = finite(message.pose);
       if (next) showPose(next);
       if (Number.isFinite(message.elapsed)) setElapsed(message.elapsed * 1000);
       if (typeof message.localizer === "string") setLocalizer(message.localizer.slice(0, 80));
-      if (message.devices) setDevices(readDeviceReports(message.devices));
+      const reports = message.devices ? readDeviceReports(message.devices) : undefined;
+      if (reports) setDevices(reports);
+      if (next && message.phase === "running") sample(message.elapsed * 1000, next, reports);
     } else if (message.type === "state") {
       const next = finite(message.pose);
       if (next && streamSource.current === "robot") showPose(next);
@@ -299,7 +340,13 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       setLoopMs(Number.isFinite(message.loopMs) ? message.loopMs : undefined);
       setFollower(typeof message.follower === "string" ? message.follower : undefined);
       const values = message.data;
-      if (values && typeof values === "object" && !Array.isArray(values)) setData((current) => ({ ...current, ...values }));
+      if (values && typeof values === "object" && !Array.isArray(values)) {
+        setData((current) => ({ ...current, ...values }));
+        for (const [key, value] of Object.entries(values)) if (typeof value === "number" && Number.isFinite(value)) latestData.current[key] = value;
+      }
+      latestLoop.current = Number.isFinite(message.loopMs) ? message.loopMs : undefined;
+      // A hub's run is timed here from START; the simulator's samples come with its own clock.
+      if (next && streamSource.current === "robot" && runningNow.current && runStart.current !== null) sample(performance.now() - runStart.current, next);
     } else if (message.type === "path") {
       setRoute(Array.isArray(message.points) ? message.points.filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])) : undefined);
     } else if (message.type === "telemetry") {
@@ -446,7 +493,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
     source,
     status: !linked ? "Disconnected" : connection === "open" ? "Connected" : opened ? "Reconnecting…" : "Connecting…",
     linked, connected: connection === "open", finding, hello, modes, mode, setMode, phase, active,
-    pose, localizer, target, route, trail, telemetry, devices, data, loopMs, follower, elapsed, limit, setLimit,
+    pose, localizer, target, route, trail, telemetry, devices, history, data, loopMs, follower, elapsed, limit, setLimit,
     keyboard,
     setKeyboard: (on) => { keys.current.clear(); setKeyboardState(on); },
     press: (button, down) => { screen.current = { ...screen.current, [button]: down }; },

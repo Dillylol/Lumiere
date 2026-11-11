@@ -25,13 +25,24 @@ Hide either side panel with its panel button to give the field more room. In win
   - **Running it:** START on the Driver Station runs the program with mechanism powers capped, and the panel shows the run: running, finished with its time, or stopped with the reason. How it ended, and the run drawn against the plan, stay until the next INIT.
   - **Keep the connection open:** while paired, this connection pings four times a second, and also answers the robot's messages, so the run keeps going while the app is in the background. The robot stops the run if it hears nothing for a second.
 
-In Simulate and Robot, the field is read-only. The left panel holds the run controls and the planned routine, and the right panel shows telemetry, the follower's state, `Session.data` values and the run comparison. When the run is this program's own OpMode, the field draws the run against the plan:
+In Simulate and Robot, the field is read-only. The left panel holds the run controls and the planned routine, and the right panel shows telemetry, mechanisms, graphs, the follower's state, `Session.data` values and the run comparison. When an autonomous runs, it is compared with the open program's plan, whether it is the program's own OpMode, a Lumière Live run of it, or another autonomous such as one of your own Java autos. From START, the plan assumes the robot was placed at its start pose. The field draws the run against the plan:
 
-- the plan, faded, with a ghost robot where the estimate puts the robot at the run's time
+- the plan, faded, with a ghost robot where the plan has the robot at the run's time
 - the robot where it reports itself, and a trail of where it drove
 - the path the follower reports following, and its target pose, dashed
 
-**Off plan** reads how far the robot is from the planned path, and the planned routine highlights the step the plan has running. A connection stays open while you switch modes, so you can edit in Develop and come back; leaving Pathing or switching programs closes it. TeleOp programs have no paths, so they open in Simulate.
+**The ghost:**
+- **In Robot mode:** it is your last simulated run of this program, recorded when a desktop simulator run of the program's own OpMode finishes, for as long as the plan is unchanged since then. Otherwise it is the estimate.
+- **In Simulate:** it is always the estimate.
+- **On the panel:** a note says what the ghost is, and which OpMode is being compared.
+
+**Off plan** reads how far the robot is from the planned path, and the planned routine highlights the step the plan has running. A TeleOp, or any OpMode that streams, still shows the robot's pose, trail and data; it just isn't compared with a plan.
+
+**Data**, in the right panel, graphs the run after Panels' graph widget.
+- **The charts:** one small chart per value, speed, Off plan, X and Y to begin with. Heading, loop time, your `Session.data` numbers and, in the simulator, each device's power or position can be added.
+- **Against the plan:** the robot's line is solid and the plan's dotted.
+- **Reading a moment:** hover, or use the arrow keys, to read every chart at one moment.
+- **Following the run:** the charts follow the last 30 seconds while the run goes. Pause holds them, and after STOP they show the whole run. A connection stays open while you switch modes, so you can edit in Develop and come back; leaving Pathing or switching programs closes it. TeleOp programs have no paths, so they open in Simulate.
 
 ## Tools
 

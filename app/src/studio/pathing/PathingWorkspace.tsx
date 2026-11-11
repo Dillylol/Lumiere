@@ -3,10 +3,12 @@ import { ChevronDown, Download, Flame, PanelLeft, PanelRight, Settings } from "l
 import { BRAND } from "../../brand";
 import {
   addPath, AUTONOMOUS_PERIOD_MS, buildLiveProgram, deletePath, hasErrors, LIVE_OPMODE_NAME, validateProject, endPose, estimateRoutine, exportVisualizer, GRID_SIZES, importVisualizer, insertControlPoint,
-  mirrorProgram, movePath, newId, removeControlPoint, resolveProgramPaths, samplePath, snapToGrid,
+  mirrorProgram, movePath, newId, readMechanisms, removeControlPoint, resolveProgramPaths, samplePath, snapToGrid,
   type AutonomousProgram, type Pose, type Program, type Project,
 } from "../../core";
 import { confirmAction, download } from "../store";
+import { loadSimulatedRun, planFingerprint, recordedDevicesAt, recordedPoseAt, recordRun, saveSimulatedRun, subscribeSimulatedRuns } from "../runRecordings";
+import type { PlannedMotion } from "./DataPanel";
 import { FieldView, PlaybackBar, type Overlay, type RunOverlay, type Selection, type Tool } from "./FieldView";
 import { Inspector } from "./Inspector";
 import { LayersPanel, RoutineSteps, Section } from "./LayersPanel";
@@ -199,21 +201,66 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
   }) : []);
   const distance = paths.reduce((sum, path) => sum + path.curve.length, 0);
 
-  // Planned against actual: when the run is this program's own OpMode, the estimate's pose at the run's
-  // time is drawn as a ghost, and the panel reports how far the robot is from the planned path.
-  // A Lumière Live run of the program this computer sent counts as this program's own run.
+  // Planned against actual. A run is compared with this program's plan when it is the program's own OpMode, a
+  // Lumière Live run of the program this computer sent, or any other autonomous OpMode. From START the ghost
+  // follows the plan from its start pose, as if the robot had been placed there for the match.
   const liveRun = !!session && session.source === "robot" && session.active === LIVE_OPMODE_NAME
     && !!liveProgram && session.live?.program?.revision === liveProgram.revision;
   const ownOpMode = !!session && !!auto && (session.active === program.name || liveRun);
-  const started = ownOpMode && (session.phase === "running" || session.phase === "stopped");
+  const activeFlavor = session?.modes.find((item) => item.name === session.active)?.flavor;
+  const compared = !!session && !!auto && !!session.active && (ownOpMode || activeFlavor === "autonomous");
+  const started = compared && (session.phase === "running" || session.phase === "stopped");
+
+  // Robot mode plays this program's last simulated run as the ghost while the plan is unchanged since it ran;
+  // otherwise, and in Simulate, the ghost is the estimate.
+  const fingerprint = useMemo(() => (auto ? planFingerprint(project, auto) : ""), [auto, project.subsystems, project.robot]);
+  const [recording, setRecording] = useState(() => (auto ? loadSimulatedRun(project.id, auto.id) : undefined));
+  useEffect(() => {
+    if (!auto) return;
+    const reload = () => setRecording(loadSimulatedRun(project.id, auto.id));
+    reload();
+    return subscribeSimulatedRuns(reload);
+  }, [project.id, auto?.id]);
+  const ghostRun = session?.source === "robot" && recording?.fingerprint === fingerprint ? recording : undefined;
+  const planAt = useMemo(() => {
+    if (!started) return undefined;
+    const poseAt = (t: number) => (ghostRun ? recordedPoseAt(ghostRun, t) : estimate && duration > 0 ? estimate.poseAt(Math.min(Math.max(t, 0), duration)) : undefined);
+    return (t: number): PlannedMotion | undefined => {
+      const pose = poseAt(t);
+      if (!pose) return undefined;
+      const before = poseAt(t - 50);
+      const after = poseAt(t + 50);
+      return { ...pose, speed: before && after ? Math.hypot(after.x - before.x, after.y - before.y) / 0.1 : 0 };
+    };
+  }, [started, ghostRun, estimate, duration]);
+  // A finished simulated run of this program is kept as the ghost Robot mode compares the robot with.
+  const simulatorPhase = useRef(simulator.phase);
+  useEffect(() => {
+    const was = simulatorPhase.current;
+    simulatorPhase.current = simulator.phase;
+    if (!auto || was !== "running" || simulator.phase !== "stopped" || simulator.active !== program.name) return;
+    const routineMs = simulator.data["lumiere.routineElapsedMs"];
+    if (typeof routineMs !== "number" || !Number.isFinite(routineMs) || !simulator.history.length) return;
+    if (!saveSimulatedRun(project.id, auto.id, recordRun(project, auto, simulator.history, routineMs))) {
+      onNotice("The simulated run could not be kept for Robot mode to compare with: browser storage is full.");
+    }
+  }, [simulator.phase]);
+
   const plannedPoints = useMemo(() => paths.flatMap((path) => samplePath(path, 64)), [paths]);
+  const offPlanAt = useMemo(() => (compared && plannedPoints.length
+    ? (x: number, y: number) => Math.min(...plannedPoints.map((point) => Math.hypot(point.x - x, point.y - y)))
+    : undefined), [compared, plannedPoints]);
   const actual = session?.pose;
-  const offPath = ownOpMode && actual && plannedPoints.length ? Math.min(...plannedPoints.map((point) => Math.hypot(point.x - actual.x, point.y - actual.y))) : undefined;
-  // The routine steps the plan has running now: at playback's time, or at the run's time for this program's own run.
+  const offPath = offPlanAt && actual ? offPlanAt(actual.x, actual.y) : undefined;
+  // The routine steps the plan has running now: at playback's time, or at the run's time for a compared run.
   const activeIds = estimate && (session ? started && estimate.activeStepIds(session.elapsed) : !atStart && estimate.activeStepIds(elapsed)) || undefined;
-  // The plan's mechanism states at the time shown: the playhead, or the clock of this program's own run.
+  // The plan's mechanism states at the time shown: the playhead, or a compared run's clock. A simulated-run
+  // ghost gives the states its devices were in.
+  const ghostStates = (t: number) => (ghostRun
+    ? Object.fromEntries(readMechanisms(project.subsystems, recordedDevicesAt(ghostRun, t)).flatMap((reading) => (reading.stateId ? [[reading.subsystem.id, reading.stateId]] : [])))
+    : estimate?.mechanismStates(Math.min(t, duration)));
   const planned = estimate && project.subsystems.length
-    ? session ? (started ? estimate.mechanismStates(Math.min(session.elapsed, duration)) : undefined)
+    ? session ? (started ? ghostStates(session.elapsed) : undefined)
       : estimate.mechanismStates(atStart ? 0 : Math.min(elapsed, duration))
     : undefined;
   const run: RunOverlay | undefined = session && {
@@ -221,8 +268,10 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
     target: session.target,
     trail: session.trail,
     route: session.route?.map(([x, y]) => ({ x, y })),
-    planned: started && estimate && duration > 0 ? estimate.poseAt(Math.min(session.elapsed, duration)) : undefined,
+    planned: started ? planAt?.(session.elapsed) : undefined,
   };
+  const ghostLabel = ghostRun ? `your simulated run of ${new Date(ghostRun.recordedAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "the estimate";
+  const comparison = compared && session?.active ? { opMode: session.active, own: ownOpMode, ghost: ghostLabel } : undefined;
 
   const importFile = async (file: File) => {
     if (!auto) return;
@@ -357,7 +406,7 @@ export function PathingWorkspace({ project, program, mode, onMode, onChange, onA
             onField={setField} onCustomImage={() => imageInput.current?.click()} onCommit={commit} onSelect={setSelection} onOpenRobot={onOpenRobot}
             onHide={() => setRightHidden(true)}/>
           : <TelemetryPanel session={session} project={project} program={program} estimated={preview && auto ? { pose: shownPose, speed } : undefined}
-            offPath={offPath} planned={planned} onHide={() => setRightHidden(true)}/>}
+            offPath={offPath} planned={planned} comparison={comparison} planAt={planAt} offPlanAt={offPlanAt} onHide={() => setRightHidden(true)}/>}
     </div>
   </div>;
 }

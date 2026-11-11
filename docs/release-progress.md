@@ -16,6 +16,14 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 ar
   - **RUN** does INIT, then START. Once connected, the panel says what to press next.
   - **A Mechanisms section** shows each mechanism's state, judged from the simulator's device outputs, beside the plan's state at the same time, with each device's power, servo position or encoder count. Develop's playback and the web preview show the plan's mechanism states.
 - **"i" buttons explain each tab and Pathing mode:** what it is for, its main functions, how to use it, and its guide. They sit beside the Build, Code, Robot and Learn headings, Pathing's title, and its mode switch (for the mode in view). The Learn page is rebuilt from the same text, and its outdated lines are gone, such as "the simulator models Pinpoint localization". A guided tour is not built yet.
+- **Runs are compared with the plan whatever runs, and graphed:**
+  - **Any autonomous:** an autonomous OpMode (from the robot's OpMode list) is compared with the open program's plan, such as one of the team's own Java autos, not only the program's generated OpMode. The ghost starts at the plan's start pose, and the panel names what is compared.
+  - **The simulated run as the ghost:** when a desktop simulator run of the program's own OpMode finishes, it is recorded (ten samples a second, with its mechanism devices). Robot mode plays it as the ghost, with its mechanism states, until the plan changes; otherwise the ghost is the estimate.
+  - **Data panel:**
+    - Small charts of speed, Off plan, X, Y, heading, loop time, `Session.data` numbers and simulator device outputs, the robot's line solid and the plan's dotted.
+    - A shared crosshair, read with hover or the arrow keys; it follows the last 30 seconds, can pause, and shows the whole run after STOP.
+    - The colors pass the dataviz palette checks on every theme's surface, and every value is also printed.
+  - **Live data from any OpMode** that streams, TeleOp included. OpModes that don't call `Session.attach` stream nothing yet; that is Part B's robot-library change.
 - **Deploy warns about a second Lumière Live,** such as one another Lumière project deployed into the same TeamCode. The Driver Station would list both.
 - **Virtual hub:** it builds into its own `build-virtual-hub/` folders. On Windows the running hub locked the project's build files, so a simulator launch on the same project failed after about 10 s. Found in the 0.3.0 walkthrough, which ran the hub and the desktop app on the test robot together.
 
