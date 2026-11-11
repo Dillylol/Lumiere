@@ -3,7 +3,9 @@
 From first idea to field-ready robot, Lumière streamlines FTC programming, simulation, and deployment in one focused offline workspace.
 Product naming lives in [`app/src/brand.ts`](app/src/brand.ts), while stable install and project identifiers remain unchanged across future display-name updates.
 
-Version 0.1.1 is released. The workspace, robot library, desktop simulator, quickstart generator, Java generation, and desktop backend are implemented and verified without hardware. See [release progress](docs/release-progress.md) and the [hardware checklist](docs/hardware-checklist.md).
+Version 0.4.0 is released. Download it from [Releases](https://github.com/Dillylol/Lumiere/releases/latest); copies already installed can update from Settings. To start a robot project, create one from the app, or clone the [Lumière Quickstart](https://github.com/Dillylol/Lumiere-Quickstart) and open it in Lumière.
+
+Everything is tested without hardware: in the desktop simulator, and on a virtual Control Hub that runs the real robot library. It has not yet run on a physical Control Hub, so work through the [hardware checklist](docs/hardware-checklist.md) on the stand before driving at full power. [Release progress](docs/release-progress.md) lists what each version changed and how it was checked.
 
 ## Repository layout
 
