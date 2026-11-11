@@ -22,7 +22,21 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.
   - **Generated Java:** `sequential(instant(set), waitMs(N).setEnd(ended -> then))`. Ivy runs a command's end handler however it ends, which is what makes "then" happen in a Race.
   - **Problems:** an unchosen or deleted state after is an error; an action longer than the 30-second autonomous period is a warning. A duration of 0 can't be saved, and the save error says the duration must be above 0.
 - **Checked:** unit tests for the upgrade, the list, validation, durations, generation and the editors; browser tests for the hardware list and a Motor action within its limit; a new golden project, `direct-devices`, built in a quickstart against the FTC SDK and run headless in the simulator. There, the intake asked for 0.9 runs at 0.7, the reversed lift reaches its 1200-tick target, and the timed spinner, kicker and roller end stopped, at their position after, and in their state after.
-- **Not yet:** Lumière Live with direct actions, durations and per-device limits. Until then, Lumière Live refuses a program with Motor or Servo actions or timed actions, and still caps mechanisms at its own power limit.
+- **Lumière Live format 2** (robot library 0.4.0). Programs carry each device once, with its direction, power limit and travel, and Motor, Servo and timed actions.
+  - **Each power is cut to its device's limit on the robot,** as the deployed code cuts it. The single "Mechanism power limit" is gone from the Robot page and from the generated `LumiereLive.java`; a changed limit goes with the next program sent, without installing again.
+  - **Timed actions** run as in the generated Java, so what comes after also happens when a Race ends one early.
+  - **Older programs:** the robot library still runs format 1 programs from Lumière 0.3, with the generated cap. Lumière Live now needs robot library 0.4.0, and the Robot mode panel says so for a robot with an older one.
+- **Robot data from any OpMode** (robot library 0.4.0). While any OpMode is initialized or running, the robot library reports what the team's code doesn't have to:
+  - **Pose:** about ten times a second, it reports the pose of the OpMode's Pedro Pathing follower, found in its fields and the team's objects they hold. It leaves the pose to `Session` when the OpMode uses one. The search is the one the simulator used, moved into the library and shared.
+  - **Devices:** a new `devices` message carries each motor's and continuous servo's power and each servo's position. They are read from the SDK's own record of what it last sent, never from the hub, so the OpMode is not slowed. Encoder counts are left out, since reading them asks the hub.
+  - **In the app:** Robot mode shows and graphs both, so a team's own autos and TeleOps (Bjorn's, for one) are drawn and compared with the plan.
+- **Checked:**
+  - **App:** unit tests for the upgrade, the list, validation, durations, generation, Live format 2 and the editors; browser tests for the hardware list, a Motor action within its limit, and a timed action.
+  - **Generated code:** a new golden project, `direct-devices`, built in a quickstart against the FTC SDK and run headless in the simulator. There, the intake asked for 0.9 runs at 0.7, the reversed lift reaches its 1200-tick target, and the timed spinner, kicker and roller end stopped, at their position after, and in their state after.
+  - **Robot library:** tests for format 2, a Race that cuts a timed step short (Ivy runs its end handler), and the OpMode watch with a real Pedro follower.
+  - **Virtual hub:** 29 contract checks, including new ones for format 2 limits and timed actions, a Race cutting a timed action short, a format 1 program still running, and an OpMode without `Session` reporting its pose and devices.
+  - **Parity, 6 of 6:** Bjorn's "Lumiere Red Goal", with a timed Feeder action in place of Feed, wait, Stop, a timed Grip1 action set directly, and power limits on Intake and Grip1. Deployed and Live took 23.96 s and 23.94 s, ended 0.18 in apart, and made the same 18 output changes on 6 devices. It ran on a copy of Bjorn without the walkthrough's second Lumière Live.
+- **Fixed in the dev tools:** `--parity` had failed since 0.3.1 with "from is not defined", left over from the INIT-race fix in its recorder.
 
 ## Version 0.3.1
 

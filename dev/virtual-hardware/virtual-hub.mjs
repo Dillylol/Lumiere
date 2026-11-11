@@ -325,7 +325,7 @@ async function check() {
     expect(hello.protocol === 1, `protocol is ${hello.protocol}`);
     expect(typeof hello.library === "string" && hello.library.length > 0, "no library version");
     expect(hello.drivetrain === undefined, "simulator-only drivetrain field present");
-    expect(hello.capabilities?.live === 1, `capabilities ${JSON.stringify(hello.capabilities)}`);
+    expect(hello.capabilities?.live === 2, `capabilities ${JSON.stringify(hello.capabilities)}`);
     return `library ${hello.library}, Lumière Live format ${hello.capabilities.live}`;
   });
   await attempt("Manifest lists the project's OpModes, configured hardware and Pedro Pathing's devices before any INIT, without the SDK's system OpMode", async () => {
@@ -549,7 +549,7 @@ async function check() {
     for (let i = 0; i < 50 && (dsState.truths ?? 0) < seen + 2; i++) await sleep(50);
     return dsState.truth;
   };
-  await attempt("START runs a paired computer's program: the robot drives the path, and mechanism powers are capped", async () => {
+  await attempt("START runs a paired computer's format 1 program: the robot drives the path, and powers are capped at the generated limit", async () => {
     const { pilot, from } = await liveRun(runProgram("Run check", {
       mechanisms: [checkMechanism([{ id: "on", name: "On", outputs: { m: { kind: "power", value: 1 }, s: { kind: "position", value: 0.25 } } }])],
       routine: [{ kind: "state", mechanism: "check", state: "on" }, { kind: "path", path: "p1" }, { kind: "wait", ms: 300 }],
@@ -629,6 +629,83 @@ async function check() {
       `stopped after ${seconds.toFixed(2)} s; still powered: ${powered.join(", ") || "none"}; moved ${settled.toFixed(2)} in between 1.5 s and 2 s after STOP`);
     return `stopped after ${seconds.toFixed(2)} s with the drive at zero power; at rest within 2 s`;
   });
+  // Format 2 (Lumière 0.4.0): each device's settings once, devices set directly, and timed actions.
+  const formatTwo = (name, devices, routine) => ({
+    format: 2, name, revision: `two-${name.length}`, start: { x: 72, y: 72, headingDeg: 90 }, devices, mechanisms: [],
+    paths: [line("p1", "Forward", 72, 100)], routine,
+  });
+  /** Polls the Driver Station's view of the robot until `test` passes, giving its last value either way. */
+  const truthUntil = async (read, test, tries = 40) => {
+    let value;
+    for (let i = 0; i < tries; i++) {
+      value = read(await freshTruth());
+      if (test(value)) break;
+    }
+    return value;
+  };
+  await attempt("Format 2: a device set directly runs at its own power limit, and timed actions end in what comes after", async () => {
+    const { pilot, from } = await liveRun(formatTwo("Device check", [
+      { name: "lumiere_check_motor", kind: "motor", reversed: false, powerLimit: 0.5 },
+      { name: "lumiere_check_servo", kind: "servo", reversed: false },
+    ], [
+      { kind: "device", device: "lumiere_check_servo", output: { kind: "position", value: 0.25 }, duration: { ms: 800, thenPosition: 0.75 } },
+      { kind: "device", device: "lumiere_check_motor", output: { kind: "power", value: 1 }, duration: { ms: 1500 } },
+      { kind: "wait", ms: 800 },
+    ]));
+    const servoOut = await truthUntil((truth) => truth?.devices?.lumiere_check_servo?.position, (value) => Math.abs(value - 0.25) < 1e-6);
+    const during = await truthUntil((truth) => truth?.devices?.lumiere_check_motor?.power, (value) => value > 0.01);
+    const finished = await app.next((m) => m.type === "live" && m.run?.phase === "finished", 20_000, from);
+    const truth = await freshTruth();
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "live" && m.state === "closed", 10_000, from);
+    pilot.close();
+    expect(Math.abs(servoOut - 0.25) < 1e-6, `the check servo never went to 0.25 (last ${servoOut})`);
+    expect(Math.abs(during - 0.5) < 1e-6, `the check motor ran at ${during}; the program asked for 1, and its limit is 0.5`);
+    expect(!truth.devices.lumiere_check_motor.power, `the check motor still runs at ${truth.devices.lumiere_check_motor.power} after its time`);
+    expect(Math.abs(truth.devices.lumiere_check_servo.position - 0.75) < 1e-6, `the check servo ended at ${truth.devices.lumiere_check_servo.position}, not 0.75`);
+    return `servo 0.25 then 0.75; motor at ${during} for 1, then stopped; finished in ${(finished.run.elapsedMs / 1000).toFixed(1)} s`;
+  });
+  await attempt("Format 2: a race that ends first cuts a timed action short, and it still ends in what comes after", async () => {
+    const { pilot, from } = await liveRun(formatTwo("Race check", [{ name: "lumiere_check_motor", kind: "motor", reversed: false }], [
+      { kind: "race", steps: [
+        { kind: "wait", ms: 600 },
+        { kind: "device", device: "lumiere_check_motor", output: { kind: "power", value: 0.4 }, duration: { ms: 20_000 } },
+      ] },
+      { kind: "wait", ms: 20_000 },
+    ]));
+    const running = await truthUntil((truth) => truth?.devices?.lumiere_check_motor?.power, (value) => Math.abs(value - 0.4) < 1e-6);
+    const cut = await truthUntil((truth) => truth?.devices?.lumiere_check_motor?.power, (value) => value === 0);
+    const live = [...app.log].reverse().find((m) => m.type === "live");
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "live" && m.state === "closed", 10_000, from);
+    pilot.close();
+    expect(Math.abs(running - 0.4) < 1e-6, `the check motor never ran at 0.4 (last ${running})`);
+    expect(cut === 0 && live?.run?.phase === "running", `after the race, the check motor runs at ${cut}; the run is ${live?.run?.phase}`);
+    return "ran at 0.4, then stopped when the race's wait ended, while the routine went on";
+  });
+  await attempt("An OpMode that doesn't use Session reports its follower's pose and its devices' outputs", async () => {
+    const name = "Plain Pedro (virtual hub)";
+    const from = app.log.length;
+    dsSend({ type: "init", opMode: name });
+    const placed = await app.next((m) => m.type === "state" && m.opMode === name && m.pose, 15_000, from);
+    const { x, y, heading } = placed.pose;
+    expect(Math.abs(x - 72) < 1 && Math.abs(y - 72) < 1 && Math.abs(heading - Math.PI / 2) < 0.05 && placed.data === undefined,
+      `the first pose report: ${JSON.stringify(placed)}`);
+    dsSend({ type: "start" });
+    const powered = await app.next((m) => m.type === "devices" && m.opMode === name && Math.abs((m.devices?.lumiere_check_motor?.power ?? 0) - 0.3) < 1e-6, 10_000, from);
+    const counted = app.log.length;
+    await sleep(2000);
+    const states = app.log.slice(counted).filter((m) => m.type === "state" && m.opMode === name).length / 2;
+    const devices = app.log.slice(counted).filter((m) => m.type === "devices" && m.opMode === name).length / 2;
+    dsSend({ type: "stop" });
+    await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === name, 10_000, from);
+    const after = app.log.length;
+    await sleep(600);
+    const late = app.log.slice(after).filter((m) => (m.type === "state" || m.type === "devices") && m.opMode === name).length;
+    expect(states >= 5 && states <= 12 && devices >= 5 && devices <= 12, `${states} pose and ${devices} device reports a second`);
+    expect(late === 0, `${late} reports after the OpMode stopped`);
+    return `pose (${x.toFixed(1)}, ${y.toFixed(1)}); ${Object.keys(powered.devices).length} devices; ${states} pose and ${devices} device reports a second; none after STOP`;
+  });
   await attempt("No OpMode errors on the Driver Station", async () => {
     expect(dsState.errors.length === 0, dsState.errors.map((e) => e.message).join("; "));
   });
@@ -647,7 +724,10 @@ async function parity() {
   const liveName = value("--live-opmode", "Lumière Live");
   const program = JSON.parse(readFileSync(resolve(value("--live-program")), "utf8"));
   const secret = readFileSync(resolve(value("--live-secret-file")), "utf8").trim();
-  const mechanismDevices = new Set(program.mechanisms.flatMap((mechanism) => mechanism.devices.map((device) => device.name.trim())));
+  // Format 2 lists every device the program drives, mechanisms' and direct ones; format 1 only had mechanisms.
+  const mechanismDevices = new Set(program.devices
+    ? program.devices.map((device) => device.name)
+    : program.mechanisms.flatMap((mechanism) => mechanism.devices.map((device) => device.name.trim())));
   // Lumière Live needs to hear from the paired computer several times a second.
   const app = await appClient(ports.robot, { pingMs: 250 });
   await app.next((m) => m.type === "manifest" && m.opModes.some((o) => o.name === deployed) && m.opModes.some((o) => o.name === liveName), 30_000);
@@ -676,12 +756,12 @@ async function parity() {
     dsSend({ type: "start" });
     const sampler = setInterval(sample, 50);
     const done = await app.next((m) => (m.type === "state" && typeof m.data?.["lumiere.routineElapsedMs"] === "number")
-      || (m.type === "live" && m.run && m.run.phase !== "running"), 40_000, from);
+      || (m.type === "live" && m.run && m.run.phase !== "running"), 40_000, before);
     const finishedAt = Date.now() - startedAt;
     await sleep(500);
     clearInterval(sampler);
     dsSend({ type: "stop" });
-    await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === name, 10_000, from);
+    await app.next((m) => m.type === "lifecycle" && m.phase === "stopped" && m.opMode === name, 10_000, before);
     if (done.type === "live" && done.run.phase !== "finished") throw new Error(`${name} did not finish: ${done.run.phase}, ${done.run.reason}`);
     const routineMs = done.type === "state" ? done.data["lumiere.routineElapsedMs"] : done.run.elapsedMs;
     return { routineMs, finishedAt, trace };

@@ -37,13 +37,14 @@ import java.util.Set;
  *
  * <p>Safety:
  * <ul>
- *   <li>Mechanism powers are capped at {@link #powerCap()}, and motors that take encoder targets
- *       must stay within their declared travel.</li>
+ *   <li>Each power is cut to its device's power limit, which the program carries (a format 1
+ *       program's devices all get {@link #powerCap()}), and motors that take encoder targets must stay
+ *       within their declared travel.</li>
  *   <li>The run stops when the paired computer goes quiet for more than {@link #SILENCE_MS}
  *       milliseconds or disconnects, when a motor leaves its travel, or on any error. Stopping sets
  *       motors and continuous servos to zero, leaves servos where they are, stops the follower, and
  *       ends the OpMode.</li>
- *   <li>The program can't change after START, and only the program's own mechanism devices are
+ *   <li>The program can't change after START, and only the program's own devices are
  *       driven, never Pedro Pathing's.</li>
  *   <li>The Driver Station stays in charge: only it can INIT and START Lumière Live, and its STOP
  *       always works.</li>
@@ -72,7 +73,11 @@ public abstract class LiveRunner extends OpMode {
     /** Builds the team's follower, as the generated OpModes do with {@code Constants.create}. */
     protected abstract Follower createFollower(HardwareMap hardwareMap);
 
-    /** The highest power Lumière Live gives a mechanism motor or continuous servo, above 0 and at most 1. */
+    /**
+     * The power limit of every device in a format 1 program, above 0 and at most 1. Format 2 programs,
+     * which Lumière 0.4.0 and later send, carry each device's own limit, so Lumière no longer generates
+     * an override; it stays for older programs and older generated code.
+     */
     protected double powerCap() {
         return DEFAULT_POWER_CAP;
     }
@@ -107,6 +112,8 @@ public abstract class LiveRunner extends OpMode {
     private String driveProblem;
     private Session session;
     private final Map<String, LiveMechanism> mechanisms = new LinkedHashMap<>();
+    /** Devices the routine sets directly, by configured name. */
+    private final Map<String, LiveDevice> devices = new LinkedHashMap<>();
     private final Set<String> resetMotors = new HashSet<>();
     private long routineStartedNanos;
 
@@ -170,7 +177,7 @@ public abstract class LiveRunner extends OpMode {
         } else {
             routineStartedNanos = System.nanoTime();
             try {
-                Scheduler.schedule(LiveRoutine.build(ready, drive, mechanisms, this::complete));
+                Scheduler.schedule(LiveRoutine.build(ready, drive, mechanisms, devices, this::complete));
                 setRun("running", null);
             } catch (RuntimeException e) {
                 abort("Lumière Live could not start the routine: " + describe(e));
@@ -233,13 +240,13 @@ public abstract class LiveRunner extends OpMode {
 
     /** Checks a program on the OpMode's thread, where reading the hardware map is safe, and sets it up if it passes. */
     private void check(Object json) {
-        LiveProgram.Reading reading = LiveProgram.read(json);
+        LiveProgram.Reading reading = LiveProgram.read(json, cap);
         List<String> found = new ArrayList<>(reading.problems);
         List<String> notesFound = new ArrayList<>();
         if (driveProblem != null) found.add(driveProblem);
         if (reading.program != null) {
             Map<String, Object> pedro = pedro();
-            HardwareCheck.Result hardware = HardwareCheck.check(reading.program, hardwareMap, pedro, cap);
+            HardwareCheck.Result hardware = HardwareCheck.check(reading.program, hardwareMap, pedro);
             found.addAll(hardware.problems);
             notesFound.addAll(hardware.notes);
             if (pedro == null) notesFound.add("Lumière Live could not read the team's Pedro Pathing constants, so it cannot tell which devices Pedro drives.");
@@ -260,8 +267,8 @@ public abstract class LiveRunner extends OpMode {
 
     /**
      * Sets up an accepted program as a generated OpMode's init() does: the follower at the start pose,
-     * then each mechanism's devices and starting state. Its paths are built once here so Pedro
-     * Pathing's own objections show before START.
+     * each mechanism's devices and starting state, then the devices the routine sets directly. Its paths
+     * are built once here so Pedro Pathing's own objections show before START.
      *
      * @return why the program could not be set up, or null
      */
@@ -271,15 +278,34 @@ public abstract class LiveRunner extends OpMode {
             drive.setPose(POSES.of(accepted.start.x, accepted.start.y, accepted.start.headingDeg));
             drive.update();
             mechanisms.clear();
+            devices.clear();
             for (LiveProgram.Mechanism mechanism : accepted.mechanisms) {
-                LiveMechanism live = new LiveMechanism(mechanism, hardwareMap, cap, resetMotors);
+                LiveMechanism live = new LiveMechanism(mechanism, hardwareMap, resetMotors);
                 live.initialize();
                 mechanisms.put(mechanism.id, live);
+            }
+            Map<String, Boolean> direct = new LinkedHashMap<>();
+            directDevices(accepted.routine, direct);
+            for (Map.Entry<String, Boolean> entry : direct.entrySet()) {
+                devices.put(entry.getKey(), new LiveDevice(accepted.device(entry.getKey()), entry.getValue(), hardwareMap, resetMotors));
             }
             return null;
         } catch (RuntimeException e) {
             mechanisms.clear();
+            devices.clear();
             return "Lumière Live could not set the program up: " + describe(e);
+        }
+    }
+
+    /** The devices the routine sets directly, in order, each with whether any step sends it to an encoder target. */
+    private static void directDevices(List<LiveProgram.Step> steps, Map<String, Boolean> found) {
+        for (LiveProgram.Step step : steps) {
+            if ("device".equals(step.kind)) {
+                boolean target = "target".equals(step.output.kind);
+                Boolean known = found.get(step.device);
+                found.put(step.device, (known != null && known) || target);
+            }
+            if (step.steps != null) directDevices(step.steps, found);
         }
     }
 
@@ -295,6 +321,10 @@ public abstract class LiveRunner extends OpMode {
         }
         for (LiveMechanism mechanism : mechanisms.values()) {
             String travel = mechanism.travelProblem();
+            if (travel != null) return "Lumière Live stopped: " + travel;
+        }
+        for (LiveDevice device : devices.values()) {
+            String travel = device.travelProblem();
             if (travel != null) return "Lumière Live stopped: " + travel;
         }
         return null;
@@ -322,12 +352,22 @@ public abstract class LiveRunner extends OpMode {
         }
     }
 
-    /** Motors and continuous servos to zero, servos where they are, the follower stopped. */
+    /**
+     * Motors and continuous servos to zero, servos where they are, the follower stopped. Resetting the
+     * scheduler may run a timed step's "then" first; the devices stop after it.
+     */
     private void halt() {
         Scheduler.reset();
         for (LiveMechanism mechanism : mechanisms.values()) {
             try {
                 mechanism.stop();
+            } catch (RuntimeException ignored) {
+                // Stop the rest even if one device fails.
+            }
+        }
+        for (LiveDevice device : devices.values()) {
+            try {
+                device.stop();
             } catch (RuntimeException ignored) {
                 // Stop the rest even if one device fails.
             }
@@ -461,7 +501,7 @@ public abstract class LiveRunner extends OpMode {
             shownProblems = problems;
             shownNotes = notes;
         }
-        telemetry.addLine(NAME + " (mechanism power limit " + HardwareCheck.format(cap) + ")");
+        telemetry.addLine(NAME);
         if (pairingProblem != null) telemetry.addLine(pairingProblem);
         telemetry.addData("Paired computer", paired ? "connected" : "not connected");
         if (shown == null) {

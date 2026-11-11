@@ -22,7 +22,7 @@ import type {
   TeleOpProgram,
 } from "../../ir/types";
 import { checksum, withHeader } from "./ownership";
-import { LIVE_DEFAULT_POWER_CAP, LIVE_OPMODE_NAME } from "../../live/program";
+import { LIVE_OPMODE_NAME } from "../../live/program";
 import { isPairingHash } from "../../live/pairing";
 import { camelCase, commentText, constantCase, isQualifiedName, javaNumber, javaString, NameScope, packageSegment, pascalCase } from "./names";
 
@@ -45,8 +45,6 @@ export interface JavaTarget {
 export interface LiveTarget {
   /** SHA-256 of this computer's pairing secret, as 64 lowercase hexadecimal digits. */
   pairingHash: string;
-  /** The highest power Lumière Live gives a mechanism. Defaults to `LIVE_DEFAULT_POWER_CAP`. */
-  powerCap?: number;
 }
 
 /** The generated Lumière Live OpMode's class. */
@@ -74,8 +72,6 @@ export function checkJavaTarget(target: JavaTarget): string | null {
   }
   if (target.live) {
     if (!isPairingHash(target.live.pairingHash)) return "This computer's Lumière Live pairing is damaged. Turn Live runs off and on again on the Robot page.";
-    const cap = target.live.powerCap;
-    if (cap !== undefined && !(cap > 0 && cap <= 1)) return "Lumière Live's power limit must be above 0 and at most 1.";
   }
   return null;
 }
@@ -214,8 +210,8 @@ function liveSource(packageName: string, constants: Constants, live: LiveTarget)
   w.line("/**");
   w.line(` * ${LIVE_OPMODE_NAME}, paired with the computer that deployed this code. That computer sends it`);
   w.line(` * autonomous programs from ${BRAND.name}. Each one is checked against this robot's hardware, set up`);
-  w.line(" * at INIT, and run on START, with mechanism powers capped at powerCap(). A run stops if that");
-  w.line(" * computer goes quiet for a second, and the Driver Station's STOP always works.");
+  w.line(" * at INIT, and run on START, with every power cut to its device's limit from the Robot page. A run");
+  w.line(" * stops if that computer goes quiet for a second, and the Driver Station's STOP always works.");
   w.line(" *");
   w.line(` * <p>Turn off Live runs in ${BRAND.name} and deploy to remove it. Remove it before competitions.`);
   w.line(" */");
@@ -229,9 +225,6 @@ function liveSource(packageName: string, constants: Constants, live: LiveTarget)
     w.line();
     w.line("@Override");
     w.block("protected Follower createFollower(HardwareMap hardwareMap)", () => w.line(`return ${constants.simpleName}.create(hardwareMap);`));
-    w.line();
-    w.line("@Override");
-    w.block("protected double powerCap()", () => w.line(`return ${javaNumber(live.powerCap ?? LIVE_DEFAULT_POWER_CAP)};`));
   });
   return w.toString();
 }

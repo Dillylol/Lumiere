@@ -77,6 +77,11 @@ export type ServerMessage =
       /** The team's Pedro Pathing localizer the simulation stands in for, such as ThreeWheelIMULocalizer. */
       localizer?: string;
     }
+  /**
+   * A robot's motor and continuous servo powers and servo positions, about ten times a second while any
+   * OpMode is initialized or running, as the SDK last sent them.
+   */
+  | { type: "devices"; opMode: string | null; devices: Record<string, { type: string; power?: number; position?: number | null }> }
   | { type: "telemetry"; lines: string[] }
   | {
       type: "error";
@@ -128,7 +133,7 @@ export type ClientMessage =
   | { type: "place"; x: number; y: number; heading: number }
   | { type: "shutdown" };
 
-const TYPES = new Set<string>(["hello", "manifest", "lifecycle", "state", "path", "robot", "telemetry", "error", "pong", "live"]);
+const TYPES = new Set<string>(["hello", "manifest", "lifecycle", "state", "path", "robot", "devices", "telemetry", "error", "pong", "live"]);
 
 /** Parses a frame, returning null for anything that is not a known server message. */
 export function parseServerMessage(data: unknown): ServerMessage | null {

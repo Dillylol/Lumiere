@@ -51,6 +51,17 @@ report only after the lifecycle message failed now and then; they now look from 
 Whether a real Control Hub can send them in that order is unverified, and the app handles either
 order. Matching the SDK's order in the simulator belongs to simulator fidelity (Phase 6).
 
+**Added 2026-11-11: `--parity` was broken from that fix until 0.4.0.** Its recorder was changed to
+look from before INIT, but two of its waits still used the variable the change removed, so every
+parity run failed with "from is not defined" before comparing anything. Nothing ran `--parity` in
+between; the 0.4.0 parity run found it. Both waits now look from before INIT.
+
+**Added 2026-11-11: Ivy ends a cut-short timed action.** When a race ends, Ivy calls the end handler
+of each command still running in it, inside nested sequences too. Timed actions rely on this, in
+generated code and in Lumière Live alike: `waitMs(N).setEnd(ended -> then)` sets what comes after
+even when the race cuts the wait short. The robot library's tests and check 27 confirm it with the
+pinned Ivy.
+
 ## The app's Robot view against a hub
 
 The Robot tab of the web dev server was connected to the virtual hub at `127.0.0.1`. It showed the

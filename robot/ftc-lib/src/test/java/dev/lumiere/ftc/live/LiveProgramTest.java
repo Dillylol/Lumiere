@@ -33,8 +33,91 @@ public class LiveProgramTest {
             + "{\"kind\":\"together\",\"steps\":[{\"kind\":\"path\",\"path\":\"p1\"},{\"kind\":\"race\",\"steps\":[{\"kind\":\"wait\",\"ms\":1200},{\"kind\":\"state\",\"mechanism\":\"claw\",\"state\":\"open\"}]}]},"
             + "{\"kind\":\"path\",\"path\":\"p2\"}]}";
 
+    /**
+     * A format 2 program: settings once per device, a mechanism naming its device from the list, devices
+     * set directly, timed steps, and a race that cuts a long timed step short.
+     */
+    static final String PROGRAM_2 = "{\"format\":2,\"name\":\"Direct\",\"revision\":\"9a8b7c6d\","
+            + "\"start\":{\"x\":9,\"y\":72,\"headingDeg\":0},"
+            + "\"devices\":[{\"name\":\"Intake\",\"kind\":\"motor\",\"reversed\":true,\"powerLimit\":0.7},"
+            + "{\"name\":\"Turret\",\"kind\":\"motor\",\"reversed\":false,\"powerLimit\":0.8,\"travel\":{\"minTicks\":-200,\"maxTicks\":1500}},"
+            + "{\"name\":\"claw\",\"kind\":\"servo\",\"reversed\":false},"
+            + "{\"name\":\"Grip1\",\"kind\":\"crservo\",\"reversed\":false,\"powerLimit\":0.5}],"
+            + "\"mechanisms\":[{\"id\":\"roller\",\"name\":\"Roller\",\"devices\":[{\"id\":\"g\",\"name\":\"Grip1\",\"kind\":\"crservo\"}],"
+            + "\"states\":[{\"id\":\"spin\",\"name\":\"Spin\",\"outputs\":{\"g\":{\"kind\":\"power\",\"value\":1}}},"
+            + "{\"id\":\"stop\",\"name\":\"Stop\",\"outputs\":{\"g\":{\"kind\":\"power\",\"value\":0}}}],\"initialState\":\"stop\"}],"
+            + "\"paths\":[],"
+            + "\"routine\":["
+            + "{\"kind\":\"device\",\"device\":\"Intake\",\"output\":{\"kind\":\"power\",\"value\":0.9}},"
+            + "{\"kind\":\"state\",\"mechanism\":\"roller\",\"state\":\"spin\",\"duration\":{\"ms\":40,\"then\":\"stop\"}},"
+            + "{\"kind\":\"device\",\"device\":\"Turret\",\"output\":{\"kind\":\"target\",\"ticks\":1200,\"power\":1}},"
+            + "{\"kind\":\"device\",\"device\":\"claw\",\"output\":{\"kind\":\"position\",\"value\":0.6},\"duration\":{\"ms\":40,\"thenPosition\":0.2}},"
+            + "{\"kind\":\"device\",\"device\":\"Intake\",\"output\":{\"kind\":\"power\",\"value\":0.4},\"duration\":{\"ms\":40}},"
+            + "{\"kind\":\"race\",\"steps\":[{\"kind\":\"wait\",\"ms\":30},"
+            + "{\"kind\":\"state\",\"mechanism\":\"roller\",\"state\":\"spin\",\"duration\":{\"ms\":60000,\"then\":\"stop\"}}]}]}";
+
     static Map<String, Object> program() {
         return Json.parseObject(PROGRAM);
+    }
+
+    @Test
+    public void readsAFormatTwoProgramWithItsDeviceSettingsAndTimedSteps() {
+        LiveProgram.Reading reading = LiveProgram.read(Json.parseObject(PROGRAM_2), 0.6);
+        assertEquals("[]", reading.problems.toString());
+        LiveProgram program = reading.program;
+        assertEquals(2, program.format);
+        assertEquals(4, program.devices.size());
+        // Format 2 carries each device's own limit; the format 1 limit is not used.
+        assertEquals(0.7, program.device("Intake").powerLimit, 0);
+        assertEquals(1, program.device("claw").powerLimit, 0);
+        assertEquals(-0.7, program.device("Intake").limited(-0.9), 1e-9);
+        // The mechanism's device takes its settings from the list.
+        LiveProgram.Device grip = program.mechanism("roller").devices.get(0);
+        assertEquals("g", grip.id);
+        assertEquals(0.5, grip.powerLimit, 0);
+        LiveProgram.Step timed = program.routine.get(1);
+        assertTrue(timed.timed());
+        assertEquals("stop", timed.thenState);
+        assertEquals(0.2, program.routine.get(3).thenPosition, 0);
+        assertEquals("Intake", program.routine.get(4).device);
+        assertTrue(Double.isNaN(program.routine.get(4).thenPosition));
+    }
+
+    @Test
+    public void givesEveryDeviceOfAFormatOneProgramTheFormatOneLimit() {
+        LiveProgram program = LiveProgram.read(program(), 0.6).program;
+        assertEquals(1, program.format);
+        assertEquals("[Intake, claw, Turret]", program.devices.stream().map(device -> device.name).collect(java.util.stream.Collectors.toList()).toString());
+        assertEquals(0.6, program.device("Turret").powerLimit, 0);
+        assertEquals(0.6, program.mechanism("intake").devices.get(0).powerLimit, 0);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void listsTheProblemsOfAFormatTwoProgram() {
+        Map<String, Object> json = Json.parseObject(PROGRAM_2);
+        Map<String, Object> claw = (Map<String, Object>) ((List<Object>) json.get("devices")).get(2);
+        claw.put("powerLimit", 0.5);
+        json.put("routine", Json.parse("[{\"kind\":\"device\",\"device\":\"ghost\",\"output\":{\"kind\":\"power\",\"value\":1}},"
+                + "{\"kind\":\"device\",\"device\":\"Intake\",\"output\":{\"kind\":\"power\",\"value\":1},\"duration\":{\"ms\":0}},"
+                + "{\"kind\":\"state\",\"mechanism\":\"roller\",\"state\":\"spin\",\"duration\":{\"ms\":100,\"then\":\"gone\"}}]"));
+        List<String> problems = LiveProgram.read(json).problems;
+        assertEquals(problems.toString(), 4, problems.size());
+        assertTrue(problems.get(0), problems.get(0).contains("\"claw\" is a servo, which takes positions, so it can't have a power limit"));
+        assertTrue(problems.get(1), problems.get(1).contains("sets a device the program does not list"));
+        assertTrue(problems.get(2), problems.get(2).contains("lasts 0 or less"));
+        assertTrue(problems.get(3), problems.get(3).contains("when its time is up"));
+
+        // A mechanism must use a listed device as the kind the list gives it.
+        Map<String, Object> mismatched = Json.parseObject(PROGRAM_2);
+        Map<String, Object> grip = (Map<String, Object>) ((List<Object>) mechanism(mismatched, 0).get("devices")).get(0);
+        grip.put("kind", "motor");
+        assertTrue(LiveProgram.read(mismatched).problems.toString(),
+                LiveProgram.read(mismatched).problems.get(0).contains("\"Grip1\" in \"Roller\" is used as a motor, but the program's device list has it as a crservo"));
+
+        Map<String, Object> old = program();
+        old.put("routine", Json.parse("[{\"kind\":\"device\",\"device\":\"Intake\",\"output\":{\"kind\":\"power\",\"value\":1}}]"));
+        assertTrue(LiveProgram.read(old).problems.toString().contains("which format 1 programs do not have"));
     }
 
     @Test
@@ -79,7 +162,7 @@ public class LiveProgramTest {
     @Test
     public void refusesProgramsItCannotRead() {
         Map<String, Object> newer = program();
-        newer.put("format", 2.0);
+        newer.put("format", 3.0);
         assertTrue(LiveProgram.read(newer).problems.get(0).contains("newer robot library"));
         assertEquals("The program is missing.", LiveProgram.read(null).problems.get(0));
 

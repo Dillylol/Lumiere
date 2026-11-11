@@ -33,10 +33,11 @@ export function defaultDeploySettings(project: Project, inspection?: FtcProjectI
 }
 
 /**
- * The first robot library release with Lumière Live. The robot library's version follows the app's, and a
+ * The first robot library that reads the Lumière Live programs this app sends (format 2, with each
+ * device's settings, direct device actions and timed actions). The robot library's version follows the app's, and a
  * local build (`0.0.0-local`) is always current.
  */
-export const LIVE_MIN_LIBRARY = "0.3.0";
+export const LIVE_MIN_LIBRARY = "0.4.0";
 
 /** True when a robot library version is a release older than `minimum`; unknown forms, such as a commit, are not. */
 export function olderLibrary(version: string, minimum: string): boolean {

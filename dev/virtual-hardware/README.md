@@ -147,16 +147,25 @@ as on a slow hub, and connects one app during that gap.
 20. A paired computer's program is checked against the configuration and Pedro Pathing's devices.
     A program that uses Pedro's front-left drive motor, misuses a device, and names a missing one
     is rejected with those three reasons. A valid one is accepted, and the Driver Station shows it.
-21. START runs a paired computer's program: the robot drives the path, the check motor runs at the
-    0.6 power cap though the program asks for 1, and the servo reaches its position. In check mode
-    the hub adds `lumiere_check_motor` and `lumiere_check_servo` to the configuration for this.
+21. START runs a paired computer's format 1 program (Lumière 0.3): the robot drives the path, the
+    check motor runs at the generated 0.6 power cap though the program asks for 1, and the servo
+    reaches its position. In check mode the hub adds `lumiere_check_motor` and `lumiere_check_servo`
+    to the configuration for this.
 22. Lumière Live stops within 1.5 s when the paired computer goes silent: motors at zero, OpMode
     ended.
 23. It stops at once when the paired computer disconnects.
 24. A motor that leaves its travel range stops the run.
 25. Driver Station STOP ends a Live run at once while the paired computer keeps pinging; the drive
     is at zero power and the robot coasts to rest.
-26. No OpMode errors.
+26. Format 2 (Lumière 0.4): a device the program sets directly runs at its own power limit (0.5, for
+    1 asked), and timed actions end in what comes after them: the motor stops when its time is up,
+    and the servo goes from 0.25 to its position after, 0.75.
+27. A race whose wait ends first cuts a 20-second timed action short, and the motor still stops,
+    while the routine goes on.
+28. An OpMode that doesn't use `Session` (`harness/java/.../live/PlainPedro.java`, which keeps its
+    follower in its own robot object) has its pose and its motor's power reported by the robot
+    library, about ten times a second each, and nothing after it stops.
+29. No OpMode errors.
 
 ## What `--parity` covers
 
@@ -170,9 +179,9 @@ The secret must be the one the project's generated `LumiereLive.java` is paired 
 2. take the same time, within 3%;
 3. end at the same pose, within 1.5 in and 3 degrees;
 4. drive the same route, within 1.5 in, compared by shape: the Driver Station hears the robot every 100 ms, and the real-time simulator varies by about half an inch from run to run where the robot settles;
-5. set the same mechanism outputs in the same order, within 0.3 s.
+5. set the same device outputs in the same order, within 0.3 s: every device a format 2 program lists, mechanisms' and directly set ones (a format 1 program's mechanism devices).
 
-Set the generated file's power limit to 1 for parity; a lower cap changes the outputs on purpose.
+A format 1 program needs the generated file's power cap at 1 for parity, as a lower cap changes the outputs on purpose. A format 2 program carries each device's own limit, which the deployed OpMode applies too.
 
 ## What `--shakedown` covers
 

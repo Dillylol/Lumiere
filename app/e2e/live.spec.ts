@@ -9,7 +9,7 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
       const message = JSON.parse(String(data));
       if (message.type !== "ping") received.push(message);
     });
-    socket.send(JSON.stringify({ type: "hello", protocol: 1, source: "robot", library: "test-hub", capabilities: { live: 1 } }));
+    socket.send(JSON.stringify({ type: "hello", protocol: 1, source: "robot", library: "test-hub", capabilities: { live: 2 } }));
   });
   await page.goto("/");
   await page.getByRole("button", { name: /Square autonomous/ }).click();
@@ -22,7 +22,9 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   await expect(live).toContainText("Off.");
   await live.getByLabel("Live runs from this computer").check();
   await expect(live).toContainText("Only this computer is paired.");
-  await expect(live.getByLabel("Mechanism power limit")).toHaveValue("0.6");
+  // Power limits are each device's, in the hardware list; Lumière Live has no limit of its own.
+  await expect(live).toContainText("Set power limits for first tests");
+  await expect(live.getByLabel("Mechanism power limit")).toHaveCount(0);
 
   await workspace.getByRole("button", { name: "Pathing", exact: true }).click();
   await page.getByRole("group", { name: "Mode" }).getByRole("button", { name: "Robot" }).click();
@@ -49,7 +51,7 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   stream!.send(report({ paired: true }));
   await expect.poll(() => received.map((message) => message.type)).toEqual(["auth", "program"]);
   const program = received[1].program as { format: number; name: string; revision: string; paths: unknown[] };
-  expect(program.format).toBe(1);
+  expect(program.format).toBe(2);
   expect(program.paths.length).toBeGreaterThan(0);
 
   const summary = { name: program.name, revision: program.revision, steps: 4, paths: program.paths.length, mechanisms: 1 };
@@ -57,11 +59,11 @@ test("pairs this computer with Lumière Live, sends the open program, and shows 
   await expect(controls).toContainText(`"${program.name}" can't run on this robot: 1 problem.`);
   await expect(controls).toContainText("\"lift\" in Lift is not in the robot's configuration.");
 
-  stream!.send(report({ paired: true, state: "accepted", program: summary, notes: ["\"lift\" in Lift runs at power 1; Lumière Live limits mechanisms to 0.6."] }));
+  stream!.send(report({ paired: true, state: "accepted", program: summary, notes: ["\"lift\" in Lift is given power 1 in \"Up\"; its power limit cuts that to 0.6."] }));
   await expect(controls).toContainText(`"${program.name}" passed`);
   await expect(controls).toContainText("Press START on the Driver Station to run it.");
-  await expect(controls).toContainText("Lumière Live limits mechanisms to 0.6.");
-  await expect(controls).toContainText("Mechanism power limit 0.6");
+  await expect(controls).toContainText("its power limit cuts that to 0.6.");
+  await expect(controls).not.toContainText("Mechanism power limit");
 
   // START on the Driver Station: the run is this program's, so it is drawn against the plan.
   stream!.send(report({ paired: true, state: "accepted", started: true, program: summary, run: { phase: "running", reason: null } }));

@@ -30,7 +30,7 @@ export default function Workbench({project,onUpdate,onBack,saved,notice,onNotice
  const [livePairing,setLivePairingState]=useState(()=>loadLivePairing(project.id));
  useEffect(()=>setLivePairingState(loadLivePairing(project.id)),[project.id]);
  const setLivePairing=(next:LivePairing|null)=>{saveLivePairing(project.id,next);setLivePairingState(next);};
- const liveTarget=useMemo(()=>livePairing?{pairingHash:livePairing.pairingHash,...(livePairing.powerCap!==undefined?{powerCap:livePairing.powerCap}:{})}:undefined,[livePairing?.pairingHash,livePairing?.powerCap]);
+ const liveTarget=useMemo(()=>livePairing?{pairingHash:livePairing.pairingHash}:undefined,[livePairing?.pairingHash]);
  const desktop=useDesktop(project,log,liveTarget);
  const program=project.programs.find(p=>p.id===programId)??project.programs[0];
  // While an FTC SDK project is linked, the robot profile follows its Pedro constants class as saved on disk.

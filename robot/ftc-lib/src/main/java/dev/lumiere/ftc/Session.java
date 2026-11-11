@@ -30,6 +30,8 @@ import java.util.Map;
 public final class Session {
     private static final long PUBLISH_INTERVAL_NANOS = 50_000_000L;
     private static final int PATH_SAMPLES = 64;
+    /** When any session last reported, or 0 before the first. */
+    private static volatile long lastPublishedNanos;
 
     private final String opModeName;
     private final Map<String, Object> data = new LinkedHashMap<>();
@@ -91,7 +93,17 @@ public final class Session {
         }
     }
 
+    /**
+     * Whether a session reported within the last {@code ms} milliseconds. The robot library reports the
+     * pose of OpModes that don't use one, and leaves it to a session that does.
+     */
+    public static boolean publishedWithin(long ms) {
+        long last = lastPublishedNanos;
+        return last != 0 && System.nanoTime() - last < ms * 1_000_000L;
+    }
+
     private void publish() {
+        lastPublishedNanos = System.nanoTime();
         Map<String, Object> body = Json.object();
         body.put("opMode", opModeName);
         body.put("loopMs", round(loopMs));

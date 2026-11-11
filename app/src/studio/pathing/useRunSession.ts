@@ -168,6 +168,8 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   const historyNow = useRef<RunSample[]>([]);
   const latestData = useRef<Record<string, number>>({});
   const latestLoop = useRef<number | undefined>(undefined);
+  /** A hub's latest device outputs, kept with each sample of the run. */
+  const latestDevices = useRef<Record<string, DeviceReport> | undefined>(undefined);
   /** Whether the OpMode is running, as the latest message said; React state lags behind a burst of messages. */
   const runningNow = useRef(false);
   /** Keeps a sample at most every SAMPLE_MS of run time. */
@@ -242,7 +244,7 @@ export function useRunSession(options: RunSessionOptions): RunSession {
   /** What one OpMode run reported; cleared at INIT. */
   const clearRun = () => {
     setRoute(undefined); setTarget(undefined); setData({}); setDevices({}); setLoopMs(undefined); setFollower(undefined); setLocalizer(undefined); resetTrail();
-    historyNow.current = []; setHistory([]); latestData.current = {}; latestLoop.current = undefined;
+    historyNow.current = []; setHistory([]); latestData.current = {}; latestLoop.current = undefined; latestDevices.current = undefined;
   };
   const clearLive = () => {
     liveSent.current = { auth: false, failed: false, revision: null };
@@ -346,7 +348,12 @@ export function useRunSession(options: RunSessionOptions): RunSession {
       }
       latestLoop.current = Number.isFinite(message.loopMs) ? message.loopMs : undefined;
       // A hub's run is timed here from START; the simulator's samples come with its own clock.
-      if (next && streamSource.current === "robot" && runningNow.current && runStart.current !== null) sample(performance.now() - runStart.current, next);
+      if (next && streamSource.current === "robot" && runningNow.current && runStart.current !== null) sample(performance.now() - runStart.current, next, latestDevices.current);
+    } else if (message.type === "devices") {
+      // Any OpMode on a hub: what the SDK last sent each motor and servo.
+      const reports = readDeviceReports(message.devices);
+      latestDevices.current = reports;
+      setDevices(reports);
     } else if (message.type === "path") {
       setRoute(Array.isArray(message.points) ? message.points.filter((point) => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])) : undefined);
     } else if (message.type === "telemetry") {

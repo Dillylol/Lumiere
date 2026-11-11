@@ -14,12 +14,8 @@ import java.util.Set;
 
 /**
  * A mechanism from a Live program, driven the way the generated mechanism class drives it: the same
- * device setup, the same calls for each state, and the same command. Two things differ:
- *
- * <ul>
- *   <li>powers are capped at the runner's limit</li>
- *   <li>motors that take encoder targets must stay within their declared travel</li>
- * </ul>
+ * device setup, the same calls for each state with each power cut to its device's limit, and the same
+ * command. One thing is added: motors that take encoder targets must stay within their declared travel.
  */
 final class LiveMechanism {
     /** How far past its travel a motor may go, as a share of the travel, before Lumière Live stops the run. */
@@ -28,7 +24,6 @@ final class LiveMechanism {
     static final int TRAVEL_MARGIN_TICKS = 20;
 
     final LiveProgram.Mechanism mechanism;
-    private final double cap;
     private final Map<String, DcMotor> motors = new LinkedHashMap<>();
     private final Map<String, Servo> servos = new LinkedHashMap<>();
     private final Map<String, CRServo> crServos = new LinkedHashMap<>();
@@ -41,9 +36,8 @@ final class LiveMechanism {
      * @param reset motor names whose encoders were already reset during this INIT; a resent program
      *              must not move a motor's zero
      */
-    LiveMechanism(LiveProgram.Mechanism mechanism, HardwareMap hardwareMap, double cap, Set<String> reset) {
+    LiveMechanism(LiveProgram.Mechanism mechanism, HardwareMap hardwareMap, Set<String> reset) {
         this.mechanism = mechanism;
-        this.cap = cap;
         for (LiveProgram.State candidate : mechanism.states) {
             for (Map.Entry<String, LiveProgram.Output> entry : candidate.outputs.entrySet()) {
                 if ("target".equals(entry.getValue().kind)) targetMotors.add(entry.getKey());
@@ -94,15 +88,15 @@ final class LiveMechanism {
                 DcMotor motor = motors.get(device.id);
                 if (motor != null) {
                     if (targetMotors.contains(device.id)) motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                    motor.setPower(capped(output.value));
+                    motor.setPower(device.limited(output.value));
                 } else {
-                    crServos.get(device.id).setPower(capped(output.value));
+                    crServos.get(device.id).setPower(device.limited(output.value));
                 }
             } else {
                 DcMotor motor = motors.get(device.id);
                 motor.setTargetPosition(output.ticks);
                 motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                motor.setPower(capped(output.power));
+                motor.setPower(device.limited(output.power));
             }
         }
     }
@@ -147,7 +141,9 @@ final class LiveMechanism {
         return state == null ? null : state.name;
     }
 
-    private double capped(double power) {
-        return Math.max(-cap, Math.min(cap, power));
+    /** The mechanism's state with this id, or null. */
+    LiveProgram.State state(String id) {
+        for (LiveProgram.State candidate : mechanism.states) if (candidate.id.equals(id)) return candidate;
+        return null;
     }
 }

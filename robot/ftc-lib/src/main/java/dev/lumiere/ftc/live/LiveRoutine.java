@@ -17,18 +17,22 @@ import java.util.Map;
  * {@code sequential} steps ending with an instant that reports completion, {@code parallel} for
  * together and {@code race} for race. Paths are built when the routine is, at START, as a generated
  * OpMode builds them.
+ *
+ * <p>A timed step is {@code sequential(instant(set), waitMs(ms).setEnd(ended -> then))}, as generated:
+ * Ivy calls a command's end handler however it ends, so what comes after also happens when a race cuts
+ * the step short.
  */
 final class LiveRoutine {
     private LiveRoutine() {
     }
 
-    static Command build(LiveProgram program, LiveDrive drive, Map<String, LiveMechanism> mechanisms, Runnable onComplete) {
-        List<Command> steps = steps(program, program.routine, drive, mechanisms);
+    static Command build(LiveProgram program, LiveDrive drive, Map<String, LiveMechanism> mechanisms, Map<String, LiveDevice> devices, Runnable onComplete) {
+        List<Command> steps = steps(program, program.routine, drive, mechanisms, devices);
         steps.add(instant(onComplete));
         return sequential(steps.toArray(new Command[0]));
     }
 
-    private static List<Command> steps(LiveProgram program, List<LiveProgram.Step> steps, LiveDrive drive, Map<String, LiveMechanism> mechanisms) {
+    private static List<Command> steps(LiveProgram program, List<LiveProgram.Step> steps, LiveDrive drive, Map<String, LiveMechanism> mechanisms, Map<String, LiveDevice> devices) {
         List<Command> commands = new ArrayList<>();
         for (LiveProgram.Step step : steps) {
             switch (step.kind) {
@@ -42,14 +46,26 @@ final class LiveRoutine {
                     break;
                 case "state": {
                     LiveMechanism mechanism = mechanisms.get(step.mechanism);
-                    for (LiveProgram.State state : mechanism.mechanism.states) {
-                        if (state.id.equals(step.state)) commands.add(mechanism.command(state));
+                    LiveProgram.State state = mechanism.state(step.state);
+                    if (step.timed()) {
+                        LiveProgram.State then = mechanism.state(step.thenState);
+                        commands.add(timed(() -> mechanism.set(state), step.durationMs, () -> mechanism.set(then)));
+                    } else {
+                        commands.add(mechanism.command(state));
                     }
+                    break;
+                }
+                case "device": {
+                    LiveDevice device = devices.get(step.device);
+                    LiveProgram.Output output = step.output;
+                    if (step.timed()) commands.add(timed(() -> device.set(output), step.durationMs, () -> device.after(step.thenPosition)));
+                    else if ("target".equals(output.kind)) commands.add(device.toTarget(output));
+                    else commands.add(instant(() -> device.set(output)));
                     break;
                 }
                 default: {
                     // Empty groups are left out, as the generated Java leaves them out.
-                    List<Command> children = steps(program, step.steps, drive, mechanisms);
+                    List<Command> children = steps(program, step.steps, drive, mechanisms, devices);
                     if (children.isEmpty()) break;
                     Command[] group = children.toArray(new Command[0]);
                     commands.add("together".equals(step.kind) ? parallel(group) : race(group));
@@ -57,5 +73,9 @@ final class LiveRoutine {
             }
         }
         return commands;
+    }
+
+    private static Command timed(Runnable set, double ms, Runnable then) {
+        return sequential(instant(set), waitMs(ms).setEnd(ended -> then.run()));
     }
 }

@@ -155,13 +155,14 @@ describe("Java generation", () => {
     expect(live).toContain(`return "${hash}";`);
     expect(live).toContain("return Constants.class;");
     expect(live).toContain("return Constants.create(hardwareMap);");
-    expect(live).toContain("return 0.6;");
+    // Each program carries its devices' power limits, so the generated class sets none.
+    expect(live).not.toContain("powerCap");
     expect(live).toContain("import dev.lumiere.ftc.live.LiveRunner;");
     expect(ownershipOf(live)).toBe("generated");
     expect(result.files.some((file) => file.path.endsWith("/LumiereLive2.java"))).toBe(true);
 
     expect(checkJavaTarget({ live: { pairingHash: "not a hash" } })).toMatch(/pairing is damaged/);
-    expect(checkJavaTarget({ live: { pairingHash: hash, powerCap: 1.5 } })).toMatch(/power limit/);
+    expect(checkJavaTarget({ live: { pairingHash: hash } })).toBeNull();
   });
 
   it("keeps generated class names from shadowing the constants class", () => {

@@ -255,6 +255,45 @@ public class LiveRunnerTest {
     }
 
     @Test
+    public void runsAFormatTwoProgramWithEachDevicesLimitAndItsTimedSteps() throws InterruptedException {
+        FakePeer app = accept(program2());
+        Map<String, Object> report = last();
+        assertEquals(report.toString(), "accepted", report.get("state"));
+        String notes = report.get("notes").toString();
+        assertTrue(notes, notes.contains("\"Intake\" is given power 0.9 by an action; its power limit cuts that to 0.7."));
+        assertTrue(notes, notes.contains("\"Grip1\" in Roller is given power 1 in \"Spin\"; its power limit cuts that to 0.5."));
+        // INIT: the devices the routine sets directly are set up as the generated init() sets them up.
+        assertEquals("[setDirection REVERSE, setZeroPowerBehavior BRAKE]", calls.get("Intake").toString());
+        assertTrue(calls.get("Turret").toString(), calls.get("Turret").contains("setMode STOP_AND_RESET_ENCODER"));
+
+        live.start();
+        runToTheEnd(app);
+        assertEquals(run().toString(), "finished", run().get("phase"));
+        // Each power is cut to its own device's limit, and each timed step ends in what comes after it.
+        assertEquals("[setDirection REVERSE, setZeroPowerBehavior BRAKE, setPower 0.7, setPower 0.4, setPower 0.0]", calls.get("Intake").toString());
+        assertTrue(calls.get("Turret").toString(), calls.get("Turret").containsAll(List.of("setTargetPosition 1200", "setMode RUN_TO_POSITION", "setPower 0.8")));
+        assertEquals("[setDirection FORWARD, setPosition 0.6, setPosition 0.2]", calls.get("claw").toString());
+        // The roller spins at its limit and stops when its time is up. In the race, the wait ends first and
+        // cuts the 60-second spin short, and the roller still stops.
+        assertEquals("[setDirection FORWARD, setPower 0.0, setPower 0.5, setPower 0.0, setPower 0.5, setPower 0.0]", calls.get("Grip1").toString());
+    }
+
+    @Test
+    public void stopsWhenADeviceSetDirectlyLeavesItsTravel() {
+        FakePeer app = accept(program2());
+        live.start();
+        positions.put("Turret", 3000);
+        app.heard = System.currentTimeMillis();
+        live.loop();
+        Map<String, Object> run = run();
+        assertEquals(run.toString(), "stopped", run.get("phase"));
+        assertTrue(run.toString(), String.valueOf(run.get("reason")).contains("\"Turret\" left its travel: it is at 3000 ticks, and its travel is -200 to 1500."));
+        assertEquals("setPower 0.0", lastCall("Turret"));
+        assertEquals("setPower 0.0", lastCall("Intake"));
+        assertEquals("setPower 0.0", lastCall("Grip1"));
+    }
+
+    @Test
     public void reportsAStopFromTheDriverStationAsHowTheRunEnded() {
         FakePeer app = accept(program());
         live.start();
@@ -299,6 +338,16 @@ public class LiveRunnerTest {
         return app;
     }
 
+    /** Loops, with the paired computer heard from, until the run finishes; timed steps need real time to pass. */
+    private void runToTheEnd(FakePeer app) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 3000;
+        while (!"finished".equals(run().get("phase")) && !"stopped".equals(run().get("phase")) && System.currentTimeMillis() < deadline) {
+            app.heard = System.currentTimeMillis();
+            live.loop();
+            Thread.sleep(5);
+        }
+    }
+
     private void assertStopped(String reason) {
         Map<String, Object> run = run();
         assertEquals(run.toString(), "stopped", run.get("phase"));
@@ -330,6 +379,10 @@ public class LiveRunnerTest {
 
     static Map<String, Object> program() {
         return Json.parseObject("{\"type\":\"program\",\"program\":" + LiveProgramTest.PROGRAM + "}");
+    }
+
+    static Map<String, Object> program2() {
+        return Json.parseObject("{\"type\":\"program\",\"program\":" + LiveProgramTest.PROGRAM_2 + "}");
     }
 
     /**

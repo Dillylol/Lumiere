@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import sample from "../../../../fixtures/projects/sample-robot.json";
-import { parseProject } from "../../core";
+import { buildLiveProgram, parseProject } from "../../core";
 import { RunPanel, TelemetryPanel, type RunEnvironment } from "./RunPanels";
 import type { RunSession } from "./useRunSession";
 
@@ -81,5 +81,23 @@ describe("Simulate panels", () => {
     expect(within(states).getByText("Intake").parentElement).toHaveTextContent("Stop");
     expect(screen.getByText("Other devices (1)")).toBeInTheDocument();
     expect(screen.getByText("turret: power 0.30 · 12 ticks")).toBeInTheDocument();
+  });
+});
+
+describe("Robot panels", () => {
+  afterEach(cleanup);
+
+  it("asks for a newer robot library when the robot reads only older Lumière Live programs", () => {
+    const auto = project.programs.find((item) => item.kind === "autonomous")!;
+    if (auto.kind !== "autonomous") throw new Error("the sample has an autonomous");
+    const liveProgram = buildLiveProgram(project, auto);
+    const robot = (live: number) => session({ source: "robot", linked: true, connected: true, status: "Connected",
+      hello: { type: "hello", protocol: 1, source: "robot", library: "0.3.1", capabilities: { live } } });
+    const env = environment({ live: { secret: "s".repeat(64) } });
+    const { rerender } = render(<RunPanel mode="robot" session={robot(1)} project={project} program={auto} env={env} liveProgram={liveProgram} onHide={vi.fn()}/>);
+    expect(screen.getByText(/runs Lumière Live programs from older versions of Lumière only/)).toBeInTheDocument();
+    rerender(<RunPanel mode="robot" session={robot(2)} project={project} program={auto} env={env} liveProgram={liveProgram} onHide={vi.fn()}/>);
+    expect(screen.queryByText(/older versions of Lumière only/)).toBeNull();
+    expect(screen.getByText(/On the Driver Station, choose Lumière Live and press INIT/)).toBeInTheDocument();
   });
 });

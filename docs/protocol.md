@@ -119,6 +119,32 @@ connected.
 - **Optional fields:** `pose`, `follower`, and `target` are present only when the session has a follower. `target` is present only while following a path.
 - **`follower` values:** `follow`, `hold`, `manual`, or `idle`.
 - **`data`:** holds values added with `Session.data(name, value)` since the previous report.
+- **OpModes without a session (robot library 0.4.0 and later, on a robot):** while any other OpMode is initialized or running, the robot library finds its Pedro Pathing follower, in the OpMode's fields and the team's objects they hold, and sends about ten `state` messages a second with only `opMode` and `pose`. It sends none while a session is reporting, or when it finds no follower.
+
+```json
+{ "type": "state", "opMode": "Bjorn Red Goal Auto", "pose": { "x": 36.0, "y": 84.0, "heading": 0.785 } }
+```
+
+### `devices` (robot only)
+
+Sent by robot library 0.4.0 and later about ten times a second while any OpMode is initialized or
+running, and only while a client is connected. Each configured motor and continuous servo has its
+power, and each servo its position, as the SDK last sent them, by configured name.
+
+```json
+{
+  "type": "devices",
+  "opMode": "Bjorn Red Goal Auto",
+  "devices": {
+    "intake": { "type": "motor", "power": 0.7 },
+    "spinner": { "type": "crservo", "power": -0.5 },
+    "kicker": { "type": "servo", "position": 0.4 }
+  }
+}
+```
+
+- **Read from the SDK's record, never from the hub:** reading happens on the library's own thread, so it must not slow the OpMode. On a hub, a device the SDK has no record for yet (one the OpMode hasn't set) is left out.
+- **No encoder positions:** reading them would ask the hub. The simulator's `robot` message has them.
 
 ### `path`
 
@@ -196,7 +222,7 @@ Lumière Live's report, sent to every client whenever it changes while Lumière 
   "silenceMs": 1000,
   "program": { "name": "Red Goal", "revision": "3f2a9c1b", "steps": 18, "paths": 9, "mechanisms": 4 },
   "problems": [],
-  "notes": ["\"Intake\" in Intake runs at power 1 in \"In\"; Lumière Live limits mechanisms to 0.6."],
+  "notes": ["\"Intake\" in Intake is given power 1 in \"In\"; its power limit cuts that to 0.7."],
   "run": { "phase": "stopped", "reason": "Lumière Live stopped: the paired computer was silent for more than 1.0 s." }
 }
 ```
@@ -204,46 +230,65 @@ Lumière Live's report, sent to every client whenever it changes while Lumière 
 - **`state`:** `waiting` for a program, `checking` one, `accepted`, `rejected`, or `closed` once the OpMode stops.
 - **`paired`:** whether a computer is paired with this run of Lumière Live.
 - **`dryRun`:** true from robot libraries whose Lumière Live only checked programs and never moved. It is false since programs run.
+- **`powerCap`:** the power limit of every device in a format 1 program. Format 2 programs carry each device's own limit, so Lumière 0.4.0 and later ignore it.
 - **`silenceMs`:** how long Lumière Live waits to hear from the paired computer before it stops a run.
 - **`run`:** after START. `phase` is `running`, `finished` (the routine is done, and the follower holds its last pose), `stopped` with a `reason`, or `not run` with a `reason`, such as no program that passed or no paired computer. `elapsedMs` is the routine's time once it finishes. The `closed` report keeps the run's last phase, so it says how the run ended; Driver Station STOP during a run makes it `stopped`. The app shows that report until the next INIT.
-- **`problems`:** why the program can't run on this robot: a device that is missing or configured as another type, a device Pedro Pathing drives, an encoder target on a dead wheel's port, an encoder target without a travel range or outside it, or a malformed program. **`notes`:** what doesn't stop it, such as a power above `powerCap`.
+- **`problems`:** why the program can't run on this robot: a device that is missing or configured as another type, a device Pedro Pathing drives, an encoder target on a dead wheel's port, an encoder target without a travel range or outside it, or a malformed program. **`notes`:** what doesn't stop it, such as a power its device's limit cuts.
 
 ## Lumière Live programs
 
-Lumière generates `LumiereLive.java` (`@Autonomous` "Lumière Live") when Live runs are on for a computer. It extends the robot library's `LiveRunner` and carries the SHA-256 of that computer's pairing secret, the team's Pedro constants class, and the mechanism power cap.
+Lumière generates `LumiereLive.java` (`@Autonomous` "Lumière Live") when Live runs are on for a computer. It extends the robot library's `LiveRunner` and carries the SHA-256 of that computer's pairing secret and the team's Pedro constants class.
 
-- **INIT:** a program that passes the check is set up as a generated OpMode's `init()` sets it up. The follower is placed at the start pose, and each mechanism's devices are configured and its starting state applied.
-- **START:** the routine runs with the Pedro Pathing paths and Ivy commands the generated Java would use. Mechanism powers are capped at the power cap.
-- **Stopping:** a run stops when the paired computer is silent for more than `silenceMs` (the app pings every 250 ms while paired, and on a received message whenever its timer runs late, as browsers make it for a hidden page), when it disconnects, when a motor with encoder targets leaves its travel range, or on any error. Stopping sets mechanism motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
+- **INIT:** a program that passes the check is set up as a generated OpMode's `init()` sets it up. The follower is placed at the start pose, each mechanism's devices are configured and its starting state applied, and the devices the routine sets directly are configured.
+- **START:** the routine runs with the Pedro Pathing paths and Ivy commands the generated Java would use, with every power cut to its device's limit, as the generated Java cuts it.
+- **Stopping:** a run stops when the paired computer is silent for more than `silenceMs` (the app pings every 250 ms while paired, and on a received message whenever its timer runs late, as browsers make it for a hidden page), when it disconnects, when a motor with encoder targets leaves its travel range, or on any error. Stopping sets the program's motors and continuous servos to zero, leaves servos where they are, stops the follower, and ends the OpMode.
 - **The Driver Station stays in charge:** only it can INIT and START Lumière Live, and its STOP always works.
 
-When Lumière Live is initialized, the paired app sends `auth`, then `program`, and a new `program` whenever the open program changes before START. A program (format 1):
+When Lumière Live is initialized, the paired app sends `auth`, then `program`, and a new `program` whenever the open program changes before START. A program (format 2, from Lumière 0.4.0):
 
 ```json
 {
-  "format": 1,
+  "format": 2,
   "name": "Red Goal",
   "revision": "3f2a9c1b",
   "start": { "x": 110.5, "y": 135.5, "headingDeg": 0 },
+  "devices": [
+    { "name": "Intake", "kind": "motor", "reversed": true, "powerLimit": 0.7 },
+    { "name": "lift", "kind": "motor", "reversed": false, "travel": { "minTicks": -100, "maxTicks": 1500 } },
+    { "name": "kicker", "kind": "servo", "reversed": false }
+  ],
   "mechanisms": [{
     "id": "intake", "name": "Intake", "initialState": "off",
-    "devices": [{ "id": "m", "name": "Intake", "kind": "motor", "reversed": true, "travel": { "minTicks": -100, "maxTicks": 100 } }],
-    "states": [{ "id": "off", "name": "Off", "outputs": { "m": { "kind": "power", "value": 0 } } }]
+    "devices": [{ "id": "m", "name": "Intake", "kind": "motor" }],
+    "states": [{ "id": "off", "name": "Off", "outputs": { "m": { "kind": "power", "value": 0 } } },
+               { "id": "in", "name": "In", "outputs": { "m": { "kind": "power", "value": 1 } } }]
   }],
   "paths": [{
     "id": "p1", "name": "Start to Shoot", "kind": "atomic", "heading": null,
     "segments": [{ "start": { "x": 110.5, "y": 135.5, "headingDeg": 0 }, "controls": [], "end": { "x": 96, "y": 96, "headingDeg": 45 },
       "heading": { "type": "linear", "startDeg": 0, "endDeg": 45 } }]
   }],
-  "routine": [{ "kind": "path", "path": "p1" }, { "kind": "wait", "ms": 1200 }, { "kind": "state", "mechanism": "intake", "state": "off" }]
+  "routine": [
+    { "kind": "together", "steps": [
+      { "kind": "path", "path": "p1" },
+      { "kind": "state", "mechanism": "intake", "state": "in", "duration": { "ms": 2000, "then": "off" } }
+    ] },
+    { "kind": "device", "device": "lift", "output": { "kind": "target", "ticks": 1200, "power": 0.8 } },
+    { "kind": "device", "device": "kicker", "output": { "kind": "position", "value": 0.6 }, "duration": { "ms": 500, "thenPosition": 0.2 } },
+    { "kind": "wait", "ms": 1200 }
+  ]
 }
 ```
 
 - **Same numbers as the generated Java:** angles are in degrees, and every number is rounded to 6 decimal places as the Java generator writes it. Each path carries the start, control and end poses the generated OpMode declares, so Lumière Live gets the same doubles a deployed OpMode parses.
 - **Paths:** an `atomic` path has one segment with its own `heading` rule. A `compound` path has several segments; its `heading` applies across them all, or is null when each segment has its own. Heading rules are those of the project format: `linear`, `constant`, `tangential` (`reverse`), and `piecewise` (`segments` of rules between `startProgress` and `endProgress`, including `facingPoint`).
-- **Mechanisms:** the ones the routine uses, plus any with a starting state. Devices are `motor`, `servo` or `crservo`. Outputs are `power` (-1 to 1), `position` (0 to 1, servos only) or `target` (whole `ticks` at a `power` above 0, motors only). A motor that takes encoder targets needs a `travel` range in ticks from where it was at INIT; targets must fall within it, and the run stops if the motor goes more than 5% of the range (at least 20 ticks) past it.
-- **Routine:** `path`, `wait` (`ms`, 0 to 10 minutes), `state`, and `together` or `race` groups of `steps`, nested at most 8 deep. Empty groups are left out, as the generated Java leaves them out.
-- **Limits:** at most 30 mechanisms, 200 paths and 1,000 steps. A format newer than the robot library reads is refused with a request to update it.
+- **Devices:** every device the program drives, once, by configured name: `motor`, `servo` or `crservo`, whether it is `reversed`, its `powerLimit` (motors and continuous servos; above 0 and at most 1, left out when it is 1), and a motor's `travel`. Each power is sent as the project has it and cut to the limit on the robot. A motor that takes encoder targets needs a `travel` range in ticks from where it was at INIT; targets must fall within it, and the run stops if the motor goes more than 5% of the range (at least 20 ticks) past it.
+- **Mechanisms:** the ones the routine uses, plus any with a starting state. Their devices name devices from `devices`, as the kind the list gives them. Outputs are `power` (-1 to 1), `position` (0 to 1, servos only) or `target` (whole `ticks` at a `power` above 0, motors only).
+- **Routine:** `path`, `wait` (`ms`, 0 to 10 minutes), `state`, `device` (a device's `output`), and `together` or `race` groups of `steps`, nested at most 8 deep. Empty groups are left out, as the generated Java leaves them out.
+  - **Timed steps:** a `state` or `device` step with a `duration` holds for `ms` (above 0, at most 10 minutes), then sets the mechanism to `then`, stops a motor or continuous servo, or moves a servo to `thenPosition` (0 when absent). What comes after also happens when a race ends the step early.
+  - **Encoder targets without a duration** finish when the motor reaches its target, as a mechanism state's targets do.
+- **Limits:** at most 100 devices, 30 mechanisms, 200 paths and 1,000 steps. A format newer than the robot library reads is refused with a request to update it.
+- **Format 1** (Lumière 0.3.x) kept each device's direction and travel in its mechanism, and had no `devices`, `device` steps or durations. The robot library still reads it, giving every device the `powerCap()` limit of the generated `LumiereLive.java` (0.6 unless set).
 
 ## Gamepad state
 

@@ -1,15 +1,14 @@
 package dev.lumiere.sim;
 
+import dev.lumiere.ftc.internal.FollowerSearch;
 import dev.lumiere.sim.hardware.SimHardware;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,23 +25,13 @@ import java.util.Set;
  * starts. When a follower is found, the robot is placed at the pose its own localizer already held,
  * usually the start pose the OpMode set.
  *
- * <p>Followers are found in the OpMode's fields and in the fields of the team's own objects it holds,
- * a few levels deep, including static fields. Reflection keeps the simulator independent of the Pedro
- * Pathing version: when this version's classes do not match, followers keep their own localizers.
+ * <p>Followers are found with the robot library's {@link FollowerSearch}, which also lets a robot report
+ * the pose of any OpMode. Reflection keeps the simulator independent of the Pedro Pathing version: when
+ * this version's classes do not match, followers keep their own localizers.
  */
 final class PedroLocalization {
-    static final String FOLLOWER = "com.pedropathing.follower.Follower";
+    static final String FOLLOWER = FollowerSearch.FOLLOWER;
     private static final String LOCALIZER = "com.pedropathing.localization.Localizer";
-    private static final int MAX_DEPTH = 4;
-    /** Lumière Live's package: the robot library's own OpMode, which runs the team's follower. */
-    private static final String LIVE = "dev.lumiere.ftc.live.";
-    /** Objects from these packages are never searched: they are not the team's, and some are large. */
-    private static final String[] LIBRARIES = {
-            "java.", "javax.", "jdk.", "sun.", "android.", "androidx.", "kotlin.", "kotlinx.", "com.qualcomm.",
-            "org.firstinspires.ftc.robotcore.", "org.firstinspires.ftc.robotserver.", "org.firstinspires.ftc.vision.",
-            "com.pedropathing.", "dev.lumiere.ftc.", "com.bylazar.", "com.google.", "org.json.", "okhttp3.", "okio.",
-            "org.openftc.", "org.opencv.", "fi.iki.elonen.", "org.junit.",
-    };
 
     private final SimHardware.Body body;
     private final Set<Object> followers = Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
@@ -66,45 +55,7 @@ final class PedroLocalization {
     /** Finds the followers the OpMode can reach and gives each one the simulated pose. Cheap to repeat. */
     synchronized void attach(Object opMode) {
         if (opMode == null) return;
-        visit(opMode, 0, Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>()), new HashSet<Class<?>>());
-    }
-
-    private void visit(Object value, int depth, Set<Object> seen, Set<Class<?>> staticsSeen) {
-        if (value == null || depth > MAX_DEPTH || !seen.add(value)) return;
-        Class<?> type = value.getClass();
-        if (isFollower(type)) {
-            substitute(value);
-            return;
-        }
-        if (type.isArray() || type.isEnum() || isLibrary(type.getName())) return;
-        for (Class<?> c = type; c != null && !isLibrary(c.getName()); c = c.getSuperclass()) {
-            boolean firstVisit = staticsSeen.add(c);
-            for (Field field : c.getDeclaredFields()) {
-                if (field.getType().isPrimitive()) continue;
-                boolean isStatic = Modifier.isStatic(field.getModifiers());
-                if (isStatic && !firstVisit) continue;
-                Object next;
-                try {
-                    field.setAccessible(true);
-                    next = field.get(isStatic ? null : value);
-                } catch (IllegalAccessException | RuntimeException e) {
-                    continue;
-                }
-                visit(next, depth + 1, seen, staticsSeen);
-            }
-        }
-    }
-
-    private static boolean isFollower(Class<?> type) {
-        for (Class<?> c = type; c != null; c = c.getSuperclass()) if (c.getName().equals(FOLLOWER)) return true;
-        return false;
-    }
-
-    private static boolean isLibrary(String name) {
-        // Lumière Live holds the team's follower inside the robot library, so its objects are searched.
-        if (name.startsWith(LIVE)) return false;
-        for (String prefix : LIBRARIES) if (name.startsWith(prefix)) return true;
-        return false;
+        for (Object follower : FollowerSearch.find(opMode)) substitute(follower);
     }
 
     private void substitute(Object follower) {
@@ -130,22 +81,7 @@ final class PedroLocalization {
 
     /** Reads x, y, and heading from a Pedro Pathing pose, or null when it is not one. */
     static double[] read(Object pose) {
-        if (pose == null) return null;
-        try {
-            return new double[]{number(pose, "x", "getX"), number(pose, "y", "getY"), number(pose, "heading", "getHeading")};
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            return null;
-        }
-    }
-
-    private static double number(Object target, String name, String fallback) throws ReflectiveOperationException {
-        Method method;
-        try {
-            method = target.getClass().getMethod(name);
-        } catch (NoSuchMethodException e) {
-            method = target.getClass().getMethod(fallback);
-        }
-        return ((Number) method.invoke(target)).doubleValue();
+        return FollowerSearch.readPose(pose);
     }
 
     private static double normalize(double radians) {

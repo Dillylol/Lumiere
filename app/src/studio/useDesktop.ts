@@ -267,7 +267,7 @@ export function useDesktop(project: Project, onLog: (line: string) => void, live
   };
 
   // Automatic deploys: shortly after the project or the deploy settings change.
-  const settingsKey = sdk ? JSON.stringify([sdk.folder, sdk.mode, sdk.javaPackage, sdk.constantsClass, sdk.programIds, sdk.removeOutdated, live?.pairingHash ?? null, live?.powerCap ?? null]) : "";
+  const settingsKey = sdk ? JSON.stringify([sdk.folder, sdk.mode, sdk.javaPackage, sdk.constantsClass, sdk.programIds, sdk.removeOutdated, live?.pairingHash ?? null]) : "";
   const blocker = useMemo(() => (sdk ? autoDeployBlocker(inspection, sdk) : null), [inspection, sdk]);
   useEffect(() => {
     if (!sdk || sdk.mode !== "auto" || !isDesktop()) return;

@@ -9,20 +9,26 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * An autonomous program as Lumière sends it to Lumière Live (format 1), read and checked for shape
- * before the robot looks at its hardware.
+ * An autonomous program as Lumière sends it to Lumière Live, read and checked for shape before the
+ * robot looks at its hardware.
  *
  * <p>Angles are in degrees, as the project stores them and as generated OpModes pass them to Pedro
  * Pathing, and every path carries the same start, control and end poses the generated Java uses. So
  * Lumière Live can build exactly the paths a deployed OpMode would. docs/protocol.md describes the
  * format.
+ *
+ * <p>Format 2 lists every device the program drives once, with its direction, power limit and travel;
+ * mechanisms name their devices from that list, and the routine can set a device directly and hold an
+ * action for a time. Format 1 kept each device's settings in its mechanism and had no power limits of
+ * its own: every device of a format 1 program gets the limit {@link #read(Object, double)} is given.
  */
 public final class LiveProgram {
-    /** The program format this library reads. */
-    public static final int FORMAT = 1;
+    /** The newest program format this library reads. It also reads every format back to 1. */
+    public static final int FORMAT = 2;
     static final int MAX_STEPS = 1000;
     static final int MAX_DEPTH = 8;
     static final double MAX_WAIT_MS = 600_000;
+    static final int MAX_DEVICES = 100;
     /** Poses must stay near Pedro Pathing's 144-inch field. */
     static final double FIELD_MIN = -24;
     static final double FIELD_MAX = 168;
@@ -127,6 +133,10 @@ public final class LiveProgram {
         }
     }
 
+    /**
+     * A device with its settings. In a mechanism, {@code id} is the mechanism's own id for it; in the
+     * program's device list, it is the device's name.
+     */
     public static final class Device {
         public final String id;
         /** The name in the Robot Controller configuration. */
@@ -134,15 +144,23 @@ public final class LiveProgram {
         /** {@code motor}, {@code servo} or {@code crservo}. */
         public final String kind;
         public final boolean reversed;
+        /** The most power a motor or continuous servo is given, above 0 and at most 1. Larger powers are cut to it. */
+        public final double powerLimit;
         /** For a motor that takes encoder targets: the ticks it may travel between, or null when not set. */
         public final Travel travel;
 
-        Device(String id, String name, String kind, boolean reversed, Travel travel) {
+        Device(String id, String name, String kind, boolean reversed, double powerLimit, Travel travel) {
             this.id = id;
             this.name = name;
             this.kind = kind;
             this.reversed = reversed;
+            this.powerLimit = powerLimit;
             this.travel = travel;
+        }
+
+        /** A power cut to this device's limit, keeping its direction. */
+        public double limited(double power) {
+            return Math.max(-powerLimit, Math.min(powerLimit, power));
         }
     }
 
@@ -202,7 +220,12 @@ public final class LiveProgram {
         }
     }
 
-    /** A routine step: {@code path}, {@code wait}, {@code state}, or a {@code together} or {@code race} group. */
+    /**
+     * A routine step: {@code path}, {@code wait}, {@code state}, {@code device} (format 2), or a
+     * {@code together} or {@code race} group. A timed state or device step holds for
+     * {@link #durationMs}, then sets {@link #thenState}, stops its device, or moves its servo to
+     * {@link #thenPosition}.
+     */
     public static final class Step {
         public final String kind;
         public final String path;
@@ -210,14 +233,37 @@ public final class LiveProgram {
         public final String mechanism;
         public final String state;
         public final List<Step> steps;
+        /** For a device step: the device's configured name, and what it is set to. */
+        public final String device;
+        public final Output output;
+        /** For a timed state or device step: how long it holds, in milliseconds. 0 when it is not timed. */
+        public final double durationMs;
+        /** For a timed state step: the state it sets when the time is up. */
+        public final String thenState;
+        /** For a timed servo step: the position after. NaN otherwise. */
+        public final double thenPosition;
 
         Step(String kind, String path, double ms, String mechanism, String state, List<Step> steps) {
+            this(kind, path, ms, mechanism, state, steps, null, null, 0, null, Double.NaN);
+        }
+
+        Step(String kind, String path, double ms, String mechanism, String state, List<Step> steps,
+             String device, Output output, double durationMs, String thenState, double thenPosition) {
             this.kind = kind;
             this.path = path;
             this.ms = ms;
             this.mechanism = mechanism;
             this.state = state;
             this.steps = steps;
+            this.device = device;
+            this.output = output;
+            this.durationMs = durationMs;
+            this.thenState = thenState;
+            this.thenPosition = thenPosition;
+        }
+
+        public boolean timed() {
+            return durationMs > 0;
         }
     }
 
@@ -233,17 +279,23 @@ public final class LiveProgram {
         }
     }
 
+    /** The format the program was sent in. */
+    public final int format;
     public final String name;
     public final String revision;
     public final Pose start;
+    /** Every device the program drives, once each, with its settings: its mechanisms' devices and the ones it sets directly. */
+    public final List<Device> devices;
     public final List<Mechanism> mechanisms;
     public final List<Path> paths;
     public final List<Step> routine;
 
-    private LiveProgram(String name, String revision, Pose start, List<Mechanism> mechanisms, List<Path> paths, List<Step> routine) {
+    private LiveProgram(int format, String name, String revision, Pose start, List<Device> devices, List<Mechanism> mechanisms, List<Path> paths, List<Step> routine) {
+        this.format = format;
         this.name = name;
         this.revision = revision;
         this.start = start;
+        this.devices = devices;
         this.mechanisms = mechanisms;
         this.paths = paths;
         this.routine = routine;
@@ -254,9 +306,24 @@ public final class LiveProgram {
         return null;
     }
 
-    /** Reads a program from the {@code program} field of a {@code program} message. */
+    /** The program's device with this configured name, or null. */
+    public Device device(String name) {
+        for (Device device : devices) if (device.name.equals(name)) return device;
+        return null;
+    }
+
+    /** Reads a program from the {@code program} field of a {@code program} message, a format 1 program without a power limit. */
     public static Reading read(Object json) {
-        Reader reader = new Reader();
+        return read(json, 1);
+    }
+
+    /**
+     * Reads a program from the {@code program} field of a {@code program} message.
+     *
+     * @param formatOneLimit the power limit every device of a format 1 program gets; format 2 programs carry their own
+     */
+    public static Reading read(Object json, double formatOneLimit) {
+        Reader reader = new Reader(formatOneLimit);
         LiveProgram program = reader.program(json);
         return new Reading(reader.problems.isEmpty() ? program : null, reader.problems);
     }
@@ -264,7 +331,15 @@ public final class LiveProgram {
     /** Collects every problem instead of stopping at the first, so the team can fix them in one go. */
     private static final class Reader {
         final List<String> problems = new ArrayList<>();
+        private final double formatOneLimit;
+        private int format;
+        /** Format 2: the program's devices by name. Format 1: filled from the mechanisms as they are read. */
+        private final Map<String, Device> devices = new LinkedHashMap<>();
         private int steps;
+
+        Reader(double formatOneLimit) {
+            this.formatOneLimit = formatOneLimit > 0 && formatOneLimit <= 1 ? formatOneLimit : 1;
+        }
 
         void problem(String message) {
             if (problems.size() < 50) problems.add(message);
@@ -277,19 +352,28 @@ public final class LiveProgram {
                 return null;
             }
             Object format = root.get("format");
-            if (!(format instanceof Number) || ((Number) format).doubleValue() != FORMAT) {
-                if (format instanceof Number && ((Number) format).doubleValue() > FORMAT) {
+            double number = format instanceof Number ? ((Number) format).doubleValue() : Double.NaN;
+            if (number != 1 && number != 2) {
+                if (number > FORMAT) {
                     problem("This program needs a newer robot library. Update Lumière's robot library and install the robot code again.");
                 } else {
                     problem("The program's format is not one this robot library reads.");
                 }
                 return null;
             }
+            this.format = (int) number;
             String name = text(root, "name", 120);
             if (name == null || name.trim().isEmpty()) problem("The program has no name.");
             String revision = text(root, "revision", 64);
             if (revision == null) problem("The program has no revision.");
             Pose start = pose(root.get("start"), "The start pose");
+
+            if (this.format >= 2) {
+                for (Object item : list(root.get("devices"), "devices", MAX_DEVICES)) {
+                    Device device = device(item);
+                    if (device != null && devices.put(device.name, device) != null) problem("The program lists \"" + device.name + "\" twice.");
+                }
+            }
 
             List<Mechanism> mechanisms = new ArrayList<>();
             Set<String> mechanismIds = new HashSet<>();
@@ -311,8 +395,33 @@ public final class LiveProgram {
 
             List<Step> routine = steps(root.get("routine"), 1, pathIds, mechanisms);
             if (name == null || revision == null || start == null) return null;
-            return new LiveProgram(name.trim(), revision, start, Collections.unmodifiableList(mechanisms),
-                    Collections.unmodifiableList(paths), Collections.unmodifiableList(routine));
+            return new LiveProgram(this.format, name.trim(), revision, start, Collections.unmodifiableList(new ArrayList<>(devices.values())),
+                    Collections.unmodifiableList(mechanisms), Collections.unmodifiableList(paths), Collections.unmodifiableList(routine));
+        }
+
+        /** A device in a format 2 program's device list, with its settings. */
+        Device device(Object json) {
+            Map<String, Object> map = object(json);
+            String name = map == null ? null : text(map, "name", 80);
+            String kind = map == null ? null : text(map, "kind", 20);
+            if (name == null || name.trim().isEmpty()) {
+                problem("The program lists a device without a name.");
+                return null;
+            }
+            String label = "\"" + name.trim() + "\"";
+            if (!"motor".equals(kind) && !"servo".equals(kind) && !"crservo".equals(kind)) {
+                problem(label + " is a " + kind + "; Lumière Live drives motors, servos and continuous servos.");
+                return null;
+            }
+            double limit = 1;
+            Object given = map.get("powerLimit");
+            if (given != null) {
+                limit = number(given);
+                if ("servo".equals(kind)) problem(label + " is a servo, which takes positions, so it can't have a power limit.");
+                else if (!(limit > 0 && limit <= 1)) problem(label + " has a power limit that is not above 0 and at most 1.");
+            }
+            Travel travel = travel(map.get("travel"), label, kind);
+            return new Device(name.trim(), name.trim(), kind, Boolean.TRUE.equals(map.get("reversed")), limit > 0 && limit <= 1 ? limit : 1, travel);
         }
 
         Mechanism mechanism(Object json) {
@@ -339,9 +448,27 @@ public final class LiveProgram {
                     problem("\"" + deviceName.trim() + "\" in " + label + " is a " + kind + "; Lumière Live drives motors, servos and continuous servos.");
                     continue;
                 }
-                Object reversed = device.get("reversed");
-                Travel travel = travel(device.get("travel"), "\"" + deviceName.trim() + "\" in " + label, kind);
-                Device parsed = new Device(deviceId, deviceName.trim(), kind, Boolean.TRUE.equals(reversed), travel);
+                Device parsed;
+                if (format >= 2) {
+                    // The settings are in the program's device list, once for every use.
+                    Device listed = this.devices.get(deviceName.trim());
+                    if (listed == null) {
+                        problem("\"" + deviceName.trim() + "\" in " + label + " is not in the program's device list.");
+                        continue;
+                    }
+                    if (!listed.kind.equals(kind)) {
+                        problem("\"" + deviceName.trim() + "\" in " + label + " is used as a " + kind + ", but the program's device list has it as a " + listed.kind + ".");
+                        continue;
+                    }
+                    parsed = new Device(deviceId, listed.name, kind, listed.reversed, listed.powerLimit, listed.travel);
+                } else {
+                    Object reversed = device.get("reversed");
+                    Travel travel = travel(device.get("travel"), "\"" + deviceName.trim() + "\" in " + label, kind);
+                    parsed = new Device(deviceId, deviceName.trim(), kind, Boolean.TRUE.equals(reversed), formatOneLimit, travel);
+                    if (!this.devices.containsKey(parsed.name)) {
+                        this.devices.put(parsed.name, new Device(parsed.name, parsed.name, kind, parsed.reversed, formatOneLimit, travel));
+                    }
+                }
                 if (byId.put(deviceId, parsed) != null) problem(label + " lists the device id \"" + deviceId + "\" twice.");
                 devices.add(parsed);
             }
@@ -552,10 +679,51 @@ public final class LiveProgram {
                         String stateId = text(map, "state", 80);
                         Mechanism mechanism = null;
                         for (Mechanism candidate : mechanisms) if (candidate.id.equals(mechanismId)) mechanism = candidate;
-                        boolean known = false;
-                        if (mechanism != null) for (State state : mechanism.states) if (state.id.equals(stateId)) known = true;
-                        if (!known) problem("A routine step sets a mechanism state the program does not have.");
-                        else steps.add(new Step(kind, null, 0, mechanismId, stateId, null));
+                        if (mechanism == null || !hasState(mechanism, stateId)) {
+                            problem("A routine step sets a mechanism state the program does not have.");
+                            break;
+                        }
+                        Map<String, Object> duration = format >= 2 ? object(map.get("duration")) : null;
+                        if (duration == null) {
+                            if (format >= 2 && map.get("duration") != null) problem("A timed step in the routine has a duration that is not an object.");
+                            else steps.add(new Step(kind, null, 0, mechanismId, stateId, null));
+                            break;
+                        }
+                        double ms = duration(duration);
+                        String then = text(duration, "then", 80);
+                        if (!hasState(mechanism, then)) problem("A timed step in the routine sets \"" + mechanism.name + "\" to a state it does not have when its time is up.");
+                        else if (!Double.isNaN(ms)) steps.add(new Step(kind, null, 0, mechanismId, stateId, null, null, null, ms, then, Double.NaN));
+                        break;
+                    }
+                    case "device": {
+                        if (format < 2) {
+                            problem("A routine step is a \"device\", which format " + format + " programs do not have.");
+                            break;
+                        }
+                        String name = text(map, "device", 80);
+                        Device device = name == null ? null : devices.get(name);
+                        if (device == null) {
+                            problem("A routine step sets a device the program does not list.");
+                            break;
+                        }
+                        Output output = output(map.get("output"), device, "A routine step");
+                        if (output == null) break;
+                        Object timing = map.get("duration");
+                        if (timing == null) {
+                            steps.add(new Step(kind, null, 0, null, null, null, device.name, output, 0, null, Double.NaN));
+                            break;
+                        }
+                        Map<String, Object> duration = object(timing);
+                        double ms = duration == null ? Double.NaN : duration(duration);
+                        double then = Double.NaN;
+                        if ("servo".equals(device.kind)) {
+                            then = duration == null || duration.get("thenPosition") == null ? 0 : number(duration.get("thenPosition"));
+                            if (!(then >= 0 && then <= 1)) problem("A timed step in the routine moves \"" + device.name + "\" to a position outside 0 to 1 when its time is up.");
+                        }
+                        if (duration == null) problem("A timed step in the routine has a duration that is not an object.");
+                        else if (!Double.isNaN(ms) && (Double.isNaN(then) || (then >= 0 && then <= 1))) {
+                            steps.add(new Step(kind, null, 0, null, null, null, device.name, output, ms, null, then));
+                        }
                         break;
                     }
                     case "together":
@@ -567,6 +735,20 @@ public final class LiveProgram {
                 }
             }
             return steps;
+        }
+
+        /** A timed step's time in milliseconds, or NaN (with a problem) when it is not above 0 and at most 10 minutes. */
+        double duration(Map<String, Object> duration) {
+            double ms = number(duration.get("ms"));
+            if (ms > 0 && ms <= MAX_WAIT_MS) return ms;
+            problem("A timed step in the routine lasts 0 or less, or longer than 10 minutes.");
+            return Double.NaN;
+        }
+
+        static boolean hasState(Mechanism mechanism, String stateId) {
+            if (stateId == null) return false;
+            for (State state : mechanism.states) if (state.id.equals(stateId)) return true;
+            return false;
         }
 
         Pose pose(Object json, String label) {

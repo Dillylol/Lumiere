@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import direct from "../../../../fixtures/projects/direct-devices.json";
 import sample from "../../../../fixtures/projects/sample-robot.json";
 import { generateJava } from "../codegen/java/generate";
 import { javaNumber } from "../codegen/java/names";
@@ -57,6 +58,32 @@ describe("buildLiveProgram", () => {
     expect(live.paths[0].segments[1].controls).toEqual([{ x: start.end.x + 5, y: start.end.y + 5 }]);
     expect(live.routine).toEqual([{ kind: "path", path: "chain" }, { kind: "wait", ms: 250 }]);
     expect(live.mechanisms).toEqual([]);
+  });
+
+  it("lists each device once with its settings, and sends device actions and durations", () => {
+    const value = parseProject(structuredClone(direct));
+    const live = buildLiveProgram(value, firstAuto(value));
+    expect(live.format).toBe(2);
+    // The mechanism's device first, then the routine's own; settings once each, and limits only below 1.
+    expect(live.devices).toEqual([
+      { name: "roller", kind: "crservo", reversed: false, powerLimit: 0.6 },
+      { name: "intake", kind: "motor", reversed: false, powerLimit: 0.7 },
+      { name: "lift", kind: "motor", reversed: true, powerLimit: 0.8, travel: { minTicks: -100, maxTicks: 1500 } },
+      { name: "kicker", kind: "servo", reversed: true },
+      { name: "spinner", kind: "crservo", reversed: true, powerLimit: 0.5 },
+    ]);
+    expect(live.mechanisms[0].devices).toEqual([{ id: "device_roller", name: "roller", kind: "crservo" }]);
+    // Powers are sent as the project has them; the robot cuts each to its device's limit, as the generated Java does.
+    expect(live.routine[0]).toEqual({ kind: "together", steps: [
+      { kind: "path", path: "path_out" },
+      { kind: "device", device: "intake", output: { kind: "power", value: 0.9 } },
+      { kind: "state", mechanism: "mech_roller", state: "state_roller_spin", duration: { ms: 1500, then: "state_roller_stop" } },
+    ] });
+    expect(live.routine.slice(1, 4)).toEqual([
+      { kind: "device", device: "lift", output: { kind: "target", ticks: 1200, power: 1 } },
+      { kind: "device", device: "kicker", output: { kind: "position", value: 0.6 }, duration: { ms: 500, thenPosition: 0.2 } },
+      { kind: "device", device: "spinner", output: { kind: "power", value: 1 }, duration: { ms: 500 } },
+    ]);
   });
 
   it("gives the same program the same revision, and a changed one a new revision", () => {

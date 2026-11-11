@@ -44,6 +44,8 @@ public final class RobotHooks {
     @SuppressLint("StaticFieldLeak")
     private static OpModeManagerImpl manager;
     private static Lifecycle lifecycle;
+    /** Reports the active OpMode's pose and device outputs while it is initialized or running. */
+    private static OpModeWatch watch;
 
     private RobotHooks() {
     }
@@ -84,6 +86,7 @@ public final class RobotHooks {
     }
 
     private static void shutdown() {
+        unwatch();
         if (server != null) {
             Stream.uninstall(server);
             server.end();
@@ -130,6 +133,20 @@ public final class RobotHooks {
         return null;
     }
 
+    private static void watch(OpMode opMode, String name) {
+        synchronized (LOCK) {
+            if (watch != null) watch.stop();
+            watch = OpModeWatch.start(opMode, name);
+        }
+    }
+
+    private static void unwatch() {
+        synchronized (LOCK) {
+            if (watch != null) watch.stop();
+            watch = null;
+        }
+    }
+
     static List<Manifest.OpModeInfo> registeredOpModes() {
         List<Manifest.OpModeInfo> list = new ArrayList<>();
         try {
@@ -151,7 +168,10 @@ public final class RobotHooks {
             // initializes its own default OpMode once both are ready, and again after every stop, so
             // the manifest is refreshed then too, without a lifecycle message.
             Stream.publish("manifest", Manifest.build(opMode.hardwareMap, registeredOpModes()));
-            if (!isSystem()) publish("init");
+            if (isSystem()) return;
+            publish("init");
+            OpModeManagerImpl current = manager;
+            watch(opMode, current == null ? null : current.getActiveOpModeName());
         }
 
         @Override
@@ -161,6 +181,7 @@ public final class RobotHooks {
 
         @Override
         public void onOpModePostStop(OpMode opMode) {
+            unwatch();
             if (!isSystem()) publish("stopped");
         }
 

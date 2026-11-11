@@ -133,7 +133,7 @@ describe("planDeploy", () => {
     const off = expectPlan(planDeploy(project(), settings({ removeOutdated: false }), disk, on.generatedPaths));
     expect(off.removals).toEqual([{ path, reason: "Live runs are off on this computer." }]);
     // Edited by hand, it stays like any edited generated file.
-    const edited = new Map(disk).set(path, disk.get(path)!.replace("0.6", "0.5"));
+    const edited = new Map(disk).set(path, disk.get(path)!.replace("Constants.create(hardwareMap);", "Constants.create(hardwareMap); // tuned by hand"));
     expect(expectPlan(planDeploy(project(), settings(), edited, on.generatedPaths)).removals).toEqual([]);
   });
 

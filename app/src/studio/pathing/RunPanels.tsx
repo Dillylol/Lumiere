@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { PanelLeft, PanelRight, Play, Plug, Square } from "lucide-react";
-import { describeReport, LIVE_OPMODE_NAME, pedroDevices, readMechanisms, type LiveProgram, type Pose, type Program, type Project, type ScannedDevice, type ScannedPedro } from "../../core";
+import { describeReport, LIVE_FORMAT, LIVE_OPMODE_NAME, pedroDevices, readMechanisms, type LiveProgram, type LiveStep, type Pose, type Program, type Project, type ScannedDevice, type ScannedPedro } from "../../core";
 import type { DesktopSimulator, LaunchFailure } from "../../desktop/robotProject";
 import type { SimulatorStartup } from "../useDesktop";
 import { RunComparison } from "../RunComparison";
@@ -134,8 +134,11 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
     body = <p className="pv-note">Fix the problems listed under Problems first. {LIVE_OPMODE_NAME} gets the same program a deploy would.</p>;
   } else if (!report) {
     const robot = session.connected && session.hello?.source === "robot";
-    body = robot && !session.hello?.capabilities?.live
+    const format = session.hello?.capabilities?.live;
+    body = robot && !format
       ? <p className="pv-note">This robot's robot library predates {LIVE_OPMODE_NAME}. Update the robot library in TeamCode, then deploy and install the robot code.</p>
+      : robot && format !== undefined && format < LIVE_FORMAT
+        ? <p className="pv-note">This robot's robot library runs {LIVE_OPMODE_NAME} programs from older versions of Lumière only. Deploy from this version, which updates the robot library in TeamCode, then install the robot code.</p>
       : robot && session.modes.length > 0 && !session.modes.some((item) => item.name === LIVE_OPMODE_NAME)
         ? <p className="pv-note">{LIVE_OPMODE_NAME} isn't installed on this robot yet. With Live runs on, deploy and install the robot code; the Driver Station then lists it.</p>
         : <p className="pv-note">On the Driver Station, choose {LIVE_OPMODE_NAME} and press INIT. This computer then sends "{program.name}" for the robot to check, and START runs it.</p>;
@@ -150,9 +153,7 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
     body = <>
       <p className="pv-chip-line">
         <span className={`pv-chip${report.paired ? "" : " muted"}`}>{ended ? "Ended" : report.paired ? "Paired" : "Pairing…"}</span>
-        {report.dryRun
-          ? <span className="pv-chip">Dry run: nothing moves</span>
-          : <span className="pv-chip">Mechanism power limit {report.powerCap}</span>}
+        {report.dryRun && <span className="pv-chip">Dry run: nothing moves</span>}
       </p>
       {run?.phase === "finished"
         ? <p className="pv-live-result ok" role="status">{summary ? `"${summary.name}"` : "The program"} finished{run.elapsedMs !== undefined ? ` in ${(run.elapsedMs / 1000).toFixed(1)} s` : ""}. {ended ? `To run it again, INIT ${LIVE_OPMODE_NAME} on the Driver Station.` : "The robot holds its last pose until the Driver Station stops it."}</p>
@@ -187,14 +188,18 @@ function LiveSection({ session, program, env, liveProgram }: { session: RunSessi
 
 /** Motors the program sends to encoder targets without a travel range, which Lumière Live refuses. */
 function motorsWithoutTravel(program: LiveProgram): string[] {
-  const names: string[] = [];
+  const targeted = new Set<string>();
   for (const mechanism of program.mechanisms) {
     for (const device of mechanism.devices) {
-      const targets = mechanism.states.some((state) => state.outputs[device.id]?.kind === "target");
-      if (device.kind === "motor" && targets && !device.travel) names.push(`"${device.name.trim()}" in ${mechanism.name}`);
+      if (mechanism.states.some((state) => state.outputs[device.id]?.kind === "target")) targeted.add(device.name);
     }
   }
-  return names;
+  const visit = (steps: LiveStep[]) => steps.forEach((step) => {
+    if (step.kind === "device" && step.output.kind === "target") targeted.add(step.device);
+    if (step.kind === "together" || step.kind === "race") visit(step.steps);
+  });
+  visit(program.routine);
+  return program.devices.filter((device) => device.kind === "motor" && targeted.has(device.name) && !device.travel).map((device) => `"${device.name}"`);
 }
 
 /** The left panel in Simulate and Robot: how to start the simulator or reach the robot, and what to run. */

@@ -1,25 +1,25 @@
 /**
  * Lumière Live: an autonomous program as the app sends it to the robot, so the robot can run it
- * without the team rebuilding and installing the robot code. This version of the robot library only
- * checks the program against the robot's hardware (a dry run); nothing moves.
+ * without the team rebuilding and installing the robot code.
  *
  * The program carries the same numbers the generated Java uses: angles in degrees, and every path's
  * start, control and end poses as the generated OpMode declares them. So the robot can build exactly
- * the paths a deployed OpMode would. docs/protocol.md describes the format; the robot library's
- * `LiveProgram` reads it.
+ * the paths a deployed OpMode would. Each device's settings come once, in `devices`: the robot cuts
+ * every power to the device's limit, as the generated Java does. docs/protocol.md describes the format;
+ * the robot library's `LiveProgram` reads it.
  */
 import { javaNumber } from "../codegen/java/names";
 import { checksum } from "../codegen/java/ownership";
 import { toDegrees } from "../geometry/curves";
 import { resolvePath } from "../geometry/paths";
 import { hardwareEntry } from "../ir/hardware";
-import type { AutonomousProgram, DeviceKind, Heading, MechanismState, Output, Point, Project, Step } from "../ir/types";
+import type { AutonomousProgram, Device, DeviceKind, Heading, MechanismState, Output, Point, Project, Step } from "../ir/types";
 
 /** The program format this app sends. The robot library refuses formats newer than it reads. */
-export const LIVE_FORMAT = 1;
+export const LIVE_FORMAT = 2;
 /** The Driver Station name of the generated Lumière Live OpMode. */
 export const LIVE_OPMODE_NAME = "Lumière Live";
-/** The highest power Lumière Live gives a mechanism unless the team chooses otherwise. */
+/** The power limit an older robot library gives every device of a format 1 program, as its live reports say. */
 export const LIVE_DEFAULT_POWER_CAP = 0.6;
 
 export interface LivePose {
@@ -46,19 +46,21 @@ export interface LivePath {
   heading: Heading | null;
 }
 
-/** A mechanism's device with its settings from the robot's hardware list. */
+/** A device the program drives, with its settings from the robot's hardware list. */
 export interface LiveDevice {
-  id: string;
   name: string;
   kind: DeviceKind;
   reversed: boolean;
+  /** For motors and continuous servos with a limit below 1. */
+  powerLimit?: number;
   travel?: { minTicks: number; maxTicks: number };
 }
 
 export interface LiveMechanism {
   id: string;
   name: string;
-  devices: LiveDevice[];
+  /** The mechanism's devices, each named from the program's device list. */
+  devices: Device[];
   states: MechanismState[];
   initialState: string | null;
 }
@@ -66,7 +68,8 @@ export interface LiveMechanism {
 export type LiveStep =
   | { kind: "path"; path: string }
   | { kind: "wait"; ms: number }
-  | { kind: "state"; mechanism: string; state: string }
+  | { kind: "state"; mechanism: string; state: string; duration?: { ms: number; then: string } }
+  | { kind: "device"; device: string; output: Output; duration?: { ms: number; thenPosition?: number } }
   | { kind: "together" | "race"; steps: LiveStep[] };
 
 export interface LiveProgram {
@@ -75,6 +78,8 @@ export interface LiveProgram {
   /** Changes whenever anything the robot would do changes. */
   revision: string;
   start: LivePose;
+  /** Every device the program drives, once, with its settings. */
+  devices: LiveDevice[];
   mechanisms: LiveMechanism[];
   paths: LivePath[];
   routine: LiveStep[];
@@ -106,7 +111,8 @@ export interface LiveReport {
 /**
  * The program Lumière Live receives for an autonomous: its paths with the poses the generated Java
  * declares, the mechanisms the routine uses (or that have a starting state, as deployed OpModes
- * initialize them), and the routine without empty groups.
+ * initialize them), every device those mechanisms and the routine drive with its settings, and the
+ * routine without empty groups.
  */
 export function buildLiveProgram(project: Project, program: AutonomousProgram): LiveProgram {
   const start = pose(program.start.x, program.start.y, program.start.headingDeg);
@@ -143,14 +149,31 @@ export function buildLiveProgram(project: Project, program: AutonomousProgram): 
     .filter((subsystem) => used.has(subsystem.id) || subsystem.initialStateId)
     .map((subsystem): LiveMechanism => ({
       id: subsystem.id, name: subsystem.name, initialState: subsystem.initialStateId,
-      devices: subsystem.devices.map((device) => {
-        const settings = hardwareEntry(project.robot, device.name);
-        return { ...device, reversed: settings?.reversed ?? false, ...(settings?.travel ? { travel: settings.travel } : {}) };
-      }),
+      devices: subsystem.devices.map((device) => ({ id: device.id, name: device.name.trim(), kind: device.kind })),
       states: subsystem.states.map((state) => ({ ...state, outputs: Object.fromEntries(Object.entries(state.outputs).map(([id, out]) => [id, output(out)])) })),
     }));
+  const routine = liveSteps(program.routine);
 
-  const body = { format: LIVE_FORMAT as typeof LIVE_FORMAT, name: program.name.trim(), start, mechanisms, paths, routine: liveSteps(program.routine) };
+  // Each device once, with its settings: the mechanisms' devices, then the ones the routine sets directly.
+  const devices = new Map<string, LiveDevice>();
+  const addDevice = (name: string, kind: DeviceKind) => {
+    if (devices.has(name)) return;
+    const settings = hardwareEntry(project.robot, name);
+    const limit = settings?.powerLimit;
+    devices.set(name, {
+      name, kind, reversed: settings?.reversed ?? false,
+      ...(limit !== undefined && limit < 1 && kind !== "servo" ? { powerLimit: java(limit) } : {}),
+      ...(settings?.travel && kind === "motor" ? { travel: settings.travel } : {}),
+    });
+  };
+  for (const mechanism of mechanisms) for (const device of mechanism.devices) addDevice(device.name, device.kind);
+  const visit = (steps: Step[]) => steps.forEach((step) => {
+    if (step.kind === "device") addDevice(step.device.trim(), step.deviceKind);
+    if (step.kind === "together" || step.kind === "race") visit(step.steps);
+  });
+  visit(program.routine);
+
+  const body = { format: LIVE_FORMAT as typeof LIVE_FORMAT, name: program.name.trim(), start, devices: [...devices.values()], mechanisms, paths, routine };
   return { ...body, revision: checksum(JSON.stringify(body)) };
 }
 
@@ -161,11 +184,17 @@ function liveSteps(steps: Step[]): LiveStep[] {
     if (step.kind === "path") result.push({ kind: "path", path: step.pathId });
     else if (step.kind === "wait") result.push({ kind: "wait", ms: java(step.ms) });
     else if (step.kind === "state") {
-      if (step.duration) throw new Error(`${LIVE_OPMODE_NAME} can't run timed actions yet.`);
-      result.push({ kind: "state", mechanism: step.subsystemId, state: step.stateId });
-    }
-    else if (step.kind === "device") throw new Error(`${LIVE_OPMODE_NAME} can't run Motor, Servo and continuous servo actions yet.`);
-    else {
+      result.push({
+        kind: "state", mechanism: step.subsystemId, state: step.stateId,
+        ...(step.duration ? { duration: { ms: java(step.duration.ms), then: step.duration.thenStateId } } : {}),
+      });
+    } else if (step.kind === "device") {
+      const thenPosition = step.deviceKind === "servo" ? java(step.duration?.thenPosition ?? 0) : undefined;
+      result.push({
+        kind: "device", device: step.device.trim(), output: output(step.output),
+        ...(step.duration ? { duration: { ms: java(step.duration.ms), ...(thenPosition !== undefined ? { thenPosition } : {}) } } : {}),
+      });
+    } else {
       const children = liveSteps(step.steps);
       if (children.length) result.push({ kind: step.kind, steps: children });
     }

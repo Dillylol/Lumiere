@@ -142,8 +142,26 @@ describe("useRunSession", () => {
     expect(result.current.status).toBe("Disconnected");
     expect(result.current.hello).toBeUndefined();
   });
+  it("shows a hub OpMode that doesn't use Session: its pose and device outputs, sampled for the graphs", () => {
+    const { result, sockets } = setup({ source: "robot", host: "10.0.0.5" });
+    act(() => result.current.open());
+    const socket = sockets[0];
+    act(() => socket.open());
+    act(() => {
+      socket.receive({ type: "hello", protocol: 1, source: "robot", library: "0.4.0" });
+      socket.receive({ type: "lifecycle", opMode: "Bjorn Red Goal Auto", phase: "init" });
+      socket.receive({ type: "lifecycle", opMode: "Bjorn Red Goal Auto", phase: "running" });
+      // The robot library reports these for any OpMode: a pose-only state, and the devices' outputs.
+      socket.receive({ type: "devices", opMode: "Bjorn Red Goal Auto", devices: { intake: { type: "motor", power: 0.7 }, kicker: { type: "servo", position: 0.4 } } });
+      socket.receive({ type: "state", opMode: "Bjorn Red Goal Auto", pose: { x: 30, y: 40, heading: 1 } });
+    });
+    expect(result.current.pose).toEqual({ x: 30, y: 40, heading: 1 });
+    expect(result.current.devices).toEqual({ intake: { type: "motor", power: 0.7 }, kicker: { type: "servo", position: 0.4 } });
+    expect(last(result.current.history)).toMatchObject({ x: 30, y: 40, devices: { intake: { type: "motor", power: 0.7 } } });
+  });
+
   it("pairs with Lumière Live, sends the open program, and sends it again when it changes", () => {
-    const program = (revision: string) => ({ format: 1 as const, name: "Main Auto", revision, start: { x: 9, y: 72, headingDeg: 0 }, mechanisms: [], paths: [], routine: [] });
+    const program = (revision: string) => ({ format: 2 as const, name: "Main Auto", revision, start: { x: 9, y: 72, headingDeg: 0 }, devices: [], mechanisms: [], paths: [], routine: [] });
     const report = (fields: object) => ({ type: "live", opMode: "Lumière Live", state: "waiting", started: false, paired: false, dryRun: true, powerCap: 0.6, program: null, problems: [], notes: [], ...fields });
     let live = { secret: "s".repeat(64), program: program("r1") };
     const { result, sockets, rerender } = setup({ source: "robot", host: "10.0.0.5", get live() { return live; } });

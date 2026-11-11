@@ -18,9 +18,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Checks a program's mechanisms against the robot. Every device must be configured with the type the
- * program uses it as, and none may be one Pedro Pathing drives. Only the configuration is read: no
- * device is opened, and nothing moves. The app applies the same rules before it sends a program.
+ * Checks a program's devices against the robot: its mechanisms' devices and the ones it sets directly.
+ * Every device must be configured with the type the program uses it as, and none may be one Pedro
+ * Pathing drives. Only the configuration is read: no device is opened, and nothing moves. The app
+ * applies the same rules before it sends a program.
  */
 final class HardwareCheck {
     static final class Result {
@@ -53,66 +54,106 @@ final class HardwareCheck {
     private HardwareCheck() {
     }
 
+    /** An output the program gives a device, and where it comes from, such as {@code in "Open"}. */
+    private static final class Use {
+        final LiveProgram.Output output;
+        final String source;
+
+        Use(LiveProgram.Output output, String source) {
+            this.output = output;
+            this.source = source;
+        }
+    }
+
     /**
-     * @param pedro    the manifest's {@code pedro} block for the team's constants, or null when unknown
-     * @param powerCap the highest power Lumière Live gives a mechanism
+     * @param pedro the manifest's {@code pedro} block for the team's constants, or null when unknown
      */
-    static Result check(LiveProgram program, HardwareMap hardwareMap, Map<String, Object> pedro, double powerCap) {
+    static Result check(LiveProgram program, HardwareMap hardwareMap, Map<String, Object> pedro) {
         Result result = new Result();
         Map<String, List<HardwareDevice>> configured = configured(hardwareMap);
         Map<String, List<String>> pedroRoles = roles(pedro);
-        for (LiveProgram.Mechanism mechanism : program.mechanisms) {
-            for (LiveProgram.Device device : mechanism.devices) {
-                String where = "\"" + device.name + "\" in " + mechanism.name;
-                List<HardwareDevice> found = configured.get(device.name);
-                Class<?> wanted = classFor(device.kind);
-                if (found == null) {
-                    result.problems.add(where + " is not in the robot's configuration.");
-                } else if (!isAny(found, wanted)) {
-                    String type = Manifest.typeOf(found.get(0));
-                    result.problems.add(where + " is configured as " + (type == null ? "a controller" : type) + ", but the program uses it as " + label(device.kind) + ".");
-                }
+        for (LiveProgram.Device device : program.devices) {
+            String where = "\"" + device.name + "\"" + mechanismOf(program, device.name);
+            List<HardwareDevice> found = configured.get(device.name);
+            Class<?> wanted = classFor(device.kind);
+            if (found == null) {
+                result.problems.add(where + " is not in the robot's configuration.");
+            } else if (!isAny(found, wanted)) {
+                String type = Manifest.typeOf(found.get(0));
+                result.problems.add(where + " is configured as " + (type == null ? "a controller" : type) + ", but the program uses it as " + label(device.kind) + ".");
+            }
 
-                boolean target = false;
-                for (LiveProgram.State state : mechanism.states) {
-                    LiveProgram.Output output = state.outputs.get(device.id);
-                    if (output == null) continue;
-                    if ("target".equals(output.kind)) {
-                        target = true;
-                        LiveProgram.Travel travel = device.travel;
-                        if (travel != null && (output.ticks < travel.minTicks || output.ticks > travel.maxTicks)) {
-                            result.problems.add(where + " is sent to " + output.ticks + " ticks in \"" + state.name + "\", outside its travel of "
-                                    + travel.minTicks + " to " + travel.maxTicks + " ticks.");
-                        }
-                    }
-                    double power = "target".equals(output.kind) ? output.power : "power".equals(output.kind) ? Math.abs(output.value) : 0;
-                    if (power > powerCap + 1e-9) {
-                        result.notes.add(where + " runs at power " + format(power) + " in \"" + state.name + "\"; Lumière Live limits mechanisms to " + format(powerCap) + ".");
+            boolean target = false;
+            for (Use use : uses(program, device.name)) {
+                LiveProgram.Output output = use.output;
+                if ("target".equals(output.kind)) {
+                    target = true;
+                    LiveProgram.Travel travel = device.travel;
+                    if (travel != null && (output.ticks < travel.minTicks || output.ticks > travel.maxTicks)) {
+                        result.problems.add(where + " is sent to " + output.ticks + " ticks " + use.source + ", outside its travel of "
+                                + travel.minTicks + " to " + travel.maxTicks + " ticks.");
                     }
                 }
-
-                if (target && device.travel == null) {
-                    result.problems.add(where + " takes encoder targets but has no travel range. Set its lowest and highest ticks on the Robot page; Lumière Live stops it if it leaves them.");
+                double power = "target".equals(output.kind) ? output.power : "power".equals(output.kind) ? Math.abs(output.value) : 0;
+                if (power > device.powerLimit + 1e-9) {
+                    result.notes.add(program.format < 2
+                            ? where + " runs at power " + format(power) + " " + use.source + "; Lumière Live limits mechanisms to " + format(device.powerLimit) + "."
+                            : where + " is given power " + format(power) + " " + use.source + "; its power limit cuts that to " + format(device.powerLimit) + ".");
                 }
+            }
 
-                List<String> roles = pedroRoles.get(device.name);
-                if (roles == null) continue;
-                String drive = first(roles, DRIVE_ROLES);
-                String wheel = first(roles, ENCODER_ROLES);
-                if (drive != null) {
-                    result.problems.add(where + " is Pedro Pathing's " + ROLE_LABELS.get(drive) + ". Lumière Live never gives Pedro's devices to mechanisms.");
-                } else if (wheel != null && target) {
-                    result.problems.add(where + " has Pedro Pathing's " + ROLE_LABELS.get(wheel) + " on its encoder port, so an encoder target would follow the dead wheel. Give this motor power instead.");
-                } else if (wheel != null) {
-                    result.notes.add(where + " shares its port with Pedro Pathing's " + ROLE_LABELS.get(wheel) + "; Lumière Live only sets its power.");
-                } else if (!roles.isEmpty()) {
-                    String role = roles.get(0);
-                    String label = ROLE_LABELS.containsKey(role) ? ROLE_LABELS.get(role) : role;
-                    result.problems.add(where + " is Pedro Pathing's " + label + ". Lumière Live never gives Pedro's devices to mechanisms.");
-                }
+            if (target && device.travel == null) {
+                result.problems.add(where + " takes encoder targets but has no travel range. Set its lowest and highest ticks in the Robot page's hardware list; Lumière Live stops it if it leaves them.");
+            }
+
+            List<String> roles = pedroRoles.get(device.name);
+            if (roles == null) continue;
+            String drive = first(roles, DRIVE_ROLES);
+            String wheel = first(roles, ENCODER_ROLES);
+            if (drive != null) {
+                result.problems.add(where + " is Pedro Pathing's " + ROLE_LABELS.get(drive) + ". Lumière Live never drives Pedro Pathing's devices itself.");
+            } else if (wheel != null && target) {
+                result.problems.add(where + " has Pedro Pathing's " + ROLE_LABELS.get(wheel) + " on its encoder port, so an encoder target would follow the dead wheel. Give this motor power instead.");
+            } else if (wheel != null) {
+                result.notes.add(where + " shares its port with Pedro Pathing's " + ROLE_LABELS.get(wheel) + "; Lumière Live only sets its power.");
+            } else if (!roles.isEmpty()) {
+                String role = roles.get(0);
+                String label = ROLE_LABELS.containsKey(role) ? ROLE_LABELS.get(role) : role;
+                result.problems.add(where + " is Pedro Pathing's " + label + ". Lumière Live never drives Pedro Pathing's devices itself.");
             }
         }
         return result;
+    }
+
+    /** " in Intake" for the first mechanism with a device of this name, or "" for a device only set directly. */
+    private static String mechanismOf(LiveProgram program, String name) {
+        for (LiveProgram.Mechanism mechanism : program.mechanisms) {
+            for (LiveProgram.Device device : mechanism.devices) if (device.name.equals(name)) return " in " + mechanism.name;
+        }
+        return "";
+    }
+
+    /** Every output the program gives a device: its mechanisms' states, and the routine's steps that set it. */
+    private static List<Use> uses(LiveProgram program, String name) {
+        List<Use> uses = new ArrayList<>();
+        for (LiveProgram.Mechanism mechanism : program.mechanisms) {
+            for (LiveProgram.Device device : mechanism.devices) {
+                if (!device.name.equals(name)) continue;
+                for (LiveProgram.State state : mechanism.states) {
+                    LiveProgram.Output output = state.outputs.get(device.id);
+                    if (output != null) uses.add(new Use(output, "in \"" + state.name + "\""));
+                }
+            }
+        }
+        collect(program.routine, name, uses);
+        return uses;
+    }
+
+    private static void collect(List<LiveProgram.Step> steps, String name, List<Use> uses) {
+        for (LiveProgram.Step step : steps) {
+            if ("device".equals(step.kind) && name.equals(step.device)) uses.add(new Use(step.output, "by an action"));
+            if (step.steps != null) collect(step.steps, name, uses);
+        }
     }
 
     /** Every configured name and the devices behind it, read the way the manifest reads them. */
