@@ -1,9 +1,9 @@
 # Release progress
 
 Updated 2026-11-10. This record separates what has been verified locally from what still waits on hardware,
-continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.3.0 is tagged from this record.
+continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0 and 0.3.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack; 0.3.1 is tagged from this record.
 
-## Unreleased
+## Version 0.3.1
 
 - **Unfinished actions no longer break saving.** Adding "Set mechanism state" before any mechanism had states left the action empty. The project could then no longer be saved, and the error was the schema's raw JSON.
   - **Saving:** an action or button whose path, mechanism or state is not chosen yet now saves. Problems says what to choose ("Choose a mechanism and a state for this action").
@@ -24,6 +24,7 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 ar
     - A shared crosshair, read with hover or the arrow keys; it follows the last 30 seconds, can pause, and shows the whole run after STOP.
     - The colors pass the dataviz palette checks on every theme's surface, and every value is also printed.
   - **Live data from any OpMode** that streams, TeleOp included. OpModes that don't call `Session.attach` stream nothing yet; that is Part B's robot-library change.
+- **A project made right after the app opens no longer disappears.** When the saved projects finished loading, they replaced the list, losing a project created or imported moments before, and its notice. They are now merged in. Found from two flaky browser tests during the 0.3.1 checks.
 - **Deploy warns about a second Lumière Live,** such as one another Lumière project deployed into the same TeamCode. The Driver Station would list both.
 - **Virtual hub:** it builds into its own `build-virtual-hub/` folders. On Windows the running hub locked the project's build files, so a simulator launch on the same project failed after about 10 s. Found in the 0.3.0 walkthrough, which ran the hub and the desktop app on the test robot together.
 
@@ -136,7 +137,7 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2 and 0.2.0 ar
 | P4 Code generation and quickstart | Done | Golden Java compiles against the real libraries and runs in simulation. Quickstart = official SDK download + overlay. |
 | P5 App experience | Workspace built and validated | `app/src/studio`: projects, visual routines, TeleOp bindings, mechanisms, path editor, generated Java, preview and desktop simulator, robot tools. |
 | P6 Desktop | Backend and editor done | Toolchain detection and install, project creation, Gradle/adb runner, build-output problems, simulator launcher. Editor logic in `src/core`: OpMode discovery, AutoTune paste, and Java completions. |
-| P7 Release | 0.1.1, 0.1.2 and 0.2.0 released; 0.3.0 tagged | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
+| P7 Release | 0.1.1, 0.1.2, 0.2.0 and 0.3.0 released; 0.3.1 tagged | Named Lumière, repository `Dillylol/Lumiere`. The tag workflow builds installers for Windows, universal macOS, and Linux; JitPack builds the robot library. Version 0.1.2 adds the finished flame identity, wide-screen layout, and signed auto-updates. SignPath code-signing approval is pending. |
 
 ## Verification record
 
