@@ -74,16 +74,35 @@ export interface CompoundPath extends PathCommon {
 
 export type PathDoc = AtomicPath | CompoundPath;
 
+/**
+ * How long a mechanism action holds its state, and the state it goes to after. The action takes the
+ * whole time; when it ends, even early because a Race cut it short, the mechanism goes to `thenStateId`.
+ */
+export interface StateDuration {
+  ms: number;
+  thenStateId: string;
+}
+
+/**
+ * How long a device action holds its output. When it ends, even early, motors and continuous servos stop
+ * (power 0) and a servo goes to `thenPosition`.
+ */
+export interface DeviceDuration {
+  ms: number;
+  /** For a servo: its position after, 0 to 1. */
+  thenPosition?: number;
+}
+
 /** A step in an autonomous routine. Steps run in order unless grouped. */
 export type Step =
   | { id: string; kind: "path"; pathId: string }
   | { id: string; kind: "wait"; ms: number }
-  | { id: string; kind: "state"; subsystemId: string; stateId: string }
+  | { id: string; kind: "state"; subsystemId: string; stateId: string; duration?: StateDuration }
   /**
    * Sets one motor, servo or continuous servo directly, without a mechanism. `device` names a device
    * in the robot's hardware list; `deviceKind` is what the action uses it as, which must match it.
    */
-  | { id: string; kind: "device"; device: string; deviceKind: DeviceKind; output: Output }
+  | { id: string; kind: "device"; device: string; deviceKind: DeviceKind; output: Output; duration?: DeviceDuration }
   /** Runs every child at once and finishes when all have finished. */
   | { id: string; kind: "together"; steps: Step[] }
   /** Runs every child at once and finishes as soon as the first one finishes. */

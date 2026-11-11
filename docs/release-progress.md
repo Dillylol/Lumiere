@@ -15,8 +15,14 @@ continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.
   - **Errors:** an action without a device; an output its device can't take; two uses that disagree on a device's kind; an action on Pedro's drive motor or a target on a dead wheel's port; a target outside the motor's travel.
   - **Notes:** a power above the device's limit ("runs at 0.7"), and an action that sets a device a mechanism also owns.
   - **Warnings,** as before: a device not in the robot's last-reported configuration, or configured as another kind.
-- **Checked:** unit tests for the upgrade, the list, validation, generation and the editors; browser tests for the hardware list and a Motor action within its limit; a new golden project, `direct-devices`, built in a quickstart against the FTC SDK and run headless in the simulator (the intake asked for 0.9 runs at 0.7, the reversed lift reaches its 1200-tick target).
-- **Not yet:** durations on actions, and Lumière Live with direct actions and per-device limits. Until then, Lumière Live refuses a program with Motor or Servo actions, and still caps mechanisms at its own power limit.
+- **Durations.** A mechanism or device action can last a set time, shown as one action: "Intake: In for 2.0 s, then Off".
+  - **After the time:** a mechanism goes to the state chosen (its starting state by default), a motor or continuous servo stops, and a servo goes to the position chosen.
+  - **The action takes the whole time;** Together runs it beside a path. When a Race ends it early, what comes after still happens.
+  - **The estimate and Pathing's timeline** count the time, and the planned mechanism states change when it is up.
+  - **Generated Java:** `sequential(instant(set), waitMs(N).setEnd(ended -> then))`. Ivy runs a command's end handler however it ends, which is what makes "then" happen in a Race.
+  - **Problems:** an unchosen or deleted state after is an error; an action longer than the 30-second autonomous period is a warning. A duration of 0 can't be saved, and the save error says the duration must be above 0.
+- **Checked:** unit tests for the upgrade, the list, validation, durations, generation and the editors; browser tests for the hardware list and a Motor action within its limit; a new golden project, `direct-devices`, built in a quickstart against the FTC SDK and run headless in the simulator. There, the intake asked for 0.9 runs at 0.7, the reversed lift reaches its 1200-tick target, and the timed spinner, kicker and roller end stopped, at their position after, and in their state after.
+- **Not yet:** Lumière Live with direct actions, durations and per-device limits. Until then, Lumière Live refuses a program with Motor or Servo actions or timed actions, and still caps mechanisms at its own power limit.
 
 ## Version 0.3.1
 

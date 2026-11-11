@@ -1,8 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Eye, EyeOff, PanelLeft, Plus } from "lucide-react";
-import { AUTONOMOUS_PERIOD_MS, describeDeviceStep, type AutonomousProgram, type Pose, type Project, type RoutineEstimate, type Step } from "../../core";
-
-const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`;
+import { AUTONOMOUS_PERIOD_MS, describeDeviceStep, describeStateStep, seconds, type AutonomousProgram, type Pose, type Project, type RoutineEstimate, type Step } from "../../core";
 
 /** A collapsible group in a panel, with a count and actions in its header. */
 export function Section({ title, count, actions, open: initial = true, children }: { title: string; count?: number; actions?: ReactNode; open?: boolean; children: ReactNode }) {
@@ -24,10 +22,7 @@ function stepLabel(step: Step, program: AutonomousProgram, project: Project): st
   switch (step.kind) {
     case "path": return program.paths.find((path) => path.id === step.pathId)?.name || "Path";
     case "wait": return "Wait";
-    case "state": {
-      const subsystem = project.subsystems.find((item) => item.id === step.subsystemId);
-      return `${subsystem?.name ?? "Mechanism"}: ${subsystem?.states.find((item) => item.id === step.stateId)?.name ?? "state"}`;
-    }
+    case "state": return describeStateStep(project, step);
     case "device": return describeDeviceStep(step);
     case "together": return `Together (${step.steps.length})`;
     case "race": return `Race (${step.steps.length})`;

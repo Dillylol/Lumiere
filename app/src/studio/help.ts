@@ -27,6 +27,7 @@ export const HELP: Record<HelpTopicId, HelpTopic> = {
       "Wait pauses for a set time.",
       "Set mechanism state puts a mechanism, such as an intake or a lift, into one of its states.",
       "Motor, Servo and Continuous servo set one device directly: a power, a servo position, or a motor's encoder target. Each follows the device's power limit from the Robot page.",
+      "For a set time makes a mechanism or device action last, such as Intake In for 2 s, then Off. The action takes the whole time; put it in Together to run it beside a path.",
       "Together runs actions at once and ends when all have finished; Race ends as soon as the first one finishes.",
       "TeleOp programs set field-centric driving, slow mode, heading reset, and buttons that set mechanism states on a press, as a toggle, or while held.",
       "Code shows the Java the program becomes.",

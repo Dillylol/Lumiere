@@ -56,6 +56,12 @@ test("a device's settings live in the hardware list, and actions set it directly
   const problems = page.getByRole("button", { name: /^Problems/ });
   if ((await problems.getAttribute("aria-expanded")) !== "true") await problems.click();
   await expect(page.getByRole("button", { name: `info: Main Auto · action 3: This action gives "intake" power 0.9. Its power limit is 0.6, so it runs at 0.6.` })).toBeVisible();
+
+  // A set time makes it one timed action: the motor stops after.
+  await properties.getByRole("checkbox", { name: "For a set time" }).check();
+  await properties.getByLabel("Duration (s)").fill("2");
+  await expect(steps).toContainText("intake: power 0.9 for 2.0 s, then off");
+  await expect(properties).toContainText("Then it stops (power 0).");
   expect(await seriousViolations(page)).toEqual([]);
   await expectNoHorizontalScroll(page);
 

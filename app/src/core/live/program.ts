@@ -160,7 +160,10 @@ function liveSteps(steps: Step[]): LiveStep[] {
   for (const step of steps) {
     if (step.kind === "path") result.push({ kind: "path", path: step.pathId });
     else if (step.kind === "wait") result.push({ kind: "wait", ms: java(step.ms) });
-    else if (step.kind === "state") result.push({ kind: "state", mechanism: step.subsystemId, state: step.stateId });
+    else if (step.kind === "state") {
+      if (step.duration) throw new Error(`${LIVE_OPMODE_NAME} can't run timed actions yet.`);
+      result.push({ kind: "state", mechanism: step.subsystemId, state: step.stateId });
+    }
     else if (step.kind === "device") throw new Error(`${LIVE_OPMODE_NAME} can't run Motor, Servo and continuous servo actions yet.`);
     else {
       const children = liveSteps(step.steps);

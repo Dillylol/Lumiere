@@ -241,3 +241,7 @@ button.info-button{width:26px;height:26px;min-height:0;padding:0;border-radius:5
 .device-kind { display: flex; flex-direction: column; gap: 8px; margin: 0; font-size: 14px; color: var(--text); min-width: 140px; }
 .device-kind span { font-size: 13px; color: var(--muted); }
 .power-field small { display: block; margin-top: -10px; margin-bottom: 12px; color: var(--accent); }
+
+/* "For a set time" on a mechanism or device action in Build. */
+.duration-editor { border-top: 1px solid var(--border); margin-top: 6px; padding-top: 16px; }
+.duration-editor > .check { color: var(--text); }

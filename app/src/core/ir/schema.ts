@@ -85,12 +85,17 @@ const deviceKind = z.enum(["motor", "servo", "crservo"]);
 const deviceName = z.string().max(60);
 const ticks = z.number().int().min(-1_000_000).max(1_000_000);
 
+const durationMs = z.number().finite().gt(0).max(600_000);
+
 export const stepSchema: z.ZodType<Step> = z.lazy(() => z.discriminatedUnion("kind", [
   z.object({ id, kind: z.literal("path"), pathId: ref }),
   z.object({ id, kind: z.literal("wait"), ms: z.number().finite().min(0).max(600_000) }),
-  z.object({ id, kind: z.literal("state"), subsystemId: ref, stateId: ref }),
+  z.object({ id, kind: z.literal("state"), subsystemId: ref, stateId: ref, duration: z.object({ ms: durationMs, thenStateId: ref }).optional() }),
   // The device may be empty while the team has not chosen one, like the references above.
-  z.object({ id, kind: z.literal("device"), device: deviceName, deviceKind, output }),
+  z.object({
+    id, kind: z.literal("device"), device: deviceName, deviceKind, output,
+    duration: z.object({ ms: durationMs, thenPosition: z.number().min(0).max(1).optional() }).optional(),
+  }),
   z.object({ id, kind: z.literal("together"), steps: z.array(stepSchema).max(50) }),
   z.object({ id, kind: z.literal("race"), steps: z.array(stepSchema).max(50) }),
 ]));
@@ -234,9 +239,10 @@ const FIELD_NAMES: Record<string, string> = {
   forwardDeceleration: "forward deceleration", strafeDeceleration: "strafe deceleration", acceleration: "acceleration",
   turnRateDeg: "turn rate", headingDeg: "heading", minTicks: "lowest travel", maxTicks: "highest travel", ticks: "target",
   value: "value", power: "power", device: "device", deviceKind: "device type", powerLimit: "power limit", kind: "type",
+  thenStateId: "state after", thenPosition: "position after",
 };
 
-type Issue = { code: string; path: PropertyKey[]; message: string; origin?: string; minimum?: unknown; maximum?: unknown };
+type Issue = { code: string; path: PropertyKey[]; message: string; origin?: string; minimum?: unknown; maximum?: unknown; inclusive?: boolean };
 
 /**
  * Describes what is wrong with a project in words a team can act on: the program, action, mechanism or
@@ -288,14 +294,18 @@ function describeIssue(issue: Issue, value: unknown): string {
     }
     if (key === "robot") places.push("the robot profile");
     else if (key === "start") places.push("the start pose");
-    else if (i === issue.path.length - 1) field = FIELD_NAMES[String(key)] ?? String(key);
+    // An action's time is "the duration", not a wait time.
+    else if (i === issue.path.length - 1) field = key === "ms" && issue.path[i - 1] === "duration" ? "duration" : FIELD_NAMES[String(key)] ?? String(key);
     node = child;
   }
   flushAction();
+  // An exclusive bound, such as a duration that must be more than 0, allows neither the bound nor beyond it.
   const problem = issue.code === "too_small"
-    ? issue.origin === "string" ? "is empty" : issue.origin === "array" ? "has too few items" : `is below ${String(issue.minimum)}`
+    ? issue.origin === "string" ? "is empty" : issue.origin === "array" ? "has too few items"
+      : issue.inclusive === false ? `must be above ${String(issue.minimum)}` : `is below ${String(issue.minimum)}`
     : issue.code === "too_big"
-      ? issue.origin === "string" ? "is too long" : issue.origin === "array" ? "has too many items" : `is above ${String(issue.maximum)}`
+      ? issue.origin === "string" ? "is too long" : issue.origin === "array" ? "has too many items"
+        : issue.inclusive === false ? `must be below ${String(issue.maximum)}` : `is above ${String(issue.maximum)}`
       : issue.code === "invalid_type" ? "is missing or not valid"
         : issue.code === "invalid_value" || issue.code === "invalid_union" ? "is not an allowed value"
           : issue.message.charAt(0).toLowerCase() + issue.message.slice(1);

@@ -21,9 +21,10 @@ export { validateProject, hasErrors, buttonLabel, describeLocation, actionNumber
 export { isVersion1Project, migrateProject, migrateVersion1, migrateVersion2, migrateVersion3, type Migration } from "./ir/migrate";
 export { physicalRobot, type PhysicalRobot } from "./ir/robot";
 export {
-  DEVICE_KINDS, defaultOutput, describeDeviceStep, describeOutput, deviceKindLabel, deviceKindTitle, deviceUses, hardwareEntry, hardwareList,
+  DEVICE_KINDS, defaultOutput, deviceKindLabel, deviceKindTitle, deviceUses, hardwareEntry, hardwareList,
   isDeviceKind, limitPower, outputKinds, powerLimitOf, useOutputs, withHardware, withoutHardware, type DeviceUse,
 } from "./ir/hardware";
+export { describeDeviceStep, describeOutput, describeStateStep, seconds } from "./ir/describe";
 export { DRIVE_ROLES, ENCODER_ROLES, localizerLabel, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType, type OwnedDevice } from "./ir/pedro";
 
 export {

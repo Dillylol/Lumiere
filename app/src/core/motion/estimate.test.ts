@@ -86,6 +86,31 @@ describe("estimateRoutine", () => {
     expect(estimate.poseAt(5000)).toEqual(atEnd);
   });
 
+  it("gives timed actions their whole time, then the state after, which a race brings forward", () => {
+    const project = createProject("Timed");
+    project.subsystems.push({ id: "roller", name: "Roller", initialStateId: "stop", devices: [{ id: "d", name: "roller", kind: "crservo" }], states: [
+      { id: "spin", name: "Spin", outputs: { d: { kind: "power", value: 1 } } },
+      { id: "stop", name: "Stop", outputs: { d: { kind: "power", value: 0 } } },
+    ] });
+    const program = createAutonomous("Timed");
+    program.routine = [
+      { id: "a", kind: "state", subsystemId: "roller", stateId: "spin", duration: { ms: 2000, thenStateId: "stop" } },
+      { id: "b", kind: "device", device: "intake", deviceKind: "motor", output: { kind: "power", value: 1 }, duration: { ms: 500 } },
+      { id: "c", kind: "race", steps: [
+        { id: "c1", kind: "state", subsystemId: "roller", stateId: "spin", duration: { ms: 3000, thenStateId: "stop" } },
+        { id: "c2", kind: "wait", ms: 1000 },
+      ] },
+    ];
+    const estimate = estimateRoutine(program, project);
+    expect(estimate.durationMs).toBe(2000 + 500 + 1000);
+    expect(estimate.entries.find((entry) => entry.stepId === "b")).toMatchObject({ startMs: 2000, endMs: 2500 });
+    expect(estimate.mechanismStates(1999).roller).toBe("spin");
+    expect(estimate.mechanismStates(2000).roller).toBe("stop");
+    // In the race, the wait ends first, so the roller stops then, not after its own 3 seconds.
+    expect(estimate.mechanismStates(2600).roller).toBe("spin");
+    expect(estimate.mechanismStates(3500).roller).toBe("stop");
+  });
+
   it("follows the robot's heading from one path into the next", () => {
     const program = createAutonomous("Turns", { x: 10, y: 10, headingDeg: 90 });
     const first = line(58, 10, forward);

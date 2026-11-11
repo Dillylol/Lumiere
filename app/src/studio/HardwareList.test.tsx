@@ -133,3 +133,54 @@ describe("mechanisms and device actions", () => {
     expect(auto.kind === "autonomous" && auto.routine[0]).toMatchObject({ device: "kicker", deviceKind: "servo", output: { kind: "position", value: 0 } });
   });
 });
+
+describe("timed actions in Build", () => {
+  afterEach(cleanup);
+
+  it("times a mechanism action, ending in its starting state, and can untime it", async () => {
+    const project = createProject("Timed");
+    const intake = createSubsystem("Intake");
+    const on = createState("In"), off = createState("Off");
+    intake.states.push(on, off);
+    intake.initialStateId = off.id;
+    project.subsystems.push(intake);
+    const auto = createAutonomous("Main Auto");
+    auto.routine.push({ id: "step_a", kind: "state", subsystemId: intake.id, stateId: on.id });
+    project.programs.push(auto);
+    const seen: { project?: Project } = {};
+    render(<Harness initial={project} panel="build" seen={seen}/>);
+    const routine = () => { const program = seen.project!.programs[0]; return program.kind === "autonomous" ? program.routine : []; };
+
+    await userEvent.click(screen.getByRole("button", { name: /Set mechanism state/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "For a set time" }));
+    expect(routine()[0]).toMatchObject({ duration: { ms: 1000, thenStateId: off.id } });
+    expect(screen.getByText("Intake: In for 1.0 s, then Off")).toBeInTheDocument();
+
+    const time = screen.getByLabelText("Duration (s)");
+    await userEvent.clear(time);
+    await userEvent.type(time, "2.5");
+    expect(routine()[0]).toMatchObject({ duration: { ms: 2500 } });
+    await userEvent.click(screen.getByRole("checkbox", { name: "For a set time" }));
+    expect(routine()[0]).not.toHaveProperty("duration");
+  });
+
+  it("times a servo action with the position after, and a motor with stopping after", async () => {
+    const project = scannedProject();
+    const seen: { project?: Project } = {};
+    render(<Harness initial={project} panel="build" seen={seen}/>);
+    const routine = () => { const program = seen.project!.programs[0]; return program.kind === "autonomous" ? program.routine : []; };
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Add action" }), "device:servo");
+    await userEvent.click(screen.getByRole("checkbox", { name: "For a set time" }));
+    expect(routine()[0]).toMatchObject({ device: "claw", duration: { ms: 1000, thenPosition: 0 } });
+    const after = screen.getByLabelText("Then position");
+    await userEvent.clear(after);
+    await userEvent.type(after, "0.4");
+    expect(routine()[0]).toMatchObject({ duration: { thenPosition: 0.4 } });
+    expect(screen.getByText("claw: position 0 for 1.0 s, then position 0.4")).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Add action" }), "device:motor");
+    await userEvent.click(screen.getByRole("checkbox", { name: "For a set time" }));
+    expect(screen.getByText("Then it stops (power 0).")).toBeInTheDocument();
+    expect(routine()[1]).toMatchObject({ device: "intake", duration: { ms: 1000 } });
+  });
+});

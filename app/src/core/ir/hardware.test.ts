@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createAutonomous, createDevice, createProject, createSubsystem } from "./create";
-import { describeDeviceStep, deviceUses, hardwareList, limitPower, powerLimitOf, withHardware, withoutHardware } from "./hardware";
+import { describeDeviceStep } from "./describe";
+import { deviceUses, hardwareList, limitPower, powerLimitOf, withHardware, withoutHardware } from "./hardware";
 import type { DeviceStep, Project } from "./types";
 
 const step = (device: string, output: DeviceStep["output"], deviceKind: DeviceStep["deviceKind"] = "motor"): DeviceStep =>

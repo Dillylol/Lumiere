@@ -1,4 +1,5 @@
 import { resolvePath } from "../geometry/paths";
+import { seconds } from "./describe";
 import { deviceKindLabel, deviceUses, hardwareEntry, limitPower, outputKinds, powerLimitOf, useOutputs, type DeviceUse } from "./hardware";
 import { DRIVE_ROLES, ENCODER_ROLES, pedroDevices, pedroMismatches, pedroRoleLabel, pedroRoleType } from "./pedro";
 import { LIVE_OPMODE_NAME } from "../live/program";
@@ -325,6 +326,12 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
               ? `Choose a state of "${subsystem.name}" for this action.`
               : `"${subsystem.name}" has no states yet. Add one on the Robot page, or choose another mechanism.`, where);
           } else if (!subsystem.states.some((state) => state.id === step.stateId)) add("error", "step.state.missing", `This step uses a state that "${subsystem.name}" no longer has.`, where);
+          if (subsystem && step.duration) {
+            const then = step.duration.thenStateId;
+            if (!then) add("error", "step.state.then", `Choose the state "${subsystem.name}" goes to after ${seconds(step.duration.ms)}.`, where);
+            else if (!subsystem.states.some((state) => state.id === then)) add("error", "step.state.then", `After ${seconds(step.duration.ms)}, this action sets a state that "${subsystem.name}" no longer has.`, where);
+          }
+          if (step.duration && step.duration.ms > AUTONOMOUS_PERIOD_MS) add("warning", "step.duration.long", "This action lasts longer than the 30 second autonomous period.", where);
           groupSubsystems.set(step.subsystemId, (groupSubsystems.get(step.subsystemId) ?? 0) + 1);
           break;
         }
@@ -347,6 +354,7 @@ function validateAutonomous(program: AutonomousProgram, project: Project, add: A
           }
           const owner = project.subsystems.find((subsystem) => subsystem.devices.some((device) => device.name.trim() === name));
           if (owner) add("info", "step.device.mechanism", `"${name}" is also part of ${owner.name.trim() || "a mechanism"}. This action sets it directly, without changing the mechanism's state.`, where);
+          if (step.duration && step.duration.ms > AUTONOMOUS_PERIOD_MS) add("warning", "step.duration.long", "This action lasts longer than the 30 second autonomous period.", where);
           groupDevices.set(name, (groupDevices.get(name) ?? 0) + 1);
           break;
         }

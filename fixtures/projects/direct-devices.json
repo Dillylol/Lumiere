@@ -60,17 +60,15 @@
           "steps": [
             { "id": "step_1a", "kind": "path", "pathId": "path_out" },
             { "id": "step_1b", "kind": "device", "device": "intake", "deviceKind": "motor", "output": { "kind": "power", "value": 0.9 } },
-            { "id": "step_1c", "kind": "state", "subsystemId": "mech_roller", "stateId": "state_roller_spin" }
+            { "id": "step_1c", "kind": "state", "subsystemId": "mech_roller", "stateId": "state_roller_spin", "duration": { "ms": 1500, "thenStateId": "state_roller_stop" } }
           ]
         },
         { "id": "step_2", "kind": "device", "device": "lift", "deviceKind": "motor", "output": { "kind": "target", "ticks": 1200, "power": 1 } },
-        { "id": "step_3", "kind": "device", "device": "kicker", "deviceKind": "servo", "output": { "kind": "position", "value": 0.6 } },
-        { "id": "step_4", "kind": "device", "device": "spinner", "deviceKind": "crservo", "output": { "kind": "power", "value": 1 } },
+        { "id": "step_3", "kind": "device", "device": "kicker", "deviceKind": "servo", "output": { "kind": "position", "value": 0.6 }, "duration": { "ms": 500, "thenPosition": 0.2 } },
+        { "id": "step_4", "kind": "device", "device": "spinner", "deviceKind": "crservo", "output": { "kind": "power", "value": 1 }, "duration": { "ms": 500 } },
         { "id": "step_5", "kind": "wait", "ms": 500 },
-        { "id": "step_6", "kind": "device", "device": "lift", "deviceKind": "motor", "output": { "kind": "power", "value": -0.2 } },
-        { "id": "step_7", "kind": "device", "device": "intake", "deviceKind": "motor", "output": { "kind": "power", "value": 0 } },
-        { "id": "step_8", "kind": "device", "device": "spinner", "deviceKind": "crservo", "output": { "kind": "power", "value": 0 } },
-        { "id": "step_9", "kind": "state", "subsystemId": "mech_roller", "stateId": "state_roller_stop" }
+        { "id": "step_6", "kind": "device", "device": "lift", "deviceKind": "motor", "output": { "kind": "power", "value": -0.2 }, "duration": { "ms": 300 } },
+        { "id": "step_7", "kind": "device", "device": "intake", "deviceKind": "motor", "output": { "kind": "power", "value": 0 } }
       ]
     }
   ]

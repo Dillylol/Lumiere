@@ -1,5 +1,5 @@
 // GENERATED FILE: edit the "Direct Devices" project in Lumière instead. To keep hand edits, delete these two lines.
-// checksum: 922a329e860a9d12
+// checksum: 958141ff006b3b64
 package org.firstinspires.ftc.teamcode.generated.directdevices;
 
 import static com.pedropathing.api.Paths.line;
@@ -29,7 +29,7 @@ import dev.lumiere.ftc.Session;
 /** Generated from the "Direct Auto" autonomous. */
 @Autonomous(name = "Direct Auto")
 public class DirectAuto extends OpMode {
-    private static final String ROUTINE_REVISION = "a1b5c5463324c3b5";
+    private static final String ROUTINE_REVISION = "9f30070a17d8a831";
 
     private final PoseFactory poses = PoseFactory.degrees();
     private final Pose startPose = poses.of(9, 72, 0);
@@ -65,16 +65,26 @@ public class DirectAuto extends OpMode {
                 parallel(
                     follow(follower, out()),
                     instant(() -> intake.setPower(0.7 /* 0.9, cut to the power limit on the Robot page */)),
-                    roller.command(Roller.State.SPIN)
+                    sequential(
+                        instant(() -> roller.set(Roller.State.SPIN)),
+                        waitMs(1500).setEnd(ended -> roller.set(Roller.State.STOP))
+                    )
                 ),
                 runToTarget(lift, 1200, 0.8 /* 1, cut to the power limit on the Robot page */),
-                instant(() -> kicker.setPosition(0.6)),
-                instant(() -> spinner.setPower(0.5 /* 1, cut to the power limit on the Robot page */)),
+                sequential(
+                    instant(() -> kicker.setPosition(0.6)),
+                    waitMs(500).setEnd(ended -> kicker.setPosition(0.2))
+                ),
+                sequential(
+                    instant(() -> spinner.setPower(0.5 /* 1, cut to the power limit on the Robot page */)),
+                    waitMs(500).setEnd(ended -> spinner.setPower(0))
+                ),
                 waitMs(500),
-                instant(() -> { lift.setMode(DcMotor.RunMode.RUN_USING_ENCODER); lift.setPower(-0.2); }),
+                sequential(
+                    instant(() -> { lift.setMode(DcMotor.RunMode.RUN_USING_ENCODER); lift.setPower(-0.2); }),
+                    waitMs(300).setEnd(ended -> lift.setPower(0))
+                ),
                 instant(() -> intake.setPower(0)),
-                instant(() -> spinner.setPower(0)),
-                roller.command(Roller.State.STOP),
                 instant(this::reportRoutineCompletion)
         );
     }

@@ -168,7 +168,8 @@ export function estimateRoutine(program: AutonomousProgram, project: Pick<Projec
   const entries: TimelineEntry[] = [];
   const runs: PathRun[] = [];
   const profiles = new Map<string, PathProfile>();
-  const stateChanges: { at: number; subsystemId: string; stateId: string }[] = [];
+  // `then` marks the state a timed action ends in, which a race that ends first brings forward.
+  const stateChanges: { at: number; subsystemId: string; stateId: string; then?: true }[] = [];
   const startPose: Pose = { x: program.start.x, y: program.start.y, heading: normalizeAngle(toRadians(program.start.headingDeg)) };
   let heading = startPose.heading;
 
@@ -199,20 +200,25 @@ export function estimateRoutine(program: AutonomousProgram, project: Pick<Projec
         duration = step.ms;
         break;
       case "state":
-        duration = hasTarget(step.subsystemId, step.stateId) ? TARGET_STATE_ESTIMATE_MS : 0;
+        // A timed action takes its whole time, then sets its "then" state.
+        duration = step.duration ? step.duration.ms : hasTarget(step.subsystemId, step.stateId) ? TARGET_STATE_ESTIMATE_MS : 0;
         stateChanges.push({ at: start, subsystemId: step.subsystemId, stateId: step.stateId });
+        if (step.duration) stateChanges.push({ at: start + step.duration.ms, subsystemId: step.subsystemId, stateId: step.duration.thenStateId, then: true });
         break;
       case "device":
         // Like a mechanism state: a power or position is set at once, and an encoder target takes a while.
-        duration = step.output.kind === "target" ? TARGET_STATE_ESTIMATE_MS : 0;
+        duration = step.duration ? step.duration.ms : step.output.kind === "target" ? TARGET_STATE_ESTIMATE_MS : 0;
         break;
       case "together":
       case "race": {
         const firstRun = runs.length;
+        const firstChange = stateChanges.length;
         const durations = step.steps.map((child) => schedule(child, start));
         duration = !durations.length ? 0 : step.kind === "together" ? Math.max(...durations) : Math.min(...durations);
         if (step.kind === "race") {
           for (const run of runs.slice(firstRun)) run.cutoffMs = Math.min(run.cutoffMs, start + duration);
+          // A timed action the race cuts short goes to its "then" state as it ends.
+          for (const change of stateChanges.slice(firstChange)) if (change.then) change.at = Math.min(change.at, start + duration);
         }
         break;
       }

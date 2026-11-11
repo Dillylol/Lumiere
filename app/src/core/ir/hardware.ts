@@ -36,23 +36,6 @@ export function defaultOutput(kind: DeviceKind): Output {
   return kind === "servo" ? { kind: "position", value: 0 } : { kind: "power", value: 0 };
 }
 
-const shown = (value: number) => String(Math.round(value * 1000) / 1000);
-
-/** An output in words, such as "power 0.5", "position 0.3" or "1200 ticks at power 0.8". */
-export function describeOutput(output: Output): string {
-  switch (output.kind) {
-    case "power": return `power ${shown(output.value)}`;
-    case "position": return `position ${shown(output.value)}`;
-    case "target": return `${Math.round(output.ticks)} ticks at power ${shown(output.power)}`;
-  }
-}
-
-/** A device action in words, such as "intake: power 0.5", or what is still to choose. */
-export function describeDeviceStep(step: DeviceStep): string {
-  const name = step.device.trim();
-  return name ? `${name}: ${describeOutput(step.output)}` : `Choose a ${deviceKindLabel(step.deviceKind)}`;
-}
-
 /** Where a project uses a device: one of a mechanism's devices, or an action in an autonomous routine. */
 export type DeviceUse =
   | { kind: DeviceKind; subsystem: Subsystem; deviceId: string }

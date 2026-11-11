@@ -87,10 +87,12 @@ public class GeneratedCodeSimulationTest {
     }
 
     @Test
-    public void directDeviceActionsFollowTheHardwareList() throws Exception {
+    public void directDeviceActionsFollowTheHardwareListAndTheirDurations() throws Exception {
         AtomicReference<Double> intakePeak = new AtomicReference<>(0.0);
         AtomicReference<Double> spinnerPeak = new AtomicReference<>(0.0);
-        AtomicReference<Double> kicker = new AtomicReference<>(Double.NaN);
+        AtomicReference<Double> spinnerLast = new AtomicReference<>(Double.NaN);
+        AtomicBoolean kickerOut = new AtomicBoolean();
+        AtomicReference<Double> kickerLast = new AtomicReference<>(Double.NaN);
         AtomicInteger liftHighest = new AtomicInteger();
         HeadlessRun.Result result = HeadlessRun.of(DirectAuto.class).seconds(6).during(simulation -> {
             MotorState intake = simulation.hardware().motor("intake");
@@ -98,8 +100,15 @@ public class GeneratedCodeSimulationTest {
             MotorState lift = simulation.hardware().motor("lift");
             if (lift != null) liftHighest.accumulateAndGet(lift.currentPosition(), Math::max);
             for (ServoState servo : simulation.hardware().servos()) {
-                if (servo.name.equals("spinner")) spinnerPeak.accumulateAndGet(Math.abs(servo.power()), Math::max);
-                if (servo.name.equals("kicker") && !Double.isNaN(servo.position())) kicker.set(servo.physicalPosition());
+                if (servo.name.equals("spinner")) {
+                    spinnerPeak.accumulateAndGet(Math.abs(servo.power()), Math::max);
+                    spinnerLast.set(servo.power());
+                }
+                if (servo.name.equals("kicker") && !Double.isNaN(servo.position())) {
+                    // The kicker is reversed, so 0.6 reads 0.4 at the servo, and 0.2 reads 0.8.
+                    if (Math.abs(servo.physicalPosition() - 0.4) < 1e-9) kickerOut.set(true);
+                    kickerLast.set(servo.physicalPosition());
+                }
             }
         }).run();
         assertNull(String.valueOf(result.failure), result.failure);
@@ -107,8 +116,12 @@ public class GeneratedCodeSimulationTest {
         // The hardware list's power limits: 0.9 asked of the intake runs at 0.7, and 1 asked of the spinner at 0.5.
         assertEquals(0.7, intakePeak.get(), 1e-9);
         assertEquals(0.5, spinnerPeak.get(), 1e-9);
-        // The reversed lift still reaches its encoder target, and the reversed kicker's position is mirrored.
+        // The reversed lift still reaches its encoder target.
         assertEquals(1200, liftHighest.get(), 30);
-        assertEquals(0.4, kicker.get(), 1e-9);
+        // Timed actions end in their "then": the spinner stops, the kicker goes to 0.2, and the roller to STOP.
+        assertEquals(0.0, spinnerLast.get(), 1e-9);
+        assertTrue("the kicker went out to 0.6: " + result, kickerOut.get());
+        assertEquals(0.8, kickerLast.get(), 1e-9);
+        assertTrue(result.toString(), result.telemetry.contains("Roller : STOP"));
     }
 }

@@ -412,7 +412,8 @@ function autonomousSource(
   subsystems: Map<string, SubsystemNames>,
   constants: Constants,
 ): string {
-  const members = new NameScope([...OPMODE_MEMBERS, className, "routineStartedNanos", "reportRoutineCompletion", "ROUTINE_REVISION"]);
+  // `ended` is the parameter of a timed action's end handler, so no field may take it.
+  const members = new NameScope([...OPMODE_MEMBERS, className, "routineStartedNanos", "reportRoutineCompletion", "ROUTINE_REVISION", "ended"]);
   const statics = new Set<string>(["com.pedropathing.ivy.commands.Commands.instant", "com.pedropathing.ivy.groups.Groups.sequential"]);
   const regular = new Set<string>([
     "com.pedropathing.api.PoseFactory",
@@ -468,18 +469,21 @@ function autonomousSource(
 
   // Devices the routine sets directly are fields of the OpMode, set up the way mechanisms set up theirs.
   const direct = new Map<string, { kind: DeviceKind; field: string; targets: boolean }>();
+  let untimedTargets = false;
   const collectDevices = (steps: Step[]) => steps.forEach((step) => {
     if (step.kind === "device") {
       const name = step.device.trim();
       const known = direct.get(name);
       if (known) known.targets ||= step.output.kind === "target";
       else direct.set(name, { kind: step.deviceKind, field: members.claim(camelCase(name, step.deviceKind)), targets: step.output.kind === "target" });
+      untimedTargets ||= step.output.kind === "target" && !step.duration;
     }
     if (step.kind === "together" || step.kind === "race") collectDevices(step.steps);
   });
   collectDevices(program.routine);
   const directDevices = [...direct.entries()].map(([name, device]) => ({ name, ...device, settings: hardwareEntry(project.robot, name) }));
-  const runToTarget = directDevices.some((device) => device.targets) ? members.claim("runToTarget") : null;
+  // A target without a duration finishes when the motor gets there, which this helper waits for.
+  const runToTarget = untimedTargets ? members.claim("runToTarget") : null;
   for (const device of directDevices) regular.add(`com.qualcomm.robotcore.hardware.${DEVICE_CLASS[device.kind]}`);
   if (directDevices.some((device) => device.settings?.reversed && device.kind !== "servo")) regular.add("com.qualcomm.robotcore.hardware.DcMotorSimple");
   if (runToTarget) regular.add("com.qualcomm.robotcore.hardware.DcMotor");
@@ -520,6 +524,14 @@ function autonomousSource(
   }
 
   const methodByPath = new Map(paths.map((item) => [item.doc.id, item.method]));
+  /**
+   * A timed action: `set` at once, hold for `ms`, then `then` as the wait ends. Ivy runs a command's end
+   * handler however it ends, so `then` also happens when a race cuts the action short.
+   */
+  const timed = (set: string, ms: number, then: string) => {
+    statics.add("com.pedropathing.ivy.commands.Commands.waitMs");
+    return ["sequential(", `    instant(() -> ${set}),`, `    waitMs(${javaNumber(ms)}).setEnd(ended -> ${then})`, ")"];
+  };
   /** Lines for one step, indented relative to the step itself. */
   const stepLines = (step: Step): string[] | null => {
     switch (step.kind) {
@@ -531,20 +543,31 @@ function autonomousSource(
         return [`waitMs(${javaNumber(step.ms)})`];
       case "state": {
         const names = subsystems.get(step.subsystemId)!;
-        return [`${mechanismFields.get(step.subsystemId)}.command(${names.className}.State.${names.states.get(step.stateId)})`];
+        const field = mechanismFields.get(step.subsystemId);
+        const state = (stateId: string) => `${names.className}.State.${names.states.get(stateId)}`;
+        if (step.duration) return timed(`${field}.set(${state(step.stateId)})`, step.duration.ms, `${field}.set(${state(step.duration.thenStateId)})`);
+        return [`${field}.command(${state(step.stateId)})`];
       }
       case "device": {
         const name = step.device.trim();
-        const device = direct.get(name)!;
+        const { field, targets } = direct.get(name)!;
         const output = step.output;
-        if (output.kind === "position") return [`instant(() -> ${device.field}.setPosition(${javaNumber(output.value)}))`];
+        const after = step.duration && (step.deviceKind === "servo" ? `${field}.setPosition(${javaNumber(step.duration.thenPosition ?? 0)})` : `${field}.setPower(0)`);
+        if (output.kind === "position") {
+          const set = `${field}.setPosition(${javaNumber(output.value)})`;
+          return step.duration ? timed(set, step.duration.ms, after!) : [`instant(() -> ${set})`];
+        }
         const power = limitedPower(project.robot, name, output.kind === "power" ? output.value : output.power);
         const value = `${power.value}${power.note ? ` /* ${power.note} */` : ""}`;
-        if (output.kind === "target") return [`${runToTarget}(${device.field}, ${Math.round(output.ticks)}, ${value})`];
+        if (output.kind === "target") {
+          if (!step.duration) return [`${runToTarget}(${field}, ${Math.round(output.ticks)}, ${value})`];
+          // Timed, the motor heads for its target for the whole time, whether or not it gets there.
+          const set = `{ ${field}.setTargetPosition(${Math.round(output.ticks)}); ${field}.setMode(DcMotor.RunMode.RUN_TO_POSITION); ${field}.setPower(${value}); }`;
+          return timed(set, step.duration.ms, after!);
+        }
         // A motor that also takes targets runs on its encoder; power alone needs it back in its normal mode.
-        return [device.targets
-          ? `instant(() -> { ${device.field}.setMode(DcMotor.RunMode.RUN_USING_ENCODER); ${device.field}.setPower(${value}); })`
-          : `instant(() -> ${device.field}.setPower(${value}))`];
+        const set = targets ? `{ ${field}.setMode(DcMotor.RunMode.RUN_USING_ENCODER); ${field}.setPower(${value}); }` : `${field}.setPower(${value})`;
+        return step.duration ? timed(set, step.duration.ms, after!) : [`instant(() -> ${set})`];
       }
       case "together":
       case "race": {

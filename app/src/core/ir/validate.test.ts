@@ -345,3 +345,35 @@ describe("devices set directly, and the hardware list", () => {
     expect(describeLocation(project, { robot: true, hardware: "claw" })).toBe(`Robot hardware "claw"`);
   });
 });
+
+describe("timed actions", () => {
+  it("asks for the state after, and warns about actions longer than the autonomous period", () => {
+    const project = createProject("Timed");
+    project.subsystems.push({ id: "m", name: "Intake", initialStateId: null, devices: [{ id: "d", name: "intake", kind: "motor" }], states: [
+      { id: "in", name: "In", outputs: { d: { kind: "power", value: 1 } } },
+    ] });
+    const auto = createAutonomous("Auto");
+    auto.routine = [
+      { id: "a", kind: "state", subsystemId: "m", stateId: "in", duration: { ms: 2000, thenStateId: "" } },
+      { id: "b", kind: "state", subsystemId: "m", stateId: "in", duration: { ms: 2000, thenStateId: "gone" } },
+      { id: "c", kind: "device", device: "spinner", deviceKind: "crservo", output: { kind: "power", value: 1 }, duration: { ms: 31_000 } },
+    ];
+    project.programs.push(auto);
+    const found = validateProject(project).filter((item) => item.code === "step.state.then" || item.code === "step.duration.long");
+    expect(found.map((item) => [item.severity, item.location.stepId, item.message])).toEqual([
+      ["error", "a", `Choose the state "Intake" goes to after 2.0 s.`],
+      ["error", "b", `After 2.0 s, this action sets a state that "Intake" no longer has.`],
+      ["warning", "c", "This action lasts longer than the 30 second autonomous period."],
+    ]);
+  });
+
+  it("refuses a duration of zero, and names the field in the save error", () => {
+    const project = createProject("Zero");
+    const auto = createAutonomous("Auto");
+    auto.routine = [{ id: "a", kind: "device", device: "intake", deviceKind: "motor", output: { kind: "power", value: 1 }, duration: { ms: 0 } }];
+    project.programs.push(auto);
+    const result = safeParseProject(project);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe(`"Auto", action 1: the duration must be above 0.`);
+  });
+});
