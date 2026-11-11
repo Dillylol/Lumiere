@@ -1,9 +1,9 @@
 # Release progress
 
 Updated 2026-11-11. This record separates what has been verified locally from what still waits on hardware,
-continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.0 and 0.3.1 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack.
+continuous integration, or release decisions. Versions 0.1.1, 0.1.2, 0.2.0, 0.3.0, 0.3.1 and 0.4.0 are released at github.com/Dillylol/Lumiere, with the robot library on JitPack.
 
-## Unreleased (0.4.0)
+## Version 0.4.0
 
 - **One hardware list, with each device's settings.** The Robot page lists every motor, servo and continuous servo: the ones the robot reported, the ones the project uses, and ones added by name before the robot is scanned. Each has its direction, a **power limit** (motors and continuous servos; unset means 1) and, for motors that take encoder targets, a **travel range**. Every use of a device follows them.
   - **Pedro Pathing's devices** stay out of the list, in their own tables. A motor on a dead wheel's port stays in it, with a note that it takes power, not targets.
